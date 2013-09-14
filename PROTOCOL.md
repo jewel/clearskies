@@ -135,7 +135,8 @@ broadcast contains the following JSON payload (newlines have been added for legi
 ```json
 {
   "name": "ClearSkiesBroadcast",
-  "share": 22596363b3de40b06f981fb85d82312e8c0ed511,
+  "version": 1,
+  "share": "22596363b3de40b06f981fb85d82312e8c0ed511",
   "myport": 40121
 }
 ```
@@ -246,7 +247,7 @@ encryption section for an explanation of public IDs.)  Here is an example
   "software": "beetlebox 0.3.7",
   "protocol": 1,
   "features": [],
-  "share": 22596363b3de40b06f981fb85d82312e8c0ed511
+  "share": "22596363b3de40b06f981fb85d82312e8c0ed511"
 }
 ```
 
