@@ -6,6 +6,7 @@ inspired by BitTorrent Sync.  It is not compatible with btsync but a client
 could potentially implement both protocols.  It is a friend-to-friend protocol
 as opposed to a peer-to-peer protocol.
 
+
 License
 -------
 
@@ -25,7 +26,7 @@ OpenSSL.
 This key is known as the read-write key.  The human-sharable version of this
 key is prefixed with "CSW" and the key itself is encoded with base32 (see
 the later for a precise definition).  Finally, a LUN check digit is added,
-using the (LUN mod N algorithm)[http://en.wikipedia.org/wiki/Luhn_mod_N_algorithm].
+using the [LUN mod N algorithm](http://en.wikipedia.org/wiki/Luhn_mod_N_algorithm).
 
 The SHA1 of the original 160-bit encryption key is the read-only key.  The
 base32 version of this key is prefixed with an 'CSR'.
@@ -76,12 +77,13 @@ The share ID and listening port are used to make a request to the tracker:
 The response must have the content-type of application/json and will have a
 JSON body like the following (newlines have been added for clarity):
 
-    {
-       "success":true,
-       "your_ip":"192.169.0.1",
-       "others":["128.1.2.3:40321"],
-       "ttl":3600
-    }
+```json
+{
+   "your_ip": "192.169.0.1",
+   "others": ["128.1.2.3:40321"],
+   "ttl": 3600
+}
+```
 
 The TTL is a number of seconds until the client should register again.
 
@@ -114,12 +116,14 @@ alive.
 
 A complete response might look like:
 
-    {"success":true,"your_ip":"192.169.0.1","others":["128.1.2.3:40321"],"ttl":3600,"timeout":120}
-    {}
-    {}
-    {"others":["128.1.2.3:40321","99.1.2.4:41234"]}
-    {}
-    {}
+```json
+{"success":true,"your_ip":"192.169.0.1","others":["128.1.2.3:40321"],"ttl":3600,"timeout":120}
+{}
+{}
+{"others":["128.1.2.3:40321","99.1.2.4:41234"]}
+{}
+{}
+```
 
 
 LAN Broadcast
@@ -128,11 +132,13 @@ LAN Broadcast
 Peers are discovered on the LAN by a UDP broadcast to port 60106.  The
 broadcast contains the following JSON payload (newlines have been added for legibility):
 
-   {
-     "name": "ClearSkiesBroadcast",
-     "share": 22596363b3de40b06f981fb85d82312e8c0ed511,
-     "myport": 40121
-   }
+```json
+{
+  "name": "ClearSkiesBroadcast",
+  "share": 22596363b3de40b06f981fb85d82312e8c0ed511,
+  "myport": 40121
+}
+```
 
 Broadcast should be on startup, when a new share is added, when a new network
 connection is detected, and every few minutes afterwards.
@@ -170,7 +176,9 @@ The object will have a "_type" key, which will identify the type of message.
 
 For example:
 
-    {"_type":"foo","arg":"Basic example message"}
+```json
+{"_type":"foo","arg":"Basic example message"}
+```
 
 To simplify implementations, messages are asynchronous (no immediate response
 is required).  The protocol is almost entirely stateless.  For backwards
@@ -184,8 +192,10 @@ the binary payload will be followed by a newline.
 
 For example:
 
-    12042!{"_type":"filedata","path":"photos/baby.jpg"}
-    JFIF..JdXNgc...8kTh  X gcqlh8kThJdXNg..lh8kThJd...cq.h8k...
+```
+12042!{"_type":"filedata","path":"photos/baby.jpg"}
+JFIF..JdXNgc...8kTh  X gcqlh8kThJdXNg..lh8kThJd...cq.h8k...
+```
 
 As a rule, the receiver of file data should always be the one to request it.
 It should never be opportunistically pushed.  This allows clients to stream
@@ -215,12 +225,14 @@ should start with a period and then a unique prefix (similar to Java).
 Here is an example message.  Newlines have been added for legibility, but they
 would not be legal to send over the wire.
 
-    {
-      "_type": "greeting",
-      "software": "bitbox 0.1",
-      "protocol": [1],
-      "features": ["gzip", ".com.github.jewel.messaging"]
-    }
+```json
+{
+  "_type": "greeting",
+  "software": "bitbox 0.1",
+  "protocol": [1],
+  "features": ["gzip", ".com.github.jewel.messaging"]
+}
+```
 
 The client will examine the greeting and decide which protocol version and
 features it has in common with the server.  It will then respond with a start
@@ -228,20 +240,24 @@ message, which asks for a particular share by the share's public ID.  (See the
 encryption section for an explanation of public IDs.)  Here is an example
 "start" message.
 
-    {
-      "_type": "start",
-      "software": "beetlebox 0.3.7",
-      "protocol": 1,
-      "features": [],
-      "share": 22596363b3de40b06f981fb85d82312e8c0ed511
-    }
+```json
+{
+  "_type": "start",
+  "software": "beetlebox 0.3.7",
+  "protocol": 1,
+  "features": [],
+  "share": 22596363b3de40b06f981fb85d82312e8c0ed511
+}
+```
 
 If the server does not recognize this share, it will send back an
 "no-such-share" message, and close the connection:
 
-    {
-      "_type": "no_such_share"
-    }
+```json
+{
+  "_type": "no_such_share"
+}
+```
 
 If the server does recognize the share, all future messages will be encrypted.
 
