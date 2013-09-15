@@ -1,10 +1,13 @@
-ClearSkies Protocol v1
-======================
+ClearSkies Protocol v1 Draft
+=========================
 
 The ClearSkies protocol is a two-way directory synchronization protocol,
 inspired by BitTorrent Sync.  It is not compatible with btsync but a client
 could potentially implement both protocols.  It is a friend-to-friend protocol
 as opposed to a peer-to-peer protocol.
+
+This is a draft of the version 1 protocol and is subject to breaking changes
+when necessary.
 
 
 License
@@ -70,12 +73,12 @@ Note that both peers should register themselves immediately with the tracker,
 and re-registration should happen if the local IP address changes, or after the
 TTL period has expired of the registration.
 
-The share ID and listening port are used to make a request to the tracker:
+The share ID and listening port are used to make a GEt request to the tracker:
 
-    GET http://tracker.example.com/clearskies/track?id=22596363b3de40b06f981fb85d82312e8c0ed511&myport=30020
+    http://tracker.example.com/clearskies/track?id=22596363b3de40b06f981fb85d82312e8c0ed511&myport=30020
 
 The response must have the content-type of application/json and will have a
-JSON body like the following (newlines have been added for clarity):
+JSON body like the following (whitespace has been added for clarity):
 
 ```json
 {
@@ -130,7 +133,7 @@ LAN Broadcast
 -------------
 
 Peers are discovered on the LAN by a UDP broadcast to port 60106.  The
-broadcast contains the following JSON payload (newlines have been added for legibility):
+broadcast contains the following JSON payload (whitespace has been added for legibility):
 
 ```json
 {
@@ -149,7 +152,10 @@ Distributed Hash Table
 ----------------------
 
 One connected to a peer, a global DHT can be used to find more peers.  The DHT
-contains the share -> 
+contains a mapping from share ID to peer address.
+
+Future updates to protocol version 1 will include the DHT mechanism.
+
 
 Firewall transversal
 --------------------
@@ -158,8 +164,8 @@ There is no standard port number on which to listen.
 
 Clients support UPnP to make sure that its listening port is open to the world.
 
-Future updates to protocol version 1 will include a method for communicating
-over UDP.
+Future updates to the protocol will include a method for communicating over
+UDP.
 
 
 Wire protocol
@@ -173,12 +179,12 @@ newlines are allowed within the JSON representation.  (Note that JSON encodes
 newlines in strings as "\n", so there is no need to worry about cleaning out
 newlines within the object.)
 
-The object will have a "_type" key, which will identify the type of message.
+The object will have a "type" key, which will identify the type of message.
 
 For example:
 
 ```json
-{"_type":"foo","arg":"Basic example message"}
+{"type":"foo","arg":"Basic example message"}
 ```
 
 To simplify implementations, messages are asynchronous (no immediate response
@@ -194,7 +200,7 @@ the binary payload will be followed by a newline.
 For example:
 
 ```
-12042!{"_type":"filedata","path":"photos/baby.jpg"}
+12042!{"type":"filedata","path":"photos/baby.jpg"}
 JFIF..JdXNgc...8kTh  X gcqlh8kThJdXNg..lh8kThJd...cq.h8k...
 ```
 
@@ -217,18 +223,19 @@ that lists all the protocol versions it supports, as well as an optional
 feature list.  The protocol version is an integer.  The features are strings.
 
 The current protocol version is 1.  Future improvements to version 1 will be
-done in a backwards compatible way.  Version 2 is not compatible with version 1
-clients.  Clients do not need to support more than one version.
+done in a backwards compatible way.  Version 2 will not be compatible with
+version 1.
 
 Officially supported features will be documented here.  Unofficial features
 should start with a period and then a unique prefix (similar to Java).
+Unofficial messages should prefix the "type" key with its unique prefix.
 
-Here is an example message.  Newlines have been added for legibility, but they
-would not be legal to send over the wire.
+The first message is the "greeting" type.  Newlines have been added for
+legibility, but they would not be legal to send over the wire.
 
 ```json
 {
-  "_type": "greeting",
+  "type": "greeting",
   "software": "bitbox 0.1",
   "protocol": [1],
   "features": ["gzip", ".com.github.jewel.messaging"]
@@ -243,33 +250,116 @@ encryption section for an explanation of public IDs.)  Here is an example
 
 ```json
 {
-  "_type": "start",
+  "type": "start",
   "software": "beetlebox 0.3.7",
   "protocol": 1,
   "features": [],
-  "share": "22596363b3de40b06f981fb85d82312e8c0ed511"
+  "share": "22596363b3de40b06f981fb85d82312e8c0ed511",
+  "mode": "read-only"
 }
 ```
 
+The "mode" key is one of "read_only" and "read_write".
+
 If the server does not recognize this share, it will send back an
-"no-such-share" message, and close the connection:
+"no_such_share" message, and close the connection:
 
 ```json
 {
-  "_type": "no_such_share"
+  "type": "no_such_share"
 }
 ```
 
-If the server does recognize the share, all future messages will be encrypted.
+From this point forward all messages will be encrypted.
 
 
 Connection encryption
 ---------------------
 
-Encryption is 128-bit AES in CBC mode.  The key is the first 128 bits of the
-160-bit read-only secret.  Note that even for read-write shares, the read-only
-key is used, as the read-only key can be derived from the read-write key.
+The connection is encrypted with with TLS_DHE_PSK_WITH_AES_128_CBC_SHA from
+[RFC 4279](http://tools.ietf.org/html/rfc4279).  Protocol version 1 only
+supports this mode.  The key used will depend on the "mode" the client asks
+for.
 
+Both peers send a message through the connection divulging more information
+about themselves for diagnostic purposes:
+
+{
+  "type": "identity",
+  "name": "Jaren's Laptop",
+  "id": "6f5902ac237024bdd0c176cb93063dc4"
+}
+
+
+File tree representation
+------------------------
+
+The entire shared directory should be scanned and an in-memory view of the
+tree should be created, with the following elements for each file:
+
+ * relative path from inside the share, with no leading slash
+ * file size in bytes
+ * mtime
+ * sha1 of file contents
+
+The "mtime" is the number of seconds since the unix epoch since the file
+contents were last modified.
+
+The SHA1 of the file contents should be cached in a local database for
+performance reasons, and only needs to be updated with the file size, mtime, or
+path changes.
+
+Windows clients must translate all "\" path delimiters to "/", and must use a
+reversible encoding for characters that are valid in paths on unix but not on
+windows, such as '\', '/', ':', '*', '?', '"', '<', '>', '|'.  The suggested
+encoding is to use URL encoding with the percent character, followed by two hex
+digits.  This should only be done for these characters and should only be
+reversed for these characters.
+
+A SHA1 hash of the file tree needs to be made of the entire file tree, which is
+why all systems must handle files in a consistent manner.  The list of files is
+sort alphanumerically (the byte representations of the paths should be sent in
+UTF8 order) then hashed in the following order, separated by null bytes.
+
+* file path as UTF8 string
+* file size as ASCII integer
+* mtime as ASCII integer
+* SHA1 hash as hexidecimal string, all lowercase
+
+
+File tree synchronization
+-------------------------
+
+In the remainder of the protocol documentation, "server" and "client" has a
+different meaning if one of the peers has a read-write copy of the share and
+the other has a read-only copy of the share.  In that case, "server" always
+refers to the read-write copy and "client" to the read-only copy.  In all other
+cases, "server" and "client" refer to the TCP connection initiator and
+receiver.
+
+One an encrypted connection is established, both peers work towards
+establishing a canonical view of the entire directory tree and associated
+metadata.  To do this, first a quick check is done to see if the client already
+has a correct version of the tree.  The client does this by sending the SHA1 of
+the entire tree (the generation of the SHA1 is explained in the previous
+section) in a message like this:
+
+```json
+{
+  "type": "directory_hash",
+  "hash": "e90f88f8053f4a2c0134f5fd71907fb9c12127b0"
+}
+```
+
+If the hash matches the server, a directory_hash_match message is sent:
+
+```json
+{
+  "type": "directory_hash_match"
+}
+```
+
+If the hash does not match, the server will send the directory 
 
 Base32
 ------
@@ -285,3 +375,16 @@ translate 0 as O.
 Rate limiting
 -------------
 
+Clients should implement rate limiting, as sync is intended as something that
+will run in the background.
+
+
+JSON and Unicode
+----------------
+
+This section will explain any caveats in handling unicode in JSON strings,
+since filenames can contain unicode characters.
+
+
+Rsync Extension
+---------------
