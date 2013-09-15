@@ -1,10 +1,10 @@
 ClearSkies Protocol v1 Draft
 =========================
 
-The ClearSkies protocol is a two-way directory synchronization protocol,
-inspired by BitTorrent Sync.  It is not compatible with btsync but a client
-could potentially implement both protocols.  It is a friend-to-friend protocol
-as opposed to a peer-to-peer protocol.
+The ClearSkies protocol is a two-way (or multi-way) directory synchronization
+protocol, inspired by BitTorrent Sync.  It is not compatible with btsync but a
+client could potentially implement both protocols.  It is a friend-to-friend
+protocol as opposed to a peer-to-peer protocol.
 
 This is a draft of the version 1 protocol and is subject to breaking changes
 when necessary.
@@ -287,8 +287,20 @@ about themselves for diagnostic purposes:
 {
   "type": "identity",
   "name": "Jaren's Laptop",
+  "time": 1379225084,
   "id": "6f5902ac237024bdd0c176cb93063dc4"
 }
+
+The "name" field is a human-friendly identifier for the computer.  The ID is a
+128-bit random ID that should be generated when the software is first
+installed.  If the "id" matches on both computers, they should fail to interact
+and give the user a diagnostic message.  This avoids accidental loopback.
+
+The "time" is a unix timestamp of the current time.  This is sent because the
+conflict resolution relies on an accurate time.  If the difference between the
+times is too great, both clients may notify the user and/or attempt to account
+for the difference in conflict resolution algorithm, at the client's
+disgression.  The clients may also refuse to run.
 
 
 File tree representation
@@ -306,8 +318,9 @@ The "mtime" is the number of seconds since the unix epoch since the file
 contents were last modified.
 
 The SHA1 of the file contents should be cached in a local database for
-performance reasons, and only needs to be updated with the file size, mtime, or
-path changes.
+performance reasons, and should be updated with the file size or mtime changes.
+To keep repositories in sync, files should be removed from the cache
+occasionally to check if they have the same SHA1 hash.
 
 Windows clients must translate all "\" path delimiters to "/", and must use a
 reversible encoding for characters that are valid in paths on unix but not on
@@ -337,29 +350,271 @@ refers to the read-write copy and "client" to the read-only copy.  In all other
 cases, "server" and "client" refer to the TCP connection initiator and
 receiver.
 
+When both clients are read-write or both are read-only, bidirectional
+synchronization takes place.  If one is read-write and one is read-only,
+unidirectional synchronization happens.
+
 One an encrypted connection is established, both peers work towards
 establishing a canonical view of the entire directory tree and associated
 metadata.  To do this, first a quick check is done to see if the client already
-has a correct version of the tree.  The client does this by sending the SHA1 of
-the entire tree (the generation of the SHA1 is explained in the previous
-section) in a message like this:
+has a correct version of the tree.  Both clients send the SHA1 of the entire
+tree (the proper generation of the SHA1 is explained in the previous section)
+in a message.
 
 ```json
 {
-  "type": "directory_hash",
-  "hash": "e90f88f8053f4a2c0134f5fd71907fb9c12127b0"
+  "type": "listing_hash",
+  "sha1": "e90f88f8053f4a2c0134f5fd71907fb9c12127b0",
+  "last_sync": 1379220847
 }
 ```
 
-If the hash matches the server, a directory_hash_match message is sent:
+Note that if a client has just started it may not have a complete picture of
+its directory contents.  It will not send a listing_hash until it has
+completely indexed the files it already has.
+
+If the hashes from both messages match, then the trees are synced and no further
+synchronization is necessary.
+
+If the hash does not match, then the behavior depends on the sync mode.  If it
+is unidirectional (one client is read-only and read-write), only the server
+sends the "listing" message.  Otherwise both client and server send the message
+simultaneously.
+
+The "listing" message contains the full directory tree as well as list of
+deleted files and the time they were deleted.  The full rationale for the need
+for tracking deleted files is explained in a later section.
 
 ```json
 {
-  "type": "directory_hash_match"
+  "type": "listing",
+  "files": [
+    {
+      "path": "photos/img1.jpg",
+      "sha1": "602aba74d093e7893e87c4ba4295021937087bc4",
+      "mtime": 1379220393,
+      "size": 2387629
+    },
+    {
+      "path": "photos/img2.jpg",
+      "sha1": "dbe2e1f6f295102b0b93d991ab4508979aa9433e",
+      "mtime": 1379100421,
+      "size": 6293123
+    }
+  ]
+  "deleted": [
+    {
+      "path": "photos/img3.jpg",
+      "dtime": 1383030498,
+    }
+  ]
 }
 ```
 
-If the hash does not match, the server will send the directory 
+In unidirectional mode, the file tree is now synchronized and the client is
+fully informed as to which files it needs to request.  The rest of this section
+deals with merging the trees in bidirectional mode.
+
+If a conflict arises, the file with the newest time wins.  If both have the
+same time, the largest file wins.  If both have the same time and size, an
+ASCII string comparison (strcmp) of the file hashes should be done and the file
+with the lesser hash wins.
+
+Deleted files win if the dtime (deletion time) is newer than the mtime of the
+file in question.  If both times match, the deletion loses.
+
+Note: Too increase efficiency, clients may cache the correct file listing for
+each known peer so that it does not need to be redetermined on subsequent
+negotiations.
+
+
+Retrieving files
+----------------
+
+Files should be received in a random order so that if many peers are involved
+with the share the files spread as quickly as possible.
+
+If either peer wishes to retrieve the contents of a file, it sends the
+following message:
+
+```json
+{
+  "type": "get",
+  "path": "photos/img1.jpg",
+  "range": [0, 100000]
+}
+```
+
+The "range" parameter is optional and allows the client to request only
+certain bytes from the file.
+
+The other peer responds with the file data.  This will have a binary payload, as explained earlier:
+
+```
+100000!{"type": "file_data","path":"photos/img1.jpg", ... }
+JFIF.123l;jkasaSDFasdfs...
+```
+
+A full look at the JSON payload:
+
+```json
+{
+  "type": "file_data",
+  "path": "photos/img1.jpg",
+  "mtime": 1379223577,
+  "ctime": 1379223570,
+  "mode": 0600,
+  "sha1": "fd5b138f7e42bd28834fb7bf35aa531fbee15d7c"
+}
+```
+
+The message also contains additional metadata so that the file can be recreated
+as closely as possible.  Mode bits can be translated between operating systems
+at the client's discretion.
+
+The sender should verify that the file's mtime hasn't changed since it was last
+added to its database, so that the SHA1 can be updated.  For small files, the
+entire file should be read into memory before being sent, so that the SHA1 can
+be verified.
+
+The receiver should write to a temporary file, perhaps with a ".!clearsky"
+extension until, it has been fully received.  The SHA1 hash should be verified
+before replacing the original file.  On unix systems, rename() should be used
+to overwrite the original file so that it is done atomically.
+
+Remember that the protocol is asynchronous, so clients may issue multiple
+"get" requests so that the responses will be pipelined.  This behavior
+will cause a large speedup on small files when latency is high.
+
+
+File change notification
+------------------------
+
+Files should be monitored for changes.  This can be done with OS hooks, or if
+that is not possible, the directory can be rescanned periodically.
+
+The hash of the file should be regenerated.  If it matches, the mtime should be
+checked one last time to make sure that the file hasn't been written to again
+while waiting for the file.
+
+Notification of a new or changed file looks like this:
+
+```json
+{
+  "type": "replace",
+  "path": "photos/img1.jpg",
+  "sha1": "602aba74d093e7893e87c4ba4295021937087bc4",
+  "mtime": 1379220393,
+  "size": 2387629
+}
+```
+
+Notification of a renamed file looks like this:
+```json
+{
+  "type": "rename",
+  "old_path": "photos/img5.jpg",
+  "path": "photos/img4.jpg",
+  "sha1": "49ef4c1f9273718b2421b2c076f09786ede5982c",
+  "mtime": 1379732734,
+  "size": 2259148
+}
+```
+
+Note that a "rename" is technically a delete and a 
+
+Notification of a deleted file looks like this:
+
+```json
+{
+  "type": "delete",
+  "path": "photos/img3.jpg",
+  "dtime": 1379224548
+}
+
+It is the job of the detector to notice renamed files (by SHA1 hash).  In order
+to accomplish this, a rescan should look at the entire batch of changes before
+sending them to the new client.
+
+The receiver of the files should check the destination file before replacing it
+to see if it has changed.  If so, it should follow the usual conflict
+resolution rules as explained earlier.
+
+
+Deleted files
+-------------
+
+Special care is needed with deleted files to ensure that the user always gets
+expected behavior.
+
+A list of deleted files and the time they were first noticed to be missing must
+be tracked until the file stops being reported by all known clients.
+
+If the exact deletion time is unknown, the oldest possible time it could have
+been deleted is used.  For example, if the client is not running when the file
+is deleted, the time that the last successful scan was started is used.
+Additionally, if a client notices that a file is missing during a scan, it
+should use the start time of the previous scan as the deletion time for that
+file.
+
+
+Consider the following scenarios:
+
+Client A and B both have a file.  Client A deletes it.
+
+Case 1: Both clients are running at that time
+
+Client A notices the file is missing, and notifies B.  B deletes the file.  The
+next time A and B sync reconnect, A notices that B no longer has the file and
+stops tracking it.
+
+Case 2: Only A is running
+
+Client A notices the file is missing and saves the file in its deleted files
+list.  The next time B starts, it is notified of the deleted file during file
+tree synchronization and file is deleted.  The next reconnect the deleted file
+can stop being tracked.
+
+Case 3: Only B is running
+
+When client A is started it notices that the file was deleted.  It sets the
+deletion time to the last time it had seen the file in a scan, which is
+nevertheless newer than the mtime of the time.  It connects to B and the
+deleted file wins in tree sync.  Things then proceed like case 1 and 2.
+
+Case 4: Neither is running
+
+This is identical to case 3.
+
+
+Checking for missing shares
+---------------------------
+
+Each directory should have a hidden .ClearSkiesID file which is not synced but
+is used to check if a drive is not mounted or a removable drive is not present.
+The file should contain the Share ID.  If this file is not present, the client
+should not attempt to do any synchronization, instead showing an error state
+for the share.
+
+
+Archival
+--------
+
+When files are changed or deleted on one peer, the other peer may opt to save
+copies in an archival directory.  If an archive is kept, it is recommended that
+the SHA1 of these files still be tracked so that they can be used for
+deduplication in the future.
+
+Clients may opt to limit the archive to a certain size, or offer a friendly way
+to navigate through the archive.
+
+
+Deduplication
+-------------
+
+The SHA1 hash should be used to avoid requesting duplicate files when already
+present in the local share.  Instead, a copy of the local file should be used.
+
 
 Base32
 ------
@@ -372,13 +627,6 @@ Human input should allow for lowercase letters, and should automatically
 translate 0 as O.
 
 
-Rate limiting
--------------
-
-Clients should implement rate limiting, as sync is intended as something that
-will run in the background.
-
-
 JSON and Unicode
 ----------------
 
@@ -386,5 +634,62 @@ This section will explain any caveats in handling unicode in JSON strings,
 since filenames can contain unicode characters.
 
 
+Subtree copy
+------------
+
+
+Partial checkout
+----------------
+
+
 Rsync Extension
 ---------------
+
+
+Gzip Extension
+--------------
+
+
+Computer resources
+------------------
+
+This section is a set of recommendations for implementors and are not part of
+the protocol.
+
+The period between directory scans should be a multiple of the time it takes to
+do rescans, for example, scans may be done every ten minutes, unless it takes
+more than a minute to run a scan, in which case the scan won't be run until ten
+times the time it took to run the scan.  This guarantees that scanning overhead
+will be less than 10% of system load.
+
+The client should run with low priority.  It should let the user pause sync
+activity.
+
+The client should and give battery users the option to not sync while on
+battery.
+
+Clients should implement rate limiting, as sync is intended as something that
+will run in the background without interfering with normal usage.
+
+Clients should also consider that many ISPs limit the amount of bandwidth that
+can be consumed in a month, and software limits should be used to ensure that
+the cap isn't exceeded.  At a minimum tracking the amount of bandwidth consumed
+can help users determine if they will cause an overage.
+
+The client should debounce files changes so that files that it can stop syncing
+a file that is changed too frequently.
+
+The client should not lock files for reading while syncing them so that the
+user can continue normal operation.
+
+The client should give the users a rough estimate of the amount of time
+remaining to sync a share so that the user can manually transfer files through
+sneakernet if necessary.
+
+Users may be relying on your software to back up important files.  You may want
+to alert the user (on both computers) if the share has not synced with its peer
+if has been longer than certain threshold (perhaps defaulting to a week).
+
+While it is not the designed use case of this protocol, some shares may have
+hundreds or thousands of peers.  In this case it is recommended that
+connections only be made to a few dozen of them, chosen at random.
