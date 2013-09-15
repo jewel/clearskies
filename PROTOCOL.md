@@ -285,12 +285,14 @@ for.
 Both peers send a message through the connection divulging more information
 about themselves for diagnostic purposes:
 
+```json
 {
   "type": "identity",
   "name": "Jaren's Laptop",
   "time": 1379225084,
   "id": "6f5902ac237024bdd0c176cb93063dc4"
 }
+```
 
 The "name" field is a human-friendly identifier for the computer.  The ID is a
 128-bit random ID that should be generated when the software is first
@@ -533,6 +535,7 @@ Notification of a deleted file looks like this:
   "path": "photos/img3.jpg",
   "dtime": 1379224548
 }
+```
 
 It is the job of the detector to notice renamed files (by SHA1 hash).  In order
 to accomplish this, a rescan should look at the entire batch of changes before
