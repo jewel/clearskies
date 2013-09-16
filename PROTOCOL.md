@@ -622,12 +622,22 @@ A random 128-bit AES key is generated for each file, and that key is used to
 encrypt the file.  The key is XOR'd with the first 128-bits of the read-only
 key and stored as the first 8 bytes of the file, followed by the 16-byte IV, followed by the encrypted data, using AES in CTR mode.
 
+Files with the same contents should use the same encryption key, they do not
+need to be encrypted twice.
+
 Filenames are encrypted using the read-only key (FIXME how?).  The sha1 given
 is the sha1 of the encrypted data, including the encryption header.  The size
 given is the size of the file including the header.
 
 "file_data" responses will always include the encryption header as the first 32
 bytes of the binary payload, even for ranged requests.
+
+FIXME: It is too much burden to calculate the sha1 for the listing, so we could
+xor the sha1 with the read-only key.  However, this means that the encrypted
+files cannot be verified locally, nor can a listing for an encrypted directory
+be built from scratch.  I guess we could add the unencrypted sha1 (with xor) to
+the encryption header and add the sha1 of the encrypted data to its footer so
+that the listing could be regenerated.
 
 
 Deleted files
