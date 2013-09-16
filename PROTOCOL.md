@@ -403,9 +403,7 @@ for tracking deleted files is explained in a later section.
       "sha1": "dbe2e1f6f295102b0b93d991ab4508979aa9433e",
       "mtime": 1379100421,
       "size": 6293123
-    }
-  ]
-  "deleted": [
+    },
     {
       "path": "photos/img3.jpg",
       "dtime": 1383030498,
@@ -686,7 +684,7 @@ payload can be sent:
 ```json
 {
   "type": "rsync.signature",
-  "path": "photos/img1.jpg",
+  "path": "photos/img1.jpg"
 }
 ```
 
