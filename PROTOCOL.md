@@ -39,7 +39,7 @@ referred to in this section as 10kSHA1.
 
 Instead of generating a random key, the user may enter a custom passphrase.
 The 10kSHA1 of this passphrase is the read-write key.  Implementations may show
-a passphrase strength meter.
+a passphrase strength meter.  A passphrase cannot start with 'CSW', 'CSR', or 'CSU'.
 
 The 10kSHA1 of the read-write key is the read-only key.  The base32 version of
 this key is prefixed with 'CSR'.
@@ -620,7 +620,8 @@ other nodes with the untrusted key, read-only key, or read-write key.
 
 A random 128-bit AES key is generated for each file, and that key is used to
 encrypt the file.  The key is XOR'd with the first 128-bits of the read-only
-key and stored as the first 8 bytes of the file, followed by the 16-byte IV, followed by the encrypted data, using AES in CTR mode.
+key and stored as the first 8 bytes of the file, followed by the 16-byte IV,
+followed by the encrypted data, using AES in CTR mode.
 
 Files with the same contents should use the same encryption key, they do not
 need to be encrypted twice.
@@ -638,6 +639,10 @@ files cannot be verified locally, nor can a listing for an encrypted directory
 be built from scratch.  I guess we could add the unencrypted sha1 (with xor) to
 the encryption header and add the sha1 of the encrypted data to its footer so
 that the listing could be regenerated.
+
+Instead, why not have the untrusted source store the manifest and then store
+all the files by their SHA sum.  That deduplicates without having to store the
+
 
 
 Deleted files
