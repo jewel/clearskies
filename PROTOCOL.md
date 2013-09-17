@@ -51,7 +51,7 @@ files in different modes, which puts constraints on key length and salting.
 The human-sharable versions of the keys are written with a prefix of
 'CLEARSKY', a letter that represents the key type, 'W' for the read-write key,
 'R' for the read-only key, and 'U' for the untrusted key.  The key data itself
-is then represented as must be represented as base32, as defined in [RFC
+is be represented as base32, as defined in [RFC
 4648](http://tools.ietf.org/html/rfc4648), with the equals-sign padding at the
 end removed.  Finally, a LUN check digit is added, using the [LUN mod N
 algorithm](http://en.wikipedia.org/wiki/Luhn_mod_N_algorithm).
@@ -115,9 +115,12 @@ TTL period has expired of the registration.
 A peer ID is an 128-bit random ID that should be generated when the share is
 first created, and is unique to each peer.
 
-The share ID and listening port are used to make a GET request to the tracker:
+The share ID and listening port are used to make a GET request to the tracker
+(whitespace has been added for clarity):
 
-    http://tracker.example.com/clearskies/track?myport=30020&share=22596363b3de40b06f6f5902ac237024bdd0c176cb93063dc4981fb85d82312e8c0ed511&peer=e139d99b48e6d6ca033195a39eb8d9a1
+    http://tracker.example.com/clearskies/track?myport=30020
+         &peer=e139d99b48e6d6ca033195a39eb8d9a1
+         &share=00df70a2ec5a8bfe4e68d00aba75792b839ea84aa70aa1dd4dfe0e7116e253cc
 
 The response must have the content-type of application/json and will have a
 JSON body like the following (whitespace has been added for clarity):
@@ -236,10 +239,11 @@ is required).  The protocol is almost entirely stateless.  For forward
 compatibility, unsupported message types or extra keys are silently ignored.
 
 A message with a binary data payload is also encoded in JSON, but it is
-prefixed an exclamation point, followed by the number of bytes in ASCII,
-followed by an exclamation point, and then the JSON message as usual, including
-the termination newline.  After the newline, the entire binary payload will be
-sent.  For ease in debugging, the binary payload will be followed by a newline.
+prefixed an exclamation point, followed by the size (in bytes) of the binary
+payload, followed by an exclamation point, and then the JSON message as usual,
+including the termination newline.  After the newline, the entire binary
+payload will be sent.  For ease in debugging, the binary payload will be
+followed by a newline.
 
 For example:
 
@@ -265,7 +269,7 @@ connection, but isn't necessarily the computer where the share was originally
 created.
 
 The handshake negotiates a protocol version as well as optional features, such
-as compression.  When a connection is opened, the server sends a greeting
+as compression.  When a connection is opened, the server sends a "greeting"
 that lists all the protocol versions it supports, as well as an optional
 feature list.  The protocol version is an integer.  The features are strings.
 
@@ -277,8 +281,8 @@ Officially supported features will be documented here.  Unofficial features
 should start with a period and then a unique prefix (similar to Java).
 Unofficial messages should prefix the "type" key with its unique prefix.
 
-The first message is the "greeting" type.  Newlines have been added for
-legibility, but they would not be legal to send over the wire.
+What follows is an example greeting.  (Newlines have been added for legibility,
+but they would not be legal to send over the wire.)
 
 ```json
 {
@@ -303,11 +307,12 @@ encryption section for an explanation of public IDs.)  Here is an example
   "features": [],
   "share": "22596363b3de40b06f981fb85d82312e8c0ed511",
   "peer": "6f5902ac237024bdd0c176cb93063dc4",
-  "key": "read_write"
+  "access": "read_write"
 }
 ```
 
-The "key" key is one of "read_only", "untrusted", and "read_write".
+The "access" mode is one of "read_only", "untrusted", and "read_write", and is
+the highest key that the client supports for this share.
 
 The "peer" field is the node ID explained in the tracker section.  This is used
 to avoid accidental loopback.
@@ -326,18 +331,22 @@ Otherwise it will send back a "starttls" message:
 ```json
 {
   "type": "starttls",
-  "key": "read_only"
+  "peer": "77b8065588ec32f95f598e93db6672ac",
+  "access": "read_only"
 }
 ```
 
-The connection is then encrypted with with TLS_DHE_PSK_WITH_AES_128_CBC_SHA
+The "access" in the starttls response is the greatest common denominator access
+level between the client and server.  The corresponding key is then used by
+both peers as a pre-shared key (PSK) for TLS.
+
+The connection is encrypted with with TLS_DHE_PSK_WITH_AES_128_CBC_SHA
 from [RFC 4279](http://tools.ietf.org/html/rfc4279).  Protocol version 1 only
-supports this mode, not any other modes.  The pre-shared key is the key
-referred to by the "key" note.
+supports this mode, not any other modes.
 
 Once the server sends the "starttls" message, it upgrades the plain-text
 connection to a TLS connection.  Likewise, when the client receives the
-"starttls" message from the server, it upgrades its connection.
+"starttls" message from the server, it upgrades its socket connection.
 
 Both peers send a message through the connection divulging more information
 about themselves for diagnostic purposes:
