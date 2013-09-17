@@ -2,10 +2,9 @@ ClearSkies Protocol v1 Draft
 =========================
 
 The ClearSkies protocol is a two-way (or multi-way) directory synchronization
-protocol, inspired by BitTorrent Sync.  It is not compatible with btsync but a
-software could potentially implement both protocols.  It is a friend-to-friend
-protocol as opposed to a peer-to-peer protocol, meaning that files aren't
-shared with all peers in the network.
+protocol, inspired by BitTorrent Sync.  It is a friend-to-friend protocol as
+opposed to a peer-to-peer protocol, meaning that files aren't shared with all
+peers in the network.
 
 This is a draft of the version 1 protocol and is subject to breaking changes
 when necessary.
@@ -21,53 +20,64 @@ of this protocol are not constrained by the terms of the GPL v3.
 Shared secrets
 ---------------
 
-When a directory is first shared, a 160-bit encryption key is generated.  This
+When a directory is first shared, a 256-bit encryption key is generated.  This
 should not be generated with a psuedo-random number generator (PRNG), but
 should come from a source of cryptographically secure numbers, such as
 "/dev/random" on Linux, CryptGenRandom() on Windows, or RAND_bytes() in
 OpenSSL.
 
-This key is known as the read-write key.  The human-sharable version of this
-key is prefixed with "CSW" and the key itself is encoded with base32 (see
-the later for a precise definition).  Finally, a LUN check digit is added,
-using the [LUN mod N algorithm](http://en.wikipedia.org/wiki/Luhn_mod_N_algorithm).
-
-There are three other keys that are derived from the read-write key.  They are
-derived by taking the SHA1 hash of the key, and then taking the SHA1 of the
-resulting hash.  This is until SHA1 has ran ten thousand times, and will be
-referred to in this section as 10kSHA1.
-
 Instead of generating a random key, the user may enter a custom passphrase.
-The 10kSHA1 of this passphrase is the read-write key.  Implementations may show
-a passphrase strength meter.  A passphrase cannot start with 'CSW', 'CSR', or 'CSU'.
+The SHA256 algorithm is applied twenty million times to generate the 256-bit
+encryption key, meaning SHA256(SHA256(...(SHA256(SHA256("secret")))...)).  Due
+to the nature of the secret sharing mechanism, it is not possible to use a salt
+as is done with with PBKDF2, but someone possessing the key would already have
+access to the files themselves, making the passphrase less valuable.
 
-The 10kSHA1 of the read-write key is the read-only key.  The base32 version of
-this key is prefixed with 'CSR'.
+This key is known as the read-write key, and is an ECC private key.  The
+"public" key for the ECC private key is the read-only key.  Due to the way it
+is used in clearskies, it should not be shared publicly, and will be referred
+to hereafter as the "verification key" when used to verify signatures.
 
-The 10kSHA1 of the read-only key is the untrusted key.  The base32 version of
-this key is prefixed with 'CSU'.
+The read-only key is used as if it were a new private key, to generate a new
+public key, which is the known as the "untrusted key", which is used for
+backups to untrusted hosts.
 
-The 10kSHA1 of the untrusted key is used as the share ID.  This ID is
-represented as hex to avoid users confusing it with a key.
+Finally, the process is repeated once more to create the share ID, which is not
+secret.  In order to avoid confusion, this is never called a "key".
+
+Any one of the three keys can be shared by the user to share the associated
+files in different modes, which puts constraints on key length and salting.
+
+The human-sharable versions of the keys are written with a prefix of
+'CLEARSKY', a letter that represents the key type, 'W' for the read-write key,
+'R' for the read-only key, and 'U' for the untrusted key.  The key data itself
+is then represented as must be represented as base32, as defined in [RFC
+4648](http://tools.ietf.org/html/rfc4648), with the equals-sign padding at the
+end removed.  Finally, a LUN check digit is added, using the [LUN mod N
+algorithm](http://en.wikipedia.org/wiki/Luhn_mod_N_algorithm).
+
+The share ID is represented as hex to avoid confusion, and is not shown to end
+users.
 
 To share a directory with someone the read-only or read-write key is
 shared by some other means (over telephone, in person, by QR code, etc.)
 
-The passphrase can also be shared instead of the read-write key, if desired.
+The passphrase can also be shared instead of the read-write key, if desired, or
+can be committed to memory.
 
 To create an encrypted backup, the "untrusted" key can be shared.  The remote
 host will be given encrypted copies of the files.  The files are encrypted with
 the read-only key.
 
 Untrusted nodes still participate with other peers, including other untrusted
-peers, to spread the data.
+peers, to spread the data, in a manner similar to a cloud server.
 
 
 Key rotation
 ------------
 
 A key for a share can be regenerated at any time.  The new key must be manually
-copied to other computers.
+copied to other peers.
 
 
 Peer discovery
@@ -102,12 +112,12 @@ Note that both peers should register themselves immediately with the tracker,
 and re-registration should happen if the local IP address changes, or after the
 TTL period has expired of the registration.
 
+A peer ID is an 128-bit random ID that should be generated when the share is
+first created, and is unique to each peer.
+
 The share ID and listening port are used to make a GET request to the tracker:
 
-    http://tracker.example.com/clearskies/track?myport=30020&share=22596363b3de40b06f981fb85d82312e8c0ed511&peer=6f5902ac237024bdd0c176cb93063dc4
-
-The "peer" field is an 128-bit random ID that should be generated when the
-share is first created.
+    http://tracker.example.com/clearskies/track?myport=30020&share=22596363b3de40b06f6f5902ac237024bdd0c176cb93063dc4981fb85d82312e8c0ed511&peer=e139d99b48e6d6ca033195a39eb8d9a1
 
 The response must have the content-type of application/json and will have a
 JSON body like the following (whitespace has been added for clarity):
@@ -126,8 +136,6 @@ The "others" key contains a list of all other clients that have registered for
 this share ID, with the client's "peer ID", followed by an @ sign, and then
 peer's IP address.  The IP address can be an IPV4 address, or an IPV6 address
 surrounded in square brackets.
-
-The "features" list is a list of optional features supported by the tracker.
 
 
 Fast tracker
@@ -379,7 +387,7 @@ these characters and should only be reversed for these characters.
 
 A SHA1 hash of the file tree needs to be made of the entire file tree, which is
 why all systems must handle files in a consistent manner.  The list of files is
-sort alphanumerically (the byte representations of the paths should be sent in
+sorted alphanumerically (the byte representations of the paths should be sent in
 UTF8 order) then hashed in the following order, separated by null bytes.
 
 * file path as UTF8 string

@@ -16,15 +16,14 @@ software.
 Core Protocol Features
 ----------------------
 
-* Simple key sharing
-* Optional passphrase
+* Simple key sharing (pre-shared key)
 * Read-write sharing
 * Read-only sharing
 * Encrypted backup sharing to an untrusted peer
 * Encrypted connections
 * Shallow copy (do not sync certain files from peer)
 * Subtree copy (only sync certain directories from peer)
-* Streaming support (load files on demand)
+* Streaming support
 
 
 Core Protocol Extensions
