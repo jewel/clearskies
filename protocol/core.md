@@ -412,12 +412,13 @@ The following fields are tracked for each file:
 
  * "path" - relative path (without a leading slash)
  * "utime" - update time
+ * "id" - a 128-bit file ID, chosen at random, stored as hex
  * "deleted" - deleted boolean
+
  * "size" - file size in bytes
  * "mtime" - last modified time as a unix timestamp
  * "mode" - unix mode bits
  * "sha256" - SHA256 of file contents
- * "id" - a 128-bit file ID, chosen at random, stored as hex
  * "aes128" - a 128-bit encryption key, stored as hex
 
 If a file is deleted, the deleted boolean is set to true.  Any fields listed
@@ -442,8 +443,11 @@ changes.
 
 The aes128 encryption key is only used when sending the file to untrusted
 nodes.  It is predetermined so that all nodes agree on how to encrypt the file.
-It should be not be changed whenever the SHA256 changes, since that way the 
-optional "rsync" extension can still benefit the encrypted files.
+It should be changed whenever the SHA256 changes.
+
+FIXME: The file id and aes128 should match for all files with the same SHA256
+so that we get deduplication to trusted nodes.
+
 
 Windows compatibility
 ---------------------
@@ -516,6 +520,7 @@ is not shown.
       "path": "photos/img3.jpg",
       "utime": 1379489028,
       "deleted": true
+      "id": "ccccf6098c8d99bd6b5472e51c64e0aa",
     }
   ]
 }
@@ -574,7 +579,8 @@ Read-only manifests
 A read-only peer cannot change files but needs to prove to other read-only
 peers that the files it has are genuine.  To do this, it saves the read-write
 manifest and signature to disk whenever it receives it.  The manifest and
-signature should be combined, with a newline separating them.
+signature should be combined, with a newline separating them, and a newline
+after the signature.
 
 It then builds its own manifest from the read-write manifest, called a
 read-only manifest.  When it does not have all the files mentioned in the
@@ -599,7 +605,7 @@ read-write manifest abbreviated with an ellipsis for clarity:
    "peer": "a41f814f0ee8ef695585245621babc69",
    "sources": [
      {
-       "manifest": "{\"type\":\"manifest\",\"peer\":\"489d80...}\nMC4CFQCEvTIi0bTukg9fz++hel4+wTXMdAIVALoBMcgmqHVB7lYpiJIcPGoX9ukC",
+       "manifest": "{\"type\":\"manifest\",\"peer\":\"489d80...}\nMC4CFQCEvTIi0bTukg9fz++hel4+wTXMdAIVALoBMcgmqHVB7lYpiJIcPGoX9ukC\n",
        "bitmask": "Lg=="
      }
    ]
@@ -625,7 +631,10 @@ Retrieving files
 Files should be asked for in a random order so that if many peers are involved
 with the share the files spread as quickly as possible.
 
-If either peer wishes to retrieve the contents of a file, it sends the
+In this section, "client" and "server" are used to denote the peer receiving
+and peer sending the file, respectively.
+
+When the client wishes to retrieve the contents of a file, it sends the
 following message:
 
 ```json
@@ -636,10 +645,12 @@ following message:
 }
 ```
 
-The "range" parameter is optional and allows the peer to request only certain
+The "range" parameter is optional and allows the client to request only certain
 bytes from the file.
 
-The other peer responds with the file data.  This will have a binary payload of the file contents (encoding of the binary payload was explained in an earlier section):
+The server responds with the file data.  This will have a binary payload of
+the file contents (encoding of the binary payload was explained in an earlier
+section):
 
 ```
 !100000!{"type": "file_data","path":"photos/img1.jpg", ... }
@@ -652,29 +663,12 @@ A better look at the JSON above:
 {
   "type": "file_data",
   "path": "photos/img1.jpg",
-  "mtime": 1379223577,
-  "ctime": 1379223570,
-  "mode": "0600",
   "range": [0, 100000]
-  "sha1": "fd5b138f7e42bd28834fb7bf35aa531fbee15d7c"
 }
 ```
 
-The message also contains additional metadata so that the file can be recreated
-as closely as possible.  Mode bits can be translated between operating systems
-at the software's discretion.
-
-Software may choose to create read-only directories, and read-only files, in
-read-only mode, so that a user doesn't make changes that will be immediately be
-overwritten.
-
-The sender should verify that the file's mtime hasn't changed since it was last
-added to its database, so that the SHA1 can be updated.  For small files, the
-entire file should be read into memory before being sent, so that the SHA1 can
-be verified.
-
 The receiver should write to a temporary file, perhaps with a ".!clearsky"
-extension until, it has been fully received.  The SHA1 hash should be verified
+extension, until it has been fully received.  The SHA256 hash should be verified
 before replacing the original file.  On unix systems, rename() should be used
 to overwrite the original file so that it is done atomically.
 
@@ -686,7 +680,8 @@ Remember that the protocol is asynchronous, so software may issue multiple
 "get" requests in order to receive pipelined responses.  Pipelining will cause
 a large speedup when small files are involved and latency is high.
 
-If the client wants to receive multiple files at once, 
+If the client wants to receive multiple files at once, it should open up another
+connection to the peer.
 
 Software may choose to respond to multiple "get" requests out of order.
 
@@ -703,51 +698,77 @@ match, the mtime should be checked one last time to make sure that the file
 hasn't been written to while the hash was being computed.  Peers should then be
 notified of the change.
 
-Change notifications are signed messages.  The
+Change notifications are signed messages.
+
+Read-only peers should append the change notification, and its signature, to
+the stored manifest that it's keeping for each read-write peer.  (Each piece
+should have a newline after it.)
+
+The "utime" for file changes is the current time if OS hooks are being used.
+If it is detected by a file scan, then the mtime should be used if it is before
+the previous time the file was scanned, otherwise the previous scan time should
+be used.  Deleted files should always use the previous scan time as the
+"utime".  (The start time of the previous scan can be used instead of the
+previous scan time for the file in question if desired.)
 
 Notification of a new or changed file looks like this:
 
 ```json
 {
-  "type": "replace",
-  "path": "photos/img1.jpg",
-  "utime": 1379220401,
-  "sha256": "51984a62fa9aa885cfa47e8138449a407ea723be6f9f7a0826507d3d7a35d16b",
-  "mtime": 1379220393.123442,
-  "size": 2387629
+  "type": "update",
+  "file": {
+    "path": "photos/img1.jpg",
+    "utime": 1379220476,
+    "size": 2387629
+    "mtime": 1379220393.518242,
+    "mode": "0664",
+    "sha256": "cf16aec13a8557cab5e5a5185691ab04f32f1e581cf0f8233be72ddeed7e7fc1",
+    "id": "8adbd1cdaa0200747f6f2551ce2e1244",
+    "aes128": "5121f93b5b2fe518fd2b1d33136ddc33",
+  }
 }
 ```
+
+Note that the "file" field makes it possible to differentiate between metadata
+about the file and extensions to the "replace" message itself.
 
 Notification of a deleted file looks like this:
 
 ```json
 {
-  "type": "delete",
-  "path": "photos/img3.jpg",
-  "deleted": 1379224548
+  "type": "update",
+  "file": {
+    "path": "photos/img3.jpg",
+    "utime": 1379224548,
+    "deleted": true,
+    "id": "8adbd1cdaa0200747f6f2551ce2e1244"
+  }
 }
 ```
-
-In addition to deleting the file, the receiving peer should add the file to its
-delete list.  This is explained in greater detail in a later section.
 
 Notification of a moved file looks like this:
 
 ```json
 {
   "type": "move",
-  "old_path": "photos/img5.jpg",
-  "path": "photos/img4.jpg",
-  "sha1": "49ef4c1f9273718b2421b2c076f09786ede5982c",
-  "mtime": 1379732734,
-  "size": 2259148
+  "source": "photos/img5.jpg",
+  "destination": {
+    "path": "photos/img1.jpg",
+    "utime": 1379220476,
+    "size": 2387629
+    "mtime": 1379220393.518242,
+    "mode": "0664",
+    "sha256": "cf16aec13a8557cab5e5a5185691ab04f32f1e581cf0f8233be72ddeed7e7fc1",
+    "id": "8adbd1cdaa0200747f6f2551ce2e1244",
+    "aes128": "5121f93b5b2fe518fd2b1d33136ddc33"
+  }
 }
 ```
 
 Moves should internally be treated as a "delete" and a "replace".  That is to
-say, delete tracking should happen as usual.
+say, an entry for the old path should be kept in the database.
 
-It is the job of the detector to notice moved files (by SHA1 hash).  In order
+It is the job of the detector to notice moved files (by SHA256 hash).  In order
 to accomplish this, a rescan should look at the entire batch of changes before
 sending them to the other peer.  If file change notification support by the OS
 is present, the software may want to delay outgoing changes for a few seconds
@@ -1036,6 +1057,11 @@ sneakernet if necessary.
 Users may be relying on your software to back up important files.  You may want
 to alert the user (on both computers) if the share has not synced with its peer
 if has been longer than certain threshold (perhaps defaulting to a week).
+
+Software may choose to create read-only directories, and read-only files, in
+read-only mode, so that a user doesn't make changes that will be immediately be
+overwritten.  It could detect changes in the read-only directory and warn the
+user that they will not be saved.
 
 While it is not the designed use case of this protocol, some shares may have
 hundreds or thousands of peers.  In this case it is recommended that

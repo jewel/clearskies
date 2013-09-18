@@ -40,8 +40,19 @@ which is then used to overwrite the old file after verification of SHA1 sum, as
 normal.
 
 
+
+FIXME: Is there some extra tracking we can do to make it possible to update
+encrypted files with rsync?  If the file id and encryption key didn't change
+then it would work, (since the files are in CTR mode), but we need to make
+sure that we can support having two files that were originally identical
+diverge.
+
+
 Rsync Listing Extension
 -----------------------
+
+FIXME: This needs to be updated to understand manifests.  Manifests greatly
+simplify this extension.
 
 This is an optional protocol feature.  The official feature string is
 "rsync_tree".  Feature negotiation is covered in the core protocol
