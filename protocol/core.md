@@ -37,10 +37,11 @@ to the nature of the secret sharing mechanism, it is not possible to use a salt
 as is done with with PBKDF2, but someone possessing the key would already have
 access to the files themselves, making the passphrase less valuable.
 
-This key is known as the read-write key, and is an ECC private key.  The
-"public" key for the ECC private key is the read-only key.  Due to the way it
-is used in clearskies, it should not be shared publicly, and will be referred
-to hereafter as the "verification key" when used to verify signatures.
+This key is known as the read-write key, and is an ECC private key, using
+secp256k1.  The "public" key for the ECC private key is the read-only key.  Due
+to the way it is used in clearskies, it should not be shared publicly, and will
+be referred to hereafter as the "verification key" when used to verify
+signatures.
 
 The read-only key is used as if it were a new private key, to generate a new
 public key, which is the known as the "untrusted key", which is used for
@@ -106,7 +107,7 @@ Tracker protocol
 ----------------
 
 The tracker is an HTTP or HTTPS service.  The main tracker service runs at
-tracker.example.com (To be determined).
+tracker.example.com (to be determined).
 
 Software should come with the main tracker service address built-in, and may
 optionally support additional tracker addresses.  Finally, the user should be
@@ -256,12 +257,30 @@ payload will be sent.
 For example:
 
 ```
-!12042!{"type":"file_data","path":"photos/baby.jpg",...}
-JFIF..JdXNgc . 8kTh  X gcqlh8kThJdXNg. lh8kThJd_  cq.h8k...
+!44!{"type":"file_data","path":"test/file.txt",...}
+This is just text, but could be binary data!
 ```
 
 A signed message will be prefixed with a $.  The JSON message is then sent, and
-then on the next line the signature should be included.
+then on the next line the ECDSA signature is given, encoded with base64, and
+followed up with a newline.  The base64 data should not include any newlines.
+
+```
+${"type":"foo","arg":"bar"}
+MC0CFGq+pt0m53OP9eZSndaUtWwKnoJ7AhUAy6ScPi8Kbwe4SJiIvsf9DUFHWKE=
+```
+
+If a message has both a binary payload and a signature, it will start with a
+dollar sign and an exclamation mark, in that order.  The signature does not
+cover binary data, just the JSON message.  Here is the previous example, but
+with binary data added:
+
+```
+$!39!{"type":"foo","arg":"bar"}
+MC0CFGq+pt0m53OP9eZSndaUtWwKnoJ7AhUAy6ScPi8Kbwe4SJiIvsf9DUFHWKE=
+Another example of possibly binary data
+```
+
 
 As a rule, the receiver of file data should always be the one to request it.
 It should never be pushed unrequested.  This allows streaming content and do
@@ -382,47 +401,77 @@ The software may also refuse to participate.
 File tree representation
 ------------------------
 
-The entire shared directory should be scanned and an in-memory view of the
-tree should be created, with the following elements for each file:
+The entire shared directory should be scanned and a database of the tree should
+be created, with the following elements for each file:
 
  * relative path from inside the share, with no leading slash
  * file size in bytes
  * mtime
- * sha1 of file contents
+ * unix mode bits
+ * SHA256 of file contents
+ * a 128-bit file ID, chosen at random
+ * a 128-bit encryption key
 
 The "mtime" is the number of seconds since the unix epoch since the file
 contents were last modified.
 
-The SHA1 of the file contents should be cached in a local database for
-performance reasons, and should be updated with the file size or mtime changes.
-To keep repositories in sync, files should be removed from the cache
-occasionally to check if they have the same SHA1 hash.
+The unix mode bits represent the user, group, and other access modes for the
+file.  This is represented as an octal number, for example "0755".
 
-Software running on the Windows Operating System must translate all "\" path
-delimiters to "/", and must use a reversible encoding for characters that are
-valid in paths on unix but not on windows, such as '\', '/', ':', '*', '?',
-'"', '<', '>', '|'.  The suggested encoding is to use URL encoding with the
-percent character, followed by two hex digits.  This should only be done for
-these characters and should only be reversed for these characters.
+The SHA256 of the file contents should be cached in a local database for
+performance reasons, and should be updated with the file size or mtime changes.
+
+The file ID is used for untrusted nodes.  It should be updated when the SHA256
+changes.
+
+The encryption key is only used when sending the file to untrusted nodes.  It
+is predetermined so that all nodes agree on how to encrypt the file.  It should
+be changed when the SHA256 changes.
+
+Software running on an operating system that doesn't support all the characters
+that unix supports in a filename, such as Microsoft Windows, must ensure
+filenames with special characters are handled properly.  One option is to use a
+reversible encoding for these characters, such as '\', '/', ':', '*', '?', '"',
+'<', '>', '|'.  The suggested encoding is to use URL encoding with the percent
+character, followed by two hex digits.  This should only be done for these
+characters and should only be reversed for these characters.
+
+An alternative for Windows software to path munging is to keep a record of the
+original path in a database and use that path as the name when communicating
+with other systems.
+
+In a similar manner, Windows software should preserve unix mode bits.  A
+read-only file in unix can be mapped to the read-only attribute in Windows.
+Files that originate on Windows should be mapped to mode '0600' by default.
 
 
 File tree synchronization
 -------------------------
 
-In the remainder of the protocol documentation, "server" and "client" has a
-different meaning if one of the peers has a read-write copy of the share and
-the other has a read-only copy of the share.  In that case, "server" always
-refers to the read-write copy and "client" to the read-only copy.  In all other
-cases, "server" and "client" refer to the TCP connection initiator and
-receiver.
+Once an encrypted connection is established, the peers usually ask for each
+other's file tree listing.
 
-When both peers are read-write or both are read-only, bidirectional
-synchronization takes place.  If one is read-write and one is read-only,
-unidirectional synchronization happens.
+A read-write peer has a definitive view of its own files.  A full listing of
+its tree is called a manifest.  A read-write peer will generate a new manifest
+whenever requested by a peer.  The manifest has a version, stored as a 64-bit
+integer, which starts with one and should increase whenever a file changes[1].
+The peer_id is also included, and this is then signed.
 
-Once an encrypted connection is established, both peers work towards
-establishing a canonical view of the entire directory tree and associated
-metadata.  
+The contents of the shared directory can diverge between two read-write peers,
+and stay diverged for a long time.  (Most notably, this happens when a peer
+opts not to sync some files, as in "subtree copies", explained later.)  For
+this reason, each read-write peer has its own manifest.  They do not need to
+store any other manifest, but should store the latest version number that they
+have successfully synced from each peer.
+
+A read-only peer cannot change files, and may only have some of the files in
+the share.  In order to prove to other read-only peers that the files it has are
+genuine, it saves the read-write manifests to disk, as well as their signature.
+It builds its manifest from the read-write manifest, called a read-only
+manifest, which is versioned the same way as the read-write manifest.  When it
+does not have all the files mentioned 
+
+
 
 ```json
 {
@@ -491,6 +540,10 @@ file in question.  If both times match, the deletion loses.
 Note: Too increase efficiency, software may cache the correct file listing for
 each known peer so that it does not need to be redetermined on subsequent
 connections.
+
+[1]: If, somehow, the 64-bit manifest version number overflows, a new peer_id
+must be generated.  Since the version number only need to be incremented by one
+when a file changes, this is not a terribly likely scenario.
 
 
 Retrieving files
