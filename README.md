@@ -37,4 +37,4 @@ Future Extensions
 -----------------
 
 * Media streaming (audio and video)
-* Picture gallery
+* Photo thumbnails

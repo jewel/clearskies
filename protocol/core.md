@@ -6,8 +6,12 @@ protocol, inspired by BitTorrent Sync.  It is a friend-to-friend protocol as
 opposed to a peer-to-peer protocol, meaning that files aren't shared with all
 peers in the network.
 
-This is a draft of the version 1 protocol and is subject to breaking changes
-when necessary.
+
+Draft Status
+------------
+
+This is a draft of the version 1 protocol and is subject to changes as the need
+arises.  The final version will replace this document.
 
 
 License
@@ -178,7 +182,8 @@ LAN Broadcast
 -------------
 
 Peers are discovered on the LAN by a UDP broadcast to port 60106.  The
-broadcast contains the following JSON payload (whitespace has been added for legibility):
+broadcast contains the following JSON payload (whitespace has been added for
+legibility):
 
 ```json
 {
@@ -192,6 +197,8 @@ broadcast contains the following JSON payload (whitespace has been added for leg
 
 Broadcast should be on startup, when a new share is added, when a new network
 connection is detected, and every minute or so afterwards.
+
+A separate packet should be sent for each share.
 
 
 Distributed Hash Table
@@ -218,8 +225,10 @@ UDP.
 Wire protocol
 -------------
 
-The wire protocol is composed of JSON messages, with an extension for handling
-binary data.
+The wire protocol is composed of JSON messages.  Some message types include
+binary data, which is sent as a binary payload after the JSON message, but
+considered part of it.  In a similar manner, some JSON messages are signed, and
+the signature is included after the JSON message.
 
 A normal message is a JSON object on a single line, followed by a newline.  No
 newlines are allowed within the JSON representation.  (Note that JSON encodes
@@ -231,7 +240,7 @@ The object will have a "type" key, which will identify the type of message.
 For example:
 
 ```json
-{"type":"foo","arg":"Basic example message"}
+{"type":"foo","arg1":"Basic example message","arg2":"For great justice"}
 ```
 
 To simplify implementations, messages are asynchronous (no immediate response
@@ -242,8 +251,7 @@ A message with a binary data payload is also encoded in JSON, but it is
 prefixed an exclamation point, followed by the size (in bytes) of the binary
 payload, followed by an exclamation point, and then the JSON message as usual,
 including the termination newline.  After the newline, the entire binary
-payload will be sent.  For ease in debugging, the binary payload will be
-followed by a newline.
+payload will be sent.
 
 For example:
 
@@ -252,12 +260,15 @@ For example:
 JFIF..JdXNgc . 8kTh  X gcqlh8kThJdXNg. lh8kThJd_  cq.h8k...
 ```
 
-As a rule, the receiver of file data should always be the one to request it.
-It should never be opportunistically pushed.  This allows peers to stream
-content and do partial checkouts, as will be explained later.
+A signed message will be prefixed with a $.  The JSON message is then sent, and
+then on the next line the signature should be included.
 
-If a message does not begin with an '{' or an '!', it should be ignored, for
-forwards compatibility.
+As a rule, the receiver of file data should always be the one to request it.
+It should never be pushed unrequested.  This allows streaming content and do
+partial copies, as will be explained in later sections.
+
+If a message does not begin with a, '$', '{' or an '!', it should be ignored,
+for forwards compatibility.
 
 
 Handshake
@@ -394,16 +405,6 @@ valid in paths on unix but not on windows, such as '\', '/', ':', '*', '?',
 percent character, followed by two hex digits.  This should only be done for
 these characters and should only be reversed for these characters.
 
-A SHA1 hash of the file tree needs to be made of the entire file tree, which is
-why all systems must handle files in a consistent manner.  The list of files is
-sorted alphanumerically (the byte representations of the paths should be sent in
-UTF8 order) then hashed in the following order, separated by null bytes.
-
-* file path as UTF8 string
-* file size as ASCII integer
-* mtime as ASCII integer
-* SHA1 hash as hexidecimal string, all lowercase
-
 
 File tree synchronization
 -------------------------
@@ -421,14 +422,11 @@ unidirectional synchronization happens.
 
 Once an encrypted connection is established, both peers work towards
 establishing a canonical view of the entire directory tree and associated
-metadata.  To do this, first a quick check is done to see if the client already
-has a correct version of the tree.  Both peers send the SHA1 of the entire
-tree (the proper generation of the SHA1 is explained in the previous section)
-in a message.
+metadata.  
 
 ```json
 {
-  "type": "listing_hash",
+  "type": "listing_version",
   "sha1": "e90f88f8053f4a2c0134f5fd71907fb9c12127b0",
   "last_sync": 1379220847
 }
@@ -523,7 +521,7 @@ as explained earlier:
 JFIF.123l;jkasaSDFasdfs...
 ```
 
-A full look at the JSON payload:
+A better look at the JSON payload:
 
 ```json
 {
@@ -532,6 +530,7 @@ A full look at the JSON payload:
   "mtime": 1379223577,
   "ctime": 1379223570,
   "mode": "0600",
+  "range": [0, 100000]
   "sha1": "fd5b138f7e42bd28834fb7bf35aa531fbee15d7c"
 }
 ```
@@ -562,6 +561,8 @@ Remember that the protocol is asynchronous, so software may issue multiple
 "get" requests in order to receive pipelined responses.  Pipelining will cause
 a large speedup when small files are involved and latency is high.
 
+If the client wants to receive multiple files at once, 
+
 Software may choose to respond to multiple "get" requests out of order.
 
 
@@ -572,9 +573,10 @@ Files should be monitored for changes on read-write shares.  This can be done
 with OS hooks, or if that is not possible, the directory can be rescanned
 periodically.
 
-The hash of the file should be regenerated.  If it matches, the mtime should be
-checked one last time to make sure that the file hasn't been written to again
-while waiting for the file.
+The hash of the file should be regenerated.  If it doesn't match, the mtime
+should be checked one last time to make sure that the file hasn't been written
+to again while generating the hash of the file before sending notification to
+other peers.
 
 Notification of a new or changed file looks like this:
 
@@ -601,11 +603,11 @@ Notification of a deleted file looks like this:
 In addition to deleting the file, the receiving peer should add the file to its
 delete list.  This is explained in greater detail in a later section.
 
-Notification of a renamed file looks like this:
+Notification of a moved file looks like this:
 
 ```json
 {
-  "type": "rename",
+  "type": "move",
   "old_path": "photos/img5.jpg",
   "path": "photos/img4.jpg",
   "sha1": "49ef4c1f9273718b2421b2c076f09786ede5982c",
@@ -614,14 +616,14 @@ Notification of a renamed file looks like this:
 }
 ```
 
-Renames should internally be treated as a "delete" and a "replace".  That is to
+Moves should internally be treated as a "delete" and a "replace".  That is to
 say, delete tracking should happen as usual.
 
-It is the job of the detector to notice renamed files (by SHA1 hash).  In order
+It is the job of the detector to notice moved files (by SHA1 hash).  In order
 to accomplish this, a rescan should look at the entire batch of changes before
 sending them to the other peer.  If file change notification support by the OS
 is present, the software may want to delay outgoing changes for a few seconds
-to ensure that a delete wasn't really a rename.
+to ensure that a delete wasn't really a move.
 
 File changes notifications should be relayed to other peers once the file has
 been successfully retrieved, assuming the other peers haven't already sent
@@ -657,6 +659,9 @@ be built from scratch.  I guess we could add the unencrypted sha1 (with xor) to
 the encryption header and add the sha1 of the encrypted data to its footer so
 that the listing could be regenerated.
 
+A random amount of padding may be added to the end of each file before the
+footer (up to 3% of its size) to avoid fingerprinting a share.
+
 Instead, why not have the untrusted source store the manifest and then store
 all the files by their SHA sum.  That deduplicates without having to store the
 
@@ -687,7 +692,8 @@ file.
 
 Consider the following scenarios:
 
-Peer A and B both have a file.  Peer A deletes it.
+There are only two peers, operating in read-write mode, peer A and B, which
+both have a file.  Peer A deletes it.
 
 Case 1: Both peers are running at that time
 
@@ -706,12 +712,14 @@ Case 3: Only B is running
 
 When peer A is started it notices that the file was deleted.  It sets the
 deletion time to the last time it had seen the file in a scan, which is
-nevertheless newer than the mtime of the time.  It connects to B and the
+nevertheless newer than the mtime of the file.  It connects to B and the
 deleted file wins in tree sync.  Things then proceed like case 1 and 2.
 
 Case 4: Neither is running
 
 This is identical to case 3.
+
++++ More peers
 
 If there are three peers, then the delete must be tracked by all peers until
 they all know about the deletion.  This avoids the following scenario:
@@ -735,6 +743,17 @@ The existing contents of the directory should not be merged.  However, if a
 file appears with an mtime that is newer than the time the share was added to
 the software, it can be merged.  This allows the user to start work before the
 directory has completely synced.
+
+
+Keepalive
+---------
+
+A message of type "ping" should be sent every minute or so to keep connections
+from being dropped:
+
+```json
+{"type":"ping"}
+```
 
 
 Known issues
@@ -841,134 +860,6 @@ for the server.
 
 As with subtree copies and  the client should keep a cached copy of the metadata
 for the entire tree for efficiency reasons.
-
-
-Rsync Extension
----------------
-
-Official feature string: "rsync".
-
-The rsync extension increases wire efficiency by only transferring the parts of
-files that have changed.
-
-The behavior of the algorithm works similar to the "rdiff" command in unix,
-where the "signature", "delta", and "patch" steps are done separately.
-
-For file transfer, if a local file is already present and a delta is desired,
-instead of issuing a "get" request, a "rsync.signature" request with a binary
-payload can be sent:
-
-```json
-{
-  "type": "rsync.signature",
-  "path": "photos/img1.jpg"
-}
-```
-
-The peer then responds with an "rsync.patch" message, with a binary payload of
-the actual patch generated by the "delta" command:
-
-```json
-{
-  "type": "rsync.patch",
-  "path": "photos/img1.jpg",
-  "mtime": 1379223577,
-  "ctime": 1379223570,
-  "mode": 0600,
-  "sha1": "fd5b138f7e42bd28834fb7bf35aa531fbee15d7c"
-}
-```
-
-The software then uses the patch and the old file to create a temporary file,
-which is then used to overwrite the old file after verification of SHA1 sum, as
-normal.
-
-
-Rsync Listing Extension
------------------------
-
-Official feature string: "rsync_tree".
-
-The rsync algorithm can also used to exchange the directory tree.  The
-"listing_hash" message is exchanged as usual.  Then the rest of the operations
-operate on a textual representation of the keys.  Since JSON does not guarantee
-the order of keys, a different representation is necessary.
-
-The data will be written as text, newline separated, with the following fields
-"path", "sha1", "mtime", "size", in that order.  Once all files have been
-written, an extra newline represents the end of the listing.  Deleted files are
-then listed, with "path" and "dtime" pairs, also newline separated.  A final
-extra newline ends the deleted files list.  Anything after the deleted list
-should be ignored for forwards compatibility.
-
-If a path string contains any bytes outside the range of 0x00-0x7f, or contains
-a newline (character 0x0a), it should be represented as UTF8.  This result is
-then base64 encoded.  If the base64 encoded added newlines, they should be
-removed).  ASCII paths are prefixed with "path:" and base64 paths are prefixed
-with "base64:".
-
-Implementors note: Is it necessary to normalize the strings (using NFD or NFC)
-in order to be compatible with Windows?
-
-Here is an example text representation of a file tree:
-
-```
-path:photos/img1.jpg
-602aba74d093e7893e87c4ba4295021937087bc4
-1379220393
-2387629
-base64:aW1hZ2VzL2VzcGHDsW9s4oCOLmpwZwo=
-dbe2e1f6f295102b0b93d991ab4508979aa9433e
-1379100421
-6293123
-
-path:photos/img3.jpg
-1383030498
-```
-
-Then software first sends a "rsync_tree.signature".  The actual signature is a
-binary payload.
-
-```json
-{
-  "type": "rsync_tree.signature"
-}
-```
-
-The peer responds with a "rsync_tree.patch".  Once again, the patch is a binary
-payload.
-
-```json
-{
-  "type": "rsync_tree.patch"
-}
-```
-
-The software then applies the patch to its representation of the tree that was
-sent originally, and decodes the ASCII representation, and then finally applies
-the conflict resolution algorithm as normal.
-
-Note that in two-way sync that both peers send the initial signature at the
-same time.
-
-
-Gzip Extension
---------------
-
-Official feature string "gzip".
-
-The gzip extension compresses the wire protocol.  It uses the deflate algorithm
-with the zlib header format, as defined in 
-[RFC 1950](http://tools.ietf.org/html/rfc1950).
-
-Once the connection is encrypted all future messages will be compressed.  Each
-message is prefixed by its length in ASCII, followed by a colon, followed by
-the compressed data.
-
-Note: While this message delimitation and encoding method is less efficient
-than is possible, it is quite simple, and the gains from compression will be
-from the larger JSON and binary messages will more than make up for the loss of
-efficiency in small messages.
 
 
 Computer resources
