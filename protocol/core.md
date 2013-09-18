@@ -281,6 +281,8 @@ MC0CFGq+pt0m53OP9eZSndaUtWwKnoJ7AhUAy6ScPi8Kbwe4SJiIvsf9DUFHWKE=
 Another example of possibly binary data
 ```
 
+Most messages are not signed (and no security benefit would be gained from
+signing them).
 
 As a rule, the receiver of file data should always be the one to request it.
 It should never be pushed unrequested.  This allows streaming content and do
@@ -398,22 +400,36 @@ the difference in conflict resolution algorithm, at the software's discretion.
 The software may also refuse to participate.
 
 
-File tree representation
-------------------------
+File tree database
+------------------
 
-The entire shared directory should be scanned and a database of the tree should
-be created, with the following elements for each file:
+Each read-write peer needs to keep a persistent database of all the files in a
+share.  The database has a "version" attribute, which is a double-precision
+floating-point unix timestamp representing the last time anything has changed
+in the database.
 
- * relative path from inside the share, with no leading slash
- * file size in bytes
- * mtime
- * unix mode bits
- * SHA256 of file contents
- * a 128-bit file ID, chosen at random
- * a 128-bit encryption key
+The following fields are tracked for each file:
 
-The "mtime" is the number of seconds since the unix epoch since the file
-contents were last modified.
+ * "path" - relative path (without a leading slash)
+ * "utime" - update time
+ * "deleted" - deleted boolean
+ * "size" - file size in bytes
+ * "mtime" - last modified time as a unix timestamp
+ * "mode" - unix mode bits
+ * "sha256" - SHA256 of file contents
+ * "id" - a 128-bit file ID, chosen at random, stored as hex
+ * "aes128" - a 128-bit encryption key, stored as hex
+
+If a file is deleted, the deleted boolean is set to true.  Any fields listed
+after the deleted field in the list above can be blanked.  The entry for the
+deleted file will persist indefinitely in the database.  An explanation for
+this behavior is in a later section devoted to this topic.
+
+The "mtime" is the integer number of seconds since the unix epoch (normally
+called a unix timestamp) since the file contents were last modified.
+
+The "update time" is the time that the file was last changed, as a unix
+timestamp.  On first scan, this is the time the scan discovered the file.
 
 The unix mode bits represent the user, group, and other access modes for the
 file.  This is represented as an octal number, for example "0755".
@@ -424,132 +440,189 @@ performance reasons, and should be updated with the file size or mtime changes.
 The file ID is used for untrusted nodes.  It should be updated when the SHA256
 changes.
 
-The encryption key is only used when sending the file to untrusted nodes.  It
-is predetermined so that all nodes agree on how to encrypt the file.  It should
-be changed when the SHA256 changes.
+The aes128 encryption key is only used when sending the file to untrusted
+nodes.  It is predetermined so that all nodes agree on how to encrypt the file.
+It should be not be changed whenever the SHA256 changes, since that way the 
+optional "rsync" extension can still benefit the encrypted files.
+
+Windows compatibility
+---------------------
 
 Software running on an operating system that doesn't support all the characters
 that unix supports in a filename, such as Microsoft Windows, must ensure
-filenames with special characters are handled properly.  One option is to use a
-reversible encoding for these characters, such as '\', '/', ':', '*', '?', '"',
-'<', '>', '|'.  The suggested encoding is to use URL encoding with the percent
-character, followed by two hex digits.  This should only be done for these
-characters and should only be reversed for these characters.
-
-An alternative for Windows software to path munging is to keep a record of the
-original path in a database and use that path as the name when communicating
-with other systems.
+filenames with unsupported characters are handled properly, such as '\', '/',
+':', '*', '?', '"', '<', '>', '|'.  The path used on disk can use URL encoding
+for these characters, that is to say the percent character, followed by two hex
+digits.  The software should then keep an additional field that tracks the
+original file path, and continue to interact with other peers as if that were
+the file name on disk.
 
 In a similar manner, Windows software should preserve unix mode bits.  A
 read-only file in unix can be mapped to the read-only attribute in Windows.
 Files that originate on Windows should be mapped to mode '0600' by default.
 
+Finally, Windows should always use '/' as a directory separator when
+communicating with other nodes.
 
-File tree synchronization
--------------------------
+Said another way, software for Windows should pretend to be a node running unix.
+
+
+Read-write manifests
+--------------------
 
 Once an encrypted connection is established, the peers usually ask for each
 other's file tree listing.
 
-A read-write peer has a definitive view of its own files.  A full listing of
-its tree is called a manifest.  A read-write peer will generate a new manifest
-whenever requested by a peer.  The manifest has a version, stored as a 64-bit
-integer, which starts with one and should increase whenever a file changes[1].
-The peer_id is also included, and this is then signed.
+Each access level has its own way of creating file listings.  The file listing
+and a signature are together called a manifest.
 
-The contents of the shared directory can diverge between two read-write peers,
-and stay diverged for a long time.  (Most notably, this happens when a peer
-opts not to sync some files, as in "subtree copies", explained later.)  For
-this reason, each read-write peer has its own manifest.  They do not need to
-store any other manifest, but should store the latest version number that they
-have successfully synced from each peer.
+A read-write peer will generate a new manifest whenever requested by a peer
+from the contents of its database.  It contains the entire contents of the
+database, including the database "version" timestamp.  The file entries should
+be sorted by path.  Its own peer_id is also included.  The entire manifest will be
+signed (using the key-signing mechanism explained earlier) when sent to other
+peers.
 
-A read-only peer cannot change files, and may only have some of the files in
-the share.  In order to prove to other read-only peers that the files it has are
-genuine, it saves the read-write manifests to disk, as well as their signature.
-It builds its manifest from the read-write manifest, called a read-only
-manifest, which is versioned the same way as the read-write manifest.  When it
-does not have all the files mentioned 
-
-
+Here is an example manifest JSON as would be sent over the wire.  The signature
+is not shown.
 
 ```json
 {
-  "type": "listing_version",
-  "sha1": "e90f88f8053f4a2c0134f5fd71907fb9c12127b0",
-  "last_sync": 1379220847
-}
-```
-
-Note that if a peer has just started it may not have a complete picture of its
-directory contents.  It will not send a listing_hash until it has completely
-indexed the files it already has.
-
-Also peers that don't want to update their copy of the listing may elect to
-never send a copy of its hash.
-
-If the hashes from both messages match, then the trees are synced and no further
-synchronization is necessary.
-
-If the hash does not match, then the behavior depends on the sync mode.  If it
-is unidirectional (one peer is read-only and the other read-write), only the
-server sends the "listing" message.  Otherwise both client and server send the
-message simultaneously.
-
-The "listing" message contains the full directory tree as well as list of
-deleted files and the time they were deleted.  The full rationale for the need
-for tracking deleted files is explained in a later section.
-
-```json
-{
-  "type": "listing",
+  "type": "manifest",
+  "peer": "489d80c2f2aba1ff3c7530d0768f5642",
+  "version": 1379487751.581837,
   "files": [
     {
       "path": "photos/img1.jpg",
-      "sha1": "602aba74d093e7893e87c4ba4295021937087bc4",
-      "mtime": 1379220393,
+      "utime": 1379220476,
       "size": 2387629
+      "mtime": 1379220393.518242,
+      "mode": "0664",
+      "sha256": "cf16aec13a8557cab5e5a5185691ab04f32f1e581cf0f8233be72ddeed7e7fc1",
+      "id": "8adbd1cdaa0200747f6f2551ce2e1244",
+      "aes128": "5121f93b5b2fe518fd2b1d33136ddc33",
     },
     {
       "path": "photos/img2.jpg",
-      "sha1": "dbe2e1f6f295102b0b93d991ab4508979aa9433e",
-      "mtime": 1379100421,
+      "utime": 1379220468,
       "size": 6293123
+      "mtime": 1379100421.442491,
+      "mode": "0600",
+      "sha256": "64578d0dc44b088b030ee4b258de316b5cb07fdf42b8d40050fe2635659303ed",
+      "id": "ade5f6098c8d99bd6b5472e51c64e09a",
+      "aes128": "2304bde0b070a0d3ca65c78127f2f189"
     },
     {
       "path": "photos/img3.jpg",
-      "dtime": 1383030498,
+      "utime": 1379489028,
+      "deleted": true
     }
   ]
 }
 ```
 
-In unidirectional mode, the file tree is now synchronized and the client is
-fully informed as to which files it needs to request.
+The contents of the shared directory can diverge between two read-write peers,
+and stay diverged for a long time.  (Most notably, this happens when a peer
+opts not to sync some files, as in "subtree copies", explained later.)  For
+this reason, each read-write peer has its own manifest.
 
-The rest of this section deals with merging the trees in bidirectional mode.
+To request a manifest, a "get_manifest" message is sent.  The message may
+optionally contain the last-synced "version" of the peer's database.
+(Read-write peers are never required to store manifests.)
 
-If a conflict arises, the file with the newest time wins.  If both have the
-same time, the largest file wins.  If both have the same time and size, an
-ASCII string comparison (strcmp) of the file hashes should be done and the file
-with the lesser hash wins.
+```json
+{
+  "type": "get_manifest",
+  "version": 1379489220.149822
+}
+```
 
-Deleted files win if the dtime (deletion time) is newer than the mtime of the
-file in question.  If both times match, the deletion loses.
+If the manifest version matches the current database number, the peer will
+respond with an "manifest_current" message.
 
-Note: Too increase efficiency, software may cache the correct file listing for
-each known peer so that it does not need to be redetermined on subsequent
-connections.
+```json
+{
+  "type": "manifest_current"
+}
+```
 
-[1]: If, somehow, the 64-bit manifest version number overflows, a new peer_id
-must be generated.  Since the version number only need to be incremented by one
-when a file changes, this is not a terribly likely scenario.
+If the "get_manifest" request didn't include a "version" field, or the manifest
+version is not current, the peer should respond with the full signed "manifest"
+message, as explained above.
+
+A peer may elect not to request a manifest, and may also elect to ignore the
+"get_manifest" message.
+
+
+Tree merge algorithm
+--------------------
+
+When two read-write peers are connected, they merge their manifests together in
+memory on a file-by-file basis in what is called tree merging.  A tree merge
+looks at each entry and the one with the latest "utime" field wins.  If the
+"utime" matches, the file with the latest "mtime" wins.  If the "mtime" wins,
+the largest file wins.  If the sizes match, the file with the smallest "sha256"
+wins.
+
+This merged tree is kept in memory and is used to decide which files need to be
+retrieved from the peer.
+
+
+Read-only manifests
+-------------------
+
+A read-only peer cannot change files but needs to prove to other read-only
+peers that the files it has are genuine.  To do this, it saves the read-write
+manifest and signature to disk whenever it receives it.  The manifest and
+signature should be combined, with a newline separating them.
+
+It then builds its own manifest from the read-write manifest, called a
+read-only manifest.  When it does not have all the files mentioned in the
+manifest, it includes a bitmask of the files it has, encoded as base64.
+
+If there are two diverged read-write peers and a single read-only peer, there
+will be multiple read-write manifests to choose from.  The read-only peer will
+add both read-write manifests, with associated bitmasks, to its read-only
+manifest.
+
+Similar to the "version" of the read-write database, read-only clients should
+keep a "version" number that changes only when its files change.  (Since it is
+a read-only, a change would be due to something being changed on a different
+peer.)
+
+The read-only manifests do not need to be signed.  Here is an example, with the
+read-write manifest abbreviated with an ellipsis for clarity:
+
+```json
+{
+   "type": "manifest",
+   "peer": "a41f814f0ee8ef695585245621babc69",
+   "sources": [
+     {
+       "manifest": "{\"type\":\"manifest\",\"peer\":\"489d80...}\nMC4CFQCEvTIi0bTukg9fz++hel4+wTXMdAIVALoBMcgmqHVB7lYpiJIcPGoX9ukC",
+       "bitmask": "Lg=="
+     }
+   ]
+```
+
+Manifest merging
+----------------
+
+When building the read-only manifest from two or more read-write manifests, the
+read-write manifests from each peer should be examined in "version" order,
+newest to oldest.  A manifest should only be included if it contains files that
+the read-only peer actually has on disk.  Once all the files the read-only peer
+has have been represented, it includes no more manifests.
+
+In normal operation where the read-write peers have not diverged, this merging
+strategy means that the read-only manifest will only contain one read-write
+manifest.
 
 
 Retrieving files
 ----------------
 
-Files should be received in a random order so that if many peers are involved
+Files should be asked for in a random order so that if many peers are involved
 with the share the files spread as quickly as possible.
 
 If either peer wishes to retrieve the contents of a file, it sends the
@@ -566,15 +639,14 @@ following message:
 The "range" parameter is optional and allows the peer to request only certain
 bytes from the file.
 
-The other peer responds with the file data.  This will have a binary payload,
-as explained earlier:
+The other peer responds with the file data.  This will have a binary payload of the file contents (encoding of the binary payload was explained in an earlier section):
 
 ```
 !100000!{"type": "file_data","path":"photos/img1.jpg", ... }
 JFIF.123l;jkasaSDFasdfs...
 ```
 
-A better look at the JSON payload:
+A better look at the JSON above:
 
 ```json
 {
@@ -626,10 +698,12 @@ Files should be monitored for changes on read-write shares.  This can be done
 with OS hooks, or if that is not possible, the directory can be rescanned
 periodically.
 
-The hash of the file should be regenerated.  If it doesn't match, the mtime
-should be checked one last time to make sure that the file hasn't been written
-to again while generating the hash of the file before sending notification to
-other peers.
+If it appears a file has changed, the hash should be recomputed.  If it doesn't
+match, the mtime should be checked one last time to make sure that the file
+hasn't been written to while the hash was being computed.  Peers should then be
+notified of the change.
+
+Change notifications are signed messages.  The
 
 Notification of a new or changed file looks like this:
 
@@ -637,8 +711,9 @@ Notification of a new or changed file looks like this:
 {
   "type": "replace",
   "path": "photos/img1.jpg",
-  "sha1": "602aba74d093e7893e87c4ba4295021937087bc4",
-  "mtime": 1379220393,
+  "utime": 1379220401,
+  "sha256": "51984a62fa9aa885cfa47e8138449a407ea723be6f9f7a0826507d3d7a35d16b",
+  "mtime": 1379220393.123442,
   "size": 2387629
 }
 ```
@@ -649,7 +724,7 @@ Notification of a deleted file looks like this:
 {
   "type": "delete",
   "path": "photos/img3.jpg",
-  "dtime": 1379224548
+  "deleted": 1379224548
 }
 ```
 
@@ -815,12 +890,20 @@ Known issues
 If a file is reverted by copying in an old copy from another source, the mtime
 will be older on peers and so it will not be reverted.
 
-A read-only peer has no way of verifying that a peer that claims to be
-read-write is actually read-write, so a malicious peer can change the contents
-of other read-only peers.  This perhaps could be solved by making the
-read-write key an ECC private key, and the read-only key is the public key for
-that read-write key.  This would allow for the file listing and notifications
-to be signed.
+ECC keys are not as well supported as RSA keys, but were chosen because they
+are much shorter therefore practical to share.  The read-only key-generation
+mechanism was chosen because it makes it possible for a read-only key holder to
+verify that a read-write share is legitimate.
+
+Since the group most likely to use clearskies are those who care about security,
+it's probably reasonable to trade a little usability for improved security.
+Instead, we could have the keys be a nonce that just gets a user connected to a
+peer.  Once connected, the RSA keys are exchanged.  This requires some
+bookkeeping by all the peers, as they should keep the list of valid nonces
+synced amongst themselves.
+
+For added security the nonces can be time-limited or single-use, and the GUI
+can let the user revoke a nonce.
 
 
 Checking for missing shares
