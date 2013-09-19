@@ -3,8 +3,8 @@ ClearSkies Protocol v1 Draft
 
 The ClearSkies protocol is a two-way (or multi-way) directory synchronization
 protocol, inspired by BitTorrent Sync.  It is a friend-to-friend protocol as
-opposed to a peer-to-peer protocol, meaning that files aren't shared with all
-peers in the network.
+opposed to a peer-to-peer protocol, meaning that files are only shared with
+computers that are given an access key -- never anonymously.
 
 
 Draft Status
@@ -12,6 +12,11 @@ Draft Status
 
 This is a draft of the version 1 protocol and is subject to changes as the need
 arises.  The final version will replace this document.
+
+If something in this document is ambiguous, the reference implementation may
+be illuminating.
+
+Comments and suggestions are welcome.
 
 
 License
@@ -21,74 +26,132 @@ This protocol documentation is in the public domain.  Private implementations
 of this protocol are not constrained by the terms of the GPL v3.
 
 
-Shared secrets
----------------
+Access Levels
+-------------
 
-When a directory is first shared, a 256-bit encryption key is generated.  This
-should not be generated with a psuedo-random number generator (PRNG), but
-should come from a source of cryptographically secure numbers, such as
+The protocol supports peers of three types:
+
+1. Read-write.  These peers can change or delete any file, and create new
+   files.
+
+2. Read-only.  These peers can read all files, but cannot change them.
+
+3. Untrusted.  These peers receive the files encrypted.  This is intended for
+   backups, but could also be used by a service provider to provide cloud
+   services.
+
+A share can have any number of all three peer types.
+
+All peers can spread data to any other peers.  Said another way, a read-only
+peer does not need to get the data directly from a read-write peer, but can
+receive it from another read-only peer or even an untrusted peer.  Digital
+signatures are used to ensure that there is no foul play.
+
+
+Cryptographic Keys
+------------------
+
+When a share is first created, a 128-bit encryption key is generated.  This
+must not be generated with a psuedo-random number generator (PRNG), but
+must come from a source of cryptographically secure numbers, such as
 "/dev/random" on Linux, CryptGenRandom() on Windows, or RAND_bytes() in
 OpenSSL.
 
-Instead of generating a random key, the user may enter a custom passphrase.
+This key is used as the communication key.  All of the read-write peers posses
+it, but they do not give it to read-only peers.  It will be referred to as the
+read-write PSK.  Details of communication encryption will come later.
+
+A 4096-bit RSA key should be generated for the share.  It will be used to
+digitally sign some messages to stop read-only shares from pretending to be
+read-write shares.
+
+The original read-write peer should also create some keys to support read-only
+peers.  The read-only PSK and read-only RSA key should be of the same size as
+the read-write keys.
+
+Two more 128-bit keys should also be generated.  These are the read-only PSK
+and the read-only RSA key.
+
+A final 128-bit key should be generated.  This is the untrusted key.
+
+Once generated, all keys are saved to disk.
+
+The SHA256 of the read-write PSK is called the share ID.  This is used to
+locate other peers of the share.
+
+
+Passphrase
+----------
+
+Instead of generating the master key, the user may enter a custom passphrase.
 The SHA256 algorithm is applied twenty million times to generate the 256-bit
 encryption key, meaning SHA256(SHA256(...(SHA256(SHA256("secret")))...)).  Due
 to the nature of the secret sharing mechanism, it is not possible to use a salt
 as is done with with PBKDF2, but someone possessing the key would already have
 access to the files themselves, making the passphrase less valuable.
 
-This key is known as the read-write key, and is an ECC private key, using
-secp256k1.  The "public" key for the ECC private key is the read-only key.  Due
-to the way it is used in clearskies, it should not be shared publicly, and will
-be referred to hereafter as the "verification key" when used to verify
-signatures.
-
-The read-only key is used as if it were a new private key, to generate a new
-public key, which is the known as the "untrusted key", which is used for
-backups to untrusted hosts.
-
-Finally, the process is repeated once more to create the share ID, which is not
-secret.  In order to avoid confusion, this is never called a "key".
-
-Any one of the three keys can be shared by the user to share the associated
-files in different modes, which puts constraints on key length and salting.
-
-The human-sharable versions of the keys are written with a prefix of
-'CLEARSKY', a letter that represents the key type, 'W' for the read-write key,
-'R' for the read-only key, and 'U' for the untrusted key.  The key data itself
-is be represented as base32, as defined in [RFC
-4648](http://tools.ietf.org/html/rfc4648), with the equals-sign padding at the
-end removed.  Finally, a LUN check digit is added, using the [LUN mod N
-algorithm](http://en.wikipedia.org/wiki/Luhn_mod_N_algorithm).
-
-The share ID is represented as hex to avoid confusion, and is not shown to end
-users.
-
-To share a directory with someone the read-only or read-write key is
-shared by some other means (over telephone, in person, by QR code, etc.)
-
-The passphrase can also be shared instead of the read-write key, if desired, or
-can be committed to memory.
-
-To create an encrypted backup, the "untrusted" key can be shared.  The remote
-host will be given encrypted copies of the files.  The files are encrypted with
-the read-only key.
-
-Untrusted nodes still participate with other peers, including other untrusted
-peers, to spread the data, in a manner similar to a cloud server.
+The purpose of this passphrase is backup recovery.
 
 
-Key rotation
+Access Codes
 ------------
 
-A key for a share can be regenerated at any time.  The new key must be manually
-copied to other peers.
+To grant access to a new peer, an access code is generated.  Access codes are
+random 128-bit numbers that are regenerated each time an access code is needed.
+
+The default method of granting access sharing uses codes that are short-lived,
+single-use code.  This is to reduce the risk of sharing the code over
+less-secure channels, such as SMS.
+
+Implementations may choose to also support advanced access codes, which may be
+multi-use and persist for a longer time (perhaps indefinitely, at the user's
+option).
+
+The human-sharable version of the access code is written with a prefix of
+'CLEARSKIES', followed by the access code itself.  The access code should be
+represented as base32, as defined in [RFC
+4648](http://tools.ietf.org/html/rfc4648), with the equals-sign padding at the
+end removed.  Finally, a LUN check digit is added, using the [LUN mod N
+algorithm](http://en.wikipedia.org/wiki/Luhn_mod_N_algorithm), where N is 32.
+
+The 128-bit number is run through SHA256 to get an access ID.  This is used
+to locate other peers.
+
+The user may opt to replace the provided access code with a passphrase before
+sending it.  If this is done, the SHA256 of the passphrase should be taken
+one million times.  This 256-bit hash is considered the access code, and its
+SHA256 is the access ID.
+
+
+Access code UI
+--------------
+
+What follows is only a suggested user interface.
+
+When the user activates the "share" button a dialog is shown with the following:
+
+* A radio input for one of "read-write", "read-only", and "untrusted"
+* The new access code, as a text field that can be edited
+* A status area
+* A "Cancel access code" button
+* A "Extend access code" button
+
+If the user chooses to "Cancel access code", the access code should no longer
+unlock the share.  The "Extend access code" button should present advanced
+options, and perhaps default to 24 hours.
+
+Once the access code has used by the friend and both computers are connected,
+the status area should indicate as such.  It will no longer be possible to
+cancel the access code, but it can still be extended.
 
 
 Peer discovery
 --------------
 
-The share ID is used to find peers.  Various sources of peers are supported:
+When first given an access code, the access ID is used to find peers.  If the
+share ID is known, it is used instead.
+
+Various sources of peers are supported:
 
  * A central tracker
  * Manual entry by the user
@@ -97,7 +160,7 @@ The share ID is used to find peers.  Various sources of peers are supported:
  * Previously valid addresses for the share
 
 Each of these methods can be disabled by the user on a per-share basis and
-implementations can elect not to implement them at their digression.
+implementations can elect not to implement them at their discretion.
 
 Peer addresses are represented as ASCII, with the address and port number
 separated by a colon.  IPv6 addresses should be surrounded by square brackets.
@@ -120,49 +183,49 @@ TTL period has expired of the registration.
 A peer ID is an 128-bit random ID that should be generated when the share is
 first created, and is unique to each peer.
 
-The share ID and listening port are used to make a GET request to the tracker
+The ID and listening port are used to make a GET request to the tracker
 (whitespace has been added for clarity):
 
     http://tracker.example.com/clearskies/track?myport=30020
          &peer=e139d99b48e6d6ca033195a39eb8d9a1
-         &share=00df70a2ec5a8bfe4e68d00aba75792b839ea84aa70aa1dd4dfe0e7116e253cc
+         &id=00df70a2ec5a8bfe4e68d00aba75792b839ea84aa70aa1dd4dfe0e7116e253cc
 
 The response must have the content-type of application/json and will have a
 JSON body like the following (whitespace has been added for clarity):
 
 ```json
 {
-   "your_ip": "192.169.0.1",
+   "your_ip": "32.169.0.1",
    "others": ["be8b773c227f44c5110945e8254e722c@128.1.2.3:40321"],
-   "ttl": 3600
+   "ttl": 300
 }
 ```
 
 The TTL is a number of seconds until the client should register again.
 
-The "others" key contains a list of all other clients that have registered for
-this share ID, with the client's "peer ID", followed by an @ sign, and then
+The "others" key contains a list of all other peers that have registered for
+this ID, with the client's "peer ID", followed by an @ sign, and then
 peer's IP address.  The IP address can be an IPV4 address, or an IPV6 address
 surrounded in square brackets.
 
 
-Fast tracker
-------------
+Fast tracker extension
+----------------------
 
 The fast tracker service is an extension to the tracker protocol that avoids
 the need for polling.  The official tracker supports this extension.
 
-An additional parameter, "fast_track" is set to "1" and the HTTP server will
+An additional parameter, "fast_track", is set to "1" and the HTTP server will
 not close the connection, instead sending new JSON messages whenever a new peer
-is discovered.  This method is sometimes called HTTP push or HTTP streaming.
+is discovered.  This is sometimes called HTTP push or HTTP streaming.
 
 If the tracker does not support fast-track responses, it will just send a
 normal response and close the connection.
 
-The response will contain the first JSON message as normal, with an additional
-key "timeout", with an integer value.  If the connection is idle for more than
-"timeout" seconds, the client should consider the connection dead and open a
-new one.
+The response will contain the first JSON message as previously specified, with
+an additional key, "timeout", with an integer value.  If the connection is idle
+for more than "timeout" seconds, the client should consider the connection dead
+and open a new one.
 
 Some messages will be empty and used as a ping message to keep the connection
 alive.
@@ -190,16 +253,17 @@ legibility):
 {
   "name": "ClearSkiesBroadcast",
   "version": 1,
-  "share": "22596363b3de40b06f981fb85d82312e8c0ed511",
+  "ids": ["22596363b3de40b06f981fb85d82312e8c0ed511"],
   "peer": "2a3728dca353324de4d6bfbebf2128d9",
   "myport": 40121
 }
 ```
 
-Broadcast should be on startup, when a new share is added, when a new network
-connection is detected, and every minute or so afterwards.
+The IDs are the share IDs or access IDs that the software is aware of.
 
-A separate packet should be sent for each share.
+Broadcast should be sent on startup, when a new share is added, when a new
+network connection is detected, when a new access id is created, and every
+minute or so afterwards.
 
 
 Distributed Hash Table
@@ -262,7 +326,7 @@ This is just text, but could be binary data!
 ```
 
 A signed message will be prefixed with a $.  The JSON message is then sent, and
-then on the next line the ECDSA signature is given, encoded with base64, and
+then on the next line the RSA signature is given, encoded with base64, and
 followed up with a newline.  The base64 data should not include any newlines.
 
 ```
@@ -271,9 +335,9 @@ MC0CFGq+pt0m53OP9eZSndaUtWwKnoJ7AhUAy6ScPi8Kbwe4SJiIvsf9DUFHWKE=
 ```
 
 If a message has both a binary payload and a signature, it will start with a
-dollar sign and an exclamation mark, in that order.  The signature does not
-cover binary data, just the JSON message.  Here is the previous example, but
-with binary data added:
+dollar sign and then an exclamation mark, in that order.  The signature does
+not cover the binary data, just the JSON text.  Here is the previous
+example, but with binary data added:
 
 ```
 $!39!{"type":"foo","arg":"bar"}
@@ -281,7 +345,7 @@ MC0CFGq+pt0m53OP9eZSndaUtWwKnoJ7AhUAy6ScPi8Kbwe4SJiIvsf9DUFHWKE=
 Another example of possibly binary data
 ```
 
-Most messages are not signed (and no security benefit would be gained from
+Most messages are not signed (as no security benefit would be gained from
 signing them).
 
 As a rule, the receiver of file data should always be the one to request it.
@@ -295,10 +359,10 @@ for forwards compatibility.
 Handshake
 ---------
 
-While peers are equal, we will distinguish between client and server for the
-purposes of the handshake.  The server is the computer that received the
-connection, but isn't necessarily the computer where the share was originally
-created.
+We will distinguish between client and server for the purposes of the
+handshake.  The server is the computer that received the connection, but isn't
+necessarily the computer where the share was originally created.  In fact, the
+server can be the computer that only has an access code so far.
 
 The handshake negotiates a protocol version as well as optional features, such
 as compression.  When a connection is opened, the server sends a "greeting"
@@ -337,24 +401,26 @@ encryption section for an explanation of public IDs.)  Here is an example
   "software": "beetlebox 0.3.7",
   "protocol": 1,
   "features": [],
-  "share": "22596363b3de40b06f981fb85d82312e8c0ed511",
-  "peer": "6f5902ac237024bdd0c176cb93063dc4",
-  "access": "read_write"
+  "id": "cf16aec13a8557cab5e5a5185691ab04f32f1e581cf0f8233be72ddeed7e7fc1",
+  "access": "read_write",
+  "peer": "6f5902ac237024bdd0c176cb93063dc4"
 }
 ```
 
-The "access" mode is one of "read_only", "untrusted", and "read_write", and is
-the highest key that the client supports for this share.
+The ID is the share ID or access ID.
 
-The "peer" field is the node ID explained in the tracker section.  This is used
+The "access" level is one of "read_write", "read_only", "untrusted", or
+"unknown".  When a peer only has an access code, its access level is "unknown".
+
+The "peer" field is the ID explained in the tracker section.  This is used
 to avoid accidental loopback.
 
-If the server does not recognize this share, it will send back an
-"no_such_share" message, and close the connection:
+If the server does not recognize the id it will send back a "cannot_start"
+message, and close the connection:
 
 ```json
 {
-  "type": "no_such_share"
+  "type": "cannot_start"
 }
 ```
 
@@ -368,15 +434,22 @@ Otherwise it will send back a "starttls" message:
 }
 ```
 
-The "access" in the starttls response is the greatest common denominator access
-level between the client and server.  The corresponding key is then used by
-both peers as a pre-shared key (PSK) for TLS.
+The "access" in the starttls response is the highest access level that both
+peers have.
+
+For example, if the client is read-write and the server is read-only, the
+access is "read_only".  If one of the peers only has an access code, it is
+"unknown".
+
+The corresponding key or access code is then used by both peers as a pre-shared
+key (PSK) for TLS.
 
 The connection is encrypted with with TLS_DHE_PSK_WITH_AES_128_CBC_SHA
 from [RFC 4279](http://tools.ietf.org/html/rfc4279).  Protocol version 1 only
-supports this mode, not any other modes.
+supports this mode, not any other modes.  (It has perfect forward secrecy, which
+is critical for key exchange.)
 
-Once the server sends the "starttls" message, it upgrades the plain-text
+Once the server sends the "starttls" message, it upgrades the unencrypted
 connection to a TLS connection.  Likewise, when the client receives the
 "starttls" message from the server, it upgrades its socket connection.
 
@@ -400,6 +473,58 @@ the difference in conflict resolution algorithm, at the software's discretion.
 The software may also refuse to participate.
 
 
+Key exchange
+------------
+
+If the access level negotiated in the handshake is "unknown", then the keys
+will now be given to the new peer.
+
+The appropriate set of keys will be chosen according to the access level that
+was chosen when the access code was created.
+
+RSA keys should be encoded as PEM files, and the PSKs should be encoded as hex.
+
+Keys that the peer should not have should also be sent, encrypted with the
+read-write PSK.  This is necessary so that the master passphrase can be used to
+create a read-write peer.
+
+The encryption should be done with AES128 in CBC mode.  The first 16 bytes in
+the file should be the initialization vector (IV), which should be chosen at
+random for each file.  This is followed by the encrypted data.  The entire file
+is then base64 encoded.
+
+Here is an example key exchange for a read-only node.  RSA keys have been
+abbreviated for clarity:
+
+```json
+{
+  "type": "keys",
+  "access": "read_only",
+  "untrusted": {
+    "psk": FIXME,
+    "rsa": FIXME
+  },
+  "read_only": {
+    "psk": "b699049ce1f453628117e8ba6ee75f42",
+    "rsa": "== BEGIN RSA FIXME ===\nADFASF..."
+  },
+  "encrypted_read_write": {
+    "rsa": FIXME
+  }
+}
+```
+
+If the keys given are encrypted, the access level should be prefixed with
+"encrypted_".  Note that the read-write PSK is not included in this exchange
+since it would be encrypted with itself.
+
+As soon as the keys have been sent the corresponding access code should be
+deactivated, unless it was a multi-use access code.
+
+The connection is then closed, and the new share ID is used with the tracker
+to reconnect.
+
+
 File tree database
 ------------------
 
@@ -414,7 +539,6 @@ The following fields are tracked for each file:
  * "utime" - update time
  * "id" - a 128-bit file ID, chosen at random, stored as hex
  * "deleted" - deleted boolean
-
  * "size" - file size in bytes
  * "mtime" - last modified time as a unix timestamp
  * "mode" - unix mode bits
@@ -438,15 +562,15 @@ file.  This is represented as an octal number, for example "0755".
 The SHA256 of the file contents should be cached in a local database for
 performance reasons, and should be updated with the file size or mtime changes.
 
-The file ID is used for untrusted nodes.  It should be updated when the SHA256
+The file ID is used for untrusted peers.  It should be updated when the SHA256
 changes.
 
 The aes128 encryption key is only used when sending the file to untrusted
-nodes.  It is predetermined so that all nodes agree on how to encrypt the file.
+peers.  It is predetermined so that all peers agree on how to encrypt the file.
 It should be changed whenever the SHA256 changes.
 
 FIXME: The file id and aes128 should match for all files with the same SHA256
-so that we get deduplication to trusted nodes.
+so that we get deduplication to trusted peers.
 
 
 Windows compatibility
@@ -466,9 +590,9 @@ read-only file in unix can be mapped to the read-only attribute in Windows.
 Files that originate on Windows should be mapped to mode '0600' by default.
 
 Finally, Windows should always use '/' as a directory separator when
-communicating with other nodes.
+communicating with other peers.
 
-Said another way, software for Windows should pretend to be a node running unix.
+Said another way, software for Windows should pretend to be a peer running unix.
 
 
 Read-write manifests
@@ -570,7 +694,8 @@ the largest file wins.  If the sizes match, the file with the smallest "sha256"
 wins.
 
 This merged tree is kept in memory and is used to decide which files need to be
-retrieved from the peer.
+retrieved from the peer.  Information about the new files shouldn't be applied
+to the database until after the files have been retrieved. 
 
 
 Read-only manifests
@@ -779,16 +904,14 @@ been successfully retrieved, assuming the other peers haven't already sent
 notification that they have the file.
 
 
-Untrusted nodes
+Untrusted peers
 ---------------
 
-Absent from the above description is how to communicate with an untrusted node.
-Untrusted nodes are given encrypted files, which they will can then send to
-other nodes with the untrusted key, read-only key, or read-write key.
+Absent from the above description is how to communicate with an untrusted peer.
+Untrusted peers are given encrypted files, which they will can then send to
+other peers with the untrusted key, read-only key, or read-write key.
 
-A random 128-bit AES key is generated for each file, and that key is used to
-encrypt the file.  The key is XOR'd with the first 128-bits of the read-only
-key and stored as the first 8 bytes of the file, followed by the 16-byte IV,
+followed by the 16-byte IV,
 followed by the encrypted data, using AES in CTR mode.
 
 Files with the same contents should use the same encryption key, they do not
@@ -809,7 +932,8 @@ the encryption header and add the sha1 of the encrypted data to its footer so
 that the listing could be regenerated.
 
 A random amount of padding may be added to the end of each file before the
-footer (up to 3% of its size) to avoid fingerprinting a share.
+footer (up to 3% of its size) to reduce the amount of data leaked by
+file size.
 
 Instead, why not have the untrusted source store the manifest and then store
 all the files by their SHA sum.  That deduplicates without having to store the
@@ -907,6 +1031,12 @@ from being dropped:
 
 Known issues
 ------------
+
+We need to add an 'untrusted challenge' so that we can verify that untrusted
+peers have all files and that they are correct.
+
+We should suggest that files be rehashed on rare occasion so that file
+corruption can be detected (and hopefully corrected.)
 
 If a file is reverted by copying in an old copy from another source, the mtime
 will be older on peers and so it will not be reverted.

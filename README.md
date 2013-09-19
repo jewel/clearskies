@@ -17,7 +17,7 @@ Core Protocol Features
 ----------------------
 
 * Simple key sharing (pre-shared key)
-* Read-write sharing
+* Read-write sync
 * Read-only sharing
 * Encrypted backup sharing to an untrusted peer
 * Encrypted connections
