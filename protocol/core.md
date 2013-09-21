@@ -51,7 +51,7 @@ signatures are used to ensure that there is no foul play.
 Cryptographic Keys
 ------------------
 
-When a share is first created, a 128-bit encryption key is generated.  This
+When a share is first created, a 128-bit encryption keys is generated.  This
 must not be generated with a psuedo-random number generator (PRNG), but
 must come from a source of cryptographically secure numbers, such as
 "/dev/random" on Linux, CryptGenRandom() on Windows, or RAND_bytes() in
@@ -61,23 +61,20 @@ This key is used as the communication key.  All of the read-write peers posses
 it, but they do not give it to read-only peers.  It will be referred to as the
 read-write PSK.  Details of communication encryption will come later.
 
+The SHA256 of the read-write PSK is called the share ID.  This is used to
+locate other peers of the share.
+
 A 4096-bit RSA key should be generated for the share.  It will be used to
 digitally sign some messages to stop read-only shares from pretending to be
 read-write shares.
 
-The original read-write peer should also create some keys to support read-only
-peers.  The read-only PSK and read-only RSA key should be of the same size as
-the read-write keys.
+More keys should be generated for the other access levels:
 
-Another 128-bit PSK and 4096-bit RSA key should be generated.  These are the
-read-only PSK and the read-only RSA key.
-
-A final 128-bit PSK should be generated.  This is the untrusted PSK.
+* A 128-bit read-only PSK
+* A 4096-bit read-only RSA key
+* A 128-bit untrusted PSK
 
 Once generated, all keys are saved to disk.
-
-The SHA256 of the read-write PSK is called the share ID.  This is used to
-locate other peers of the share.
 
 
 Passphrase
@@ -104,15 +101,15 @@ single-use code.  This is to reduce the risk of sharing the code over
 less-secure channels, such as SMS.
 
 Implementations may choose to also support advanced access codes, which may be
-multi-use and persist for a longer time (perhaps indefinitely, at the user's
-option).
+multi-use and persist for a longer time (even indefinitely).
 
 The human-sharable version of the access code is written with a prefix of
 'CLEARSKIES', followed by the access code itself.  The access code should be
-represented as base32, as defined in [RFC
-4648](http://tools.ietf.org/html/rfc4648), with the equals-sign padding at the
-end removed.  Finally, a LUN check digit is added, using the [LUN mod N
-algorithm](http://en.wikipedia.org/wiki/Luhn_mod_N_algorithm), where N is 32.
+represented as base32, as defined in
+[RFC 4648](http://tools.ietf.org/html/rfc4648), with the equals-sign padding at
+the end removed.  Finally, a LUN check digit is added, using the
+[LUN mod N algorithm](http://en.wikipedia.org/wiki/Luhn_mod_N_algorithm), where
+N is 32.
 
 The 128-bit number is run through SHA256 to get an access ID.  This is used
 to locate other peers.
@@ -121,6 +118,9 @@ The user may opt to replace the provided access code with a passphrase before
 sending it.  If this is done, the SHA256 of the passphrase should be taken
 one million times.  This 256-bit hash is considered the access code, and its
 SHA256 is the access ID.
+
+Long-lived access codes are spread to other nodes with the same (or higher)
+level of access so that the sharing node does not have to stay online.
 
 
 Access code UI
@@ -484,14 +484,15 @@ was chosen when the access code was created.
 
 RSA keys should be encoded as PEM files, and the PSKs should be encoded as hex.
 
-Keys that the peer should not have should also be sent, encrypted with the
+Keys that the peer should not have are also be sent, encrypted with the
 read-write PSK.  This is necessary so that the master passphrase can be used to
-create a read-write peer.
+create a read-write peer when there are no longer any read-write peers.
 
-The encryption should be done with AES128 in CBC mode.  The first 16 bytes in
-the file should be the initialization vector (IV), which should be chosen at
-random for each file.  This is followed by the encrypted data.  The entire file
-is then base64 encoded.
+The encryption should be done with AES128 in CBC mode.  A random encryption key
+is chosen.  This is XOR'd with the read-write PSK and written as the first 16
+bytes of the file.  The next 16 bytes in the file should be the initialization
+vector (IV).  This is followed by the encrypted data.  The entire file is then
+base64 encoded.
 
 Here is an example key exchange for a read-only node.  RSA keys have been
 abbreviated for clarity:
@@ -593,6 +594,24 @@ Finally, Windows should always use '/' as a directory separator when
 communicating with other peers.
 
 Said another way, software for Windows should pretend to be a peer running unix.
+
+
+First sync
+----------
+
+When a user types in an access code and picks a non-empty directory in which to
+store the share, the software should warn the user that any directory contents
+will be erased.
+
+The directory contents shouldn't be removed immediately, because they may be
+the right file contents that were copied manually, and can be used to sync
+quickly.
+
+The existing contents of the directory should not be merged, either.  However,
+care should be taken so that the user can start work before the directory has
+been completely scanned, since hashing existing files can take quite a while.
+The scan should capture the entire list of files before hashing any of them,
+which will allow "utime" tracking to work like normal.
 
 
 Read-write manifests
@@ -908,8 +927,15 @@ Untrusted peers
 ---------------
 
 Absent from the above description is how to communicate with an untrusted peer.
-Untrusted peers are given encrypted files, which they will can then send to
-other peers with the untrusted key, read-only key, or read-write key.
+Untrusted peers are given encrypted files, which they will then send to peers
+of all other types, including other untrusted peers.
+
+FIXME finish rewriting this
+
+The read-write manifests are encrypted with the read-only PSK, and signed with the
+read-only 
+
+The encrypted manifest is 
 
 followed by the 16-byte IV,
 followed by the encrypted data, using AES in CTR mode.
@@ -938,64 +964,21 @@ file size.
 Instead, why not have the untrusted source store the manifest and then store
 all the files by their SHA sum.  That deduplicates without having to store the
 
+Untrusted proof-of-storage
+--------------------------
+
+Untrusted peers can be asked to prove that they are storing a file.  This 
+
+FIXME finish this
 
 
 Deleted files
 -------------
 
-Special care is needed with deleted files to ensure that the user always gets
-expected behavior.
+Special care is needed with deleted files to ensure that "ghost" copies of
+deleted files don't reappear unexpectedly.
 
-If the care is not taken, "ghost" copies of deleted files will reappear
-unexpectedly if a peer that hasn't connected in a while returns.
-
-A list of deleted files and the time they were first noticed to be missing must
-be tracked until the file stops being reported by all known peers.
-
-An alternative method that is easier to implement is to track deleted files for
-a limited amount of time, which should be at minimum 90 days.
-
-If the exact deletion time is unknown, the oldest possible time it could have
-been deleted is used.  For example, if the software is not running when the
-file is deleted, the time that the last successful scan was started is used.
-Additionally, if the software notices that a file is missing during a scan, it
-should use the start time of the previous scan as the deletion time for that
-file.
-
-
-Consider the following scenarios:
-
-There are only two peers, operating in read-write mode, peer A and B, which
-both have a file.  Peer A deletes it.
-
-Case 1: Both peers are running at that time
-
-Peer A notices the file is missing, and notifies B.  B deletes the file.  The
-next time A and B sync reconnect, A notices that B no longer has the file and
-stops tracking it.
-
-Case 2: Only A is running
-
-Peer A notices the file is missing and saves the file in its deleted files
-list.  The next time B starts, it is notified of the deleted file during file
-tree synchronization and file is deleted.  The next reconnect the deleted file
-can stop being tracked.
-
-Case 3: Only B is running
-
-When peer A is started it notices that the file was deleted.  It sets the
-deletion time to the last time it had seen the file in a scan, which is
-nevertheless newer than the mtime of the file.  It connects to B and the
-deleted file wins in tree sync.  Things then proceed like case 1 and 2.
-
-Case 4: Neither is running
-
-This is identical to case 3.
-
-+++ More peers
-
-If there are three peers, then the delete must be tracked by all peers until
-they all know about the deletion.  This avoids the following scenario:
+Consider the following example:
 
 1. Peers A, B, and C know about a file
 2. Only peers A and B are running.
@@ -1006,68 +989,105 @@ they all know about the deletion.  This avoids the following scenario:
 7. A reconnects to B.  The file reappears on A.
 
 
-First sync and ghost files
---------------------------
-
-When a key is first added to the software from a peer in read-write mode, the
-software should warn the user that any directory contents may be overridden.
-
-The existing contents of the directory should not be merged.  However, if a
-file appears with an mtime that is newer than the time the share was added to
-the software, it can be merged.  This allows the user to start work before the
-directory has completely synced.
 
 
 Keepalive
 ---------
 
-A message of type "ping" should be sent every minute or so to keep connections
-from being dropped:
+A message of type "ping" should be sent by each peer occasionally to keep
+connections from being dropped:
 
 ```json
-{"type":"ping"}
+{"type":"ping","timeout":60}
+```
+
+The "timeout" specified is the absolute minimum amount of time to wait for the
+peer to send another ping before dropping the connection.  A peer should adjust
+its own timeout to be same as the timeout of its peer if the peer's timeout is
+greater, that software on mobile devices can adjust for battery life and
+network conditions.
+
+
+Spreading Access Codes
+----------------------
+
+Long-lived access codes are shared with other peers so that the originating
+peer does not need to stay online.
+
+Access codes should only be given to peers with the same security level.
+
+Since access codes are short and created rarely, all known access codes are
+sent when the connection is first opened.
+
+Access codes should be kept locally in a database.  Each record has a "utime"
+timestamp and should only be replaced with a record with a newer timestamp.  To
+stop read-only peers from being able to fill up the hard drive of other peers,
+software may rate-limit access code updates.
+
+Access codes can be revoked and single-use access codes are marked as used.
+They should not be removed from the database until they expire, if time limited,
+otherwise they should be kept indefinitely.
+
+Passphrases are not stored verbatim but instead the SHA256(SHA256(...)) is
+stored instead.  Note that this is a 256-bit access code instead of the usual
+128-bit codes.
+
+When first connected to a peer, all known access codes should be sent.
+Thereafter only database updates need to be sent.  Updates do not need to be
+relayed.
+
+The "access_code_list" message is used for the initial list and subsequent
+updates send an "access_code_update".  Here is an example message, which shows
+an access code of each type:
+
+
+```json
+{
+  "type": "access_code_update",
+  "codes": [
+    {
+      "code": "a0929405c4ff5a96ffeb8cbe672c82d4",
+      "one_time": true,
+      "created": 1379735175,
+      "expiration": 1379744200,
+      "utime": 1379735175
+    },
+    {
+      "code": "e47c0685fe4bad29cdc0a7bdbd5335cb",
+      "created": 1379744627,
+      "expiration": false,
+      "utime": 1379744627
+    },
+    {
+      "code": "ed384f58875d01e242293142eed75a7a",
+      "created": 1379741016,
+      "expiration": false,
+      "revoked": true,
+      "utime": 1379744623
+    },
+    {
+      "code": "61a08703a6a4c774cad650afaedd9c10",
+      "created": 1379744460,
+      "one_time": true,
+      "used": true,
+      "expiration": false,
+      "utime": 1379744616
+    },
+    {
+      "code": "19ababf69f21cf018e846bb90ecac80cddfa532c5aae97acc99172b5be529fb7",
+      "created": 1379744616,
+      "one_time": true,
+      "expiration": 1379744611
+      "utime": 1379744616
+    }
+  ]
+}
 ```
 
 
 Known issues
 ------------
 
-We should spread access codes amongst all the peers if the code is long-lived.
-
-The key material would need to be encrypted with the access code and given out
-to all peers.
-
-The key used for key exchange should be the SHA256 of the access code, and the
-access ID should be the double-SHA256 of the access code.  That way the peers
-can verify without being able to decrypt the keys.
-
-Single-use keys would then be deleted on all nodes.
-
----
-
-We need to add an 'untrusted challenge' so that we can verify that untrusted
-peers have all files and that they are correct.
-
-We should suggest that files be rehashed on rare occasion so that file
-corruption can be detected (and hopefully corrected.)
-
-If a file is reverted by copying in an old copy from another source, the mtime
-will be older on peers and so it will not be reverted.
-
-ECC keys are not as well supported as RSA keys, but were chosen because they
-are much shorter therefore practical to share.  The read-only key-generation
-mechanism was chosen because it makes it possible for a read-only key holder to
-verify that a read-write share is legitimate.
-
-Since the group most likely to use clearskies are those who care about security,
-it's probably reasonable to trade a little usability for improved security.
-Instead, we could have the keys be a nonce that just gets a user connected to a
-peer.  Once connected, the RSA keys are exchanged.  This requires some
-bookkeeping by all the peers, as they should keep the list of valid nonces
-synced amongst themselves.
-
-For added security the nonces can be time-limited or single-use, and the GUI
-can let the user revoke a nonce.
 
 
 Checking for missing shares
@@ -1106,18 +1126,6 @@ Software may choose to allow the user to ignore files with certain extensions
 or matching a pattern.  These files won't be sent to peers.
 
 
-Base32
-------
-
-Base32 is used to encode keys for ease of manual keying.  Only uppercase A-Z
-and the digits 2-9 are used.  Strings are taken five bits at a time, with
-00000 being an 'A', 11001 being 'Z', 11010 being '2', and '11111' being '9'.
-
-Human input should allow for lowercase letters, and should automatically
-translate 0 as O.
-
-FIXME: Can we refer to the relevant RFC instead of documenting this ourselves?
-Also is there a documented format that includes a checksum?
 
 
 
@@ -1200,6 +1208,10 @@ sneakernet if necessary.
 Users may be relying on your software to back up important files.  You may want
 to alert the user (on both computers) if the share has not synced with its peer
 if has been longer than certain threshold (perhaps defaulting to a week).
+
+Software can rescan files from time-to-time to detect files that cannot be read
+from disk or that have become corrupted, and replace them with good copies from
+other peers.
 
 Software may choose to create read-only directories, and read-only files, in
 read-only mode, so that a user doesn't make changes that will be immediately be
