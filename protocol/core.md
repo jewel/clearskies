@@ -69,10 +69,10 @@ The original read-write peer should also create some keys to support read-only
 peers.  The read-only PSK and read-only RSA key should be of the same size as
 the read-write keys.
 
-Two more 128-bit keys should also be generated.  These are the read-only PSK
-and the read-only RSA key.
+Another 128-bit PSK and 4096-bit RSA key should be generated.  These are the
+read-only PSK and the read-only RSA key.
 
-A final 128-bit key should be generated.  This is the untrusted key.
+A final 128-bit PSK should be generated.  This is the untrusted PSK.
 
 Once generated, all keys are saved to disk.
 
@@ -689,7 +689,7 @@ Tree merge algorithm
 When two read-write peers are connected, they merge their manifests together in
 memory on a file-by-file basis in what is called tree merging.  A tree merge
 looks at each entry and the one with the latest "utime" field wins.  If the
-"utime" matches, the file with the latest "mtime" wins.  If the "mtime" wins,
+"utime" matches, the file with the latest "mtime" wins.  If the "mtime" matches,
 the largest file wins.  If the sizes match, the file with the smallest "sha256"
 wins.
 
@@ -1031,6 +1031,19 @@ from being dropped:
 
 Known issues
 ------------
+
+We should spread access codes amongst all the peers if the code is long-lived.
+
+The key material would need to be encrypted with the access code and given out
+to all peers.
+
+The key used for key exchange should be the SHA256 of the access code, and the
+access ID should be the double-SHA256 of the access code.  That way the peers
+can verify without being able to decrypt the keys.
+
+Single-use keys would then be deleted on all nodes.
+
+---
 
 We need to add an 'untrusted challenge' so that we can verify that untrusted
 peers have all files and that they are correct.
