@@ -488,11 +488,8 @@ Keys that the peer should not have are also be sent, encrypted with the
 read-write PSK.  This is necessary so that the master passphrase can be used to
 create a read-write peer when there are no longer any read-write peers.
 
-The encryption should be done with AES128 in CBC mode.  A random encryption key
-is chosen.  This is XOR'd with the read-write PSK and written as the first 16
-bytes of the file.  The next 16 bytes in the file should be the initialization
-vector (IV).  This is followed by the encrypted data.  The entire file is then
-base64 encoded.
+The "file encryption" section explains how to encrypt files.  After encrypting
+each key, it should be base64 encoded.
 
 Here is an example key exchange for a read-only node.  RSA keys have been
 abbreviated for clarity:
@@ -502,22 +499,21 @@ abbreviated for clarity:
   "type": "keys",
   "access": "read_only",
   "untrusted": {
-    "psk": FIXME,
-    "rsa": FIXME
+    "psk": "1f5d969cdbfe090bf740974d27e7d8ee",
+    "rsa": "-----BEGIN RSA PRIVATE KEY-----\nMIIJKAIBAAKCAgEAtQetKXO732...TE KEY-----\n"
   },
   "read_only": {
     "psk": "b699049ce1f453628117e8ba6ee75f42",
-    "rsa": "== BEGIN RSA FIXME ===\nADFASF..."
+    "rsa": "-----BEGIN RSA PRIVATE KEY-----\nMIIJKAIBAAKCAgEA4Zu1XDLoHf...TE KEY-----\n"
   },
-  "encrypted_read_write": {
-    "rsa": FIXME
+  "read_write": {
+    "encrypted_rsa": "KaPwf85p4PUXUImWMEn1MwlRC77TWlEtZjqxI+QhDKTlFxi...",
   }
 }
 ```
 
-If the keys given are encrypted, the access level should be prefixed with
-"encrypted_".  Note that the read-write PSK is not included in this exchange
-since it would be encrypted with itself.
+If the keys given are encrypted, the key name should be prefixed with
+"encrypted_".  Note that the read-write PSK is never included in this exchange.
 
 As soon as the keys have been sent the corresponding access code should be
 deactivated, unless it was a multi-use access code.
@@ -563,15 +559,14 @@ file.  This is represented as an octal number, for example "0755".
 The SHA256 of the file contents should be cached in a local database for
 performance reasons, and should be updated with the file size or mtime changes.
 
-The file ID is used for untrusted peers.  It should be updated when the SHA256
-changes.
+The file ID is used for untrusted peers.  It is changed every time the SHA256
+changes.  If the SHA256 of this file matches some other file, use the other
+file's ID.  (This allows for deduplication.)
 
 The aes128 encryption key is only used when sending the file to untrusted
 peers.  It is predetermined so that all peers agree on how to encrypt the file.
-It should be changed whenever the SHA256 changes.
-
-FIXME: The file id and aes128 should match for all files with the same SHA256
-so that we get deduplication to trusted peers.
+It should be changed whenever the SHA256 changes.  As explained for the file ID,
+it should be random except when deduplicating.
 
 
 Windows compatibility
@@ -662,8 +657,8 @@ is not shown.
     {
       "path": "photos/img3.jpg",
       "utime": 1379489028,
-      "deleted": true
-      "id": "ccccf6098c8d99bd6b5472e51c64e0aa",
+      "deleted": true,
+      "id": "ccccf6098c8d99bd6b5472e51c64e0aa"
     }
   ]
 }
@@ -737,8 +732,7 @@ manifest.
 
 Similar to the "version" of the read-write database, read-only clients should
 keep a "version" number that changes only when its files change.  (Since it is
-a read-only, a change would be due to something being changed on a different
-peer.)
+a read-only, a change would be due to something being downloaded.)
 
 The read-only manifests do not need to be signed.  Here is an example, with the
 read-write manifest abbreviated with an ellipsis for clarity:
@@ -747,6 +741,7 @@ read-write manifest abbreviated with an ellipsis for clarity:
 {
    "type": "manifest",
    "peer": "a41f814f0ee8ef695585245621babc69",
+   "version": 1379997032,
    "sources": [
      {
        "manifest": "{\"type\":\"manifest\",\"peer\":\"489d80...}\nMC4CFQCEvTIi0bTukg9fz++hel4+wTXMdAIVALoBMcgmqHVB7lYpiJIcPGoX9ukC\n",
@@ -754,6 +749,7 @@ read-write manifest abbreviated with an ellipsis for clarity:
      }
    ]
 ```
+
 
 Manifest merging
 ----------------
@@ -928,48 +924,101 @@ Untrusted peers
 
 Absent from the above description is how to communicate with an untrusted peer.
 Untrusted peers are given encrypted files, which they will then send to peers
-of all other types, including other untrusted peers.
+of all other types, including other untrusted peers.  Its behavior is similar to
+how read-write and read-only peers interact.
 
-FIXME finish rewriting this
+What follows is a high-level overview of the entire operation of an untrusted
+peer.  Detailed descriptions of each process are in later sections.
 
-The read-write manifests are encrypted with the read-only PSK, and signed with the
-read-only 
+The peer's manifest is encrypted with the read-only PSK and base64 encoded.
+This is combined with an unencrypted peer ID and "version", as well as a list
+of all the file IDs available and their sizes for files present on the peer.
+The result is then signed with the read-only RSA key.
 
-The encrypted manifest is 
+This manifest is sent to untrusted peers.  The untrusted peer stores the
+manifest and then asks the read-only peer for each file by ID, and saves the
+encrypted version to disk.
 
-followed by the 16-byte IV,
-followed by the encrypted data, using AES in CTR mode.
+When an untrusted peer connects to another untrusted peer, it sends an
+untrusted manifest, which is built using one or more encrypted manifests, each
+with a bitmask.
 
-Files with the same contents should use the same encryption key, they do not
-need to be encrypted twice.
+The SHA256 of the file isn't known until the file is encrypted, which doesn't
+happen until the file is requested by an untrusted node.  Once calculated,
+peers should store the hash value and include it in future file listings.
 
-Filenames are encrypted using the read-only key (FIXME how?).  The sha1 given
-is the sha1 of the encrypted data, including the encryption header.  The size
-given is the size of the file including the header.
+Untrusted peers can be given a cryptographic challenge by read-only and
+read-write peers to see if they are actually storing files they claim to be
+storing.
 
-"file_data" responses will always include the encryption header as the first 32
-bytes of the binary payload, even for ranged requests.
 
-FIXME: It is too much burden to calculate the sha1 for the listing, so we could
-xor the sha1 with the read-only key.  However, this means that the encrypted
-files cannot be verified locally, nor can a listing for an encrypted directory
-be built from scratch.  I guess we could add the unencrypted sha1 (with xor) to
-the encryption header and add the sha1 of the encrypted data to its footer so
-that the listing could be regenerated.
+Untrusted manifests
+-------------------
 
-A random amount of padding may be added to the end of each file before the
-footer (up to 3% of its size) to reduce the amount of data leaked by
-file size.
+FIXME
 
-Instead, why not have the untrusted source store the manifest and then store
-all the files by their SHA sum.  That deduplicates without having to store the
 
-Untrusted proof-of-storage
+File Encryption
+---------------
+
+The encryption should be done with AES128 in CBC mode.  A random encryption key
+is chosen.  This is XOR'd with the encryption key and written as the first 16
+bytes of the file.  The next 16 bytes in the file should be the initialization
+vector (IV).  This is followed by the encrypted data.  The end of the file is 
+
+
+
+Untrusted proof of storage
 --------------------------
 
-Untrusted peers can be asked to prove that they are storing a file.  This 
+Untrusted peers can be asked to prove that they are storing a file.  This is
+I/O intensive for both peers, so some steps should be taken to reduce
+unnecessary verification.  If there are read-write peers present on the
+network, read-only peers should not perform any verification.  By default, the
+rate of verification should be extremely low, perhaps a single file per day.
 
-FIXME finish this
+Software may support user-initiated full verifications.
+
+A random file is chosen and a 32-byte random sequence is generated.  This is
+sent to the untrusted peer.
+
+The read-write peer then asks for file verification with a *signed* message:
+
+```json
+{
+  "type": "verify",
+  "file_id": "a0929405c4ff5a96ffeb8cbe672c82d4",
+  "prefix": "3d820dcc0ecad651e87fc84bb688bf7e6c7ee019ba47d9bdaaf6bc4bed2b9620"
+}
+```
+
+The untrusted peer concatenates the 32-bytes and the contents of the file and
+sends back the result, as well as the IV (which is stored in the file):
+
+```json
+{
+  "type": "verify_result",
+  "file_id": "a0929405c4ff5a96ffeb8cbe672c82d4",
+  "iv": "625432f4ac16a03312bb2c8a415c5b13",
+  "result": "fff8acd78f7528c143cb5a6971f911d3869368cbc177f3f4404d945c6accc08d"
+}
+```
+
+The read-write peer then uses the prefix and IV to recreate the experiment and
+validate that resulting hash is correct.  If the hash is not correct, software
+may notify the user or it could change the file_id and encryption key for that
+file so that the untrusted node re-downloads an undamaged version.
+
+If an untrusted peer is overloaded, it may choose to ignore the proof-of-storage
+request.  It may also send back a busy message:
+
+```json
+{
+  "type": "verify_busy",
+  "file_id": "a0929405c4ff5a96ffeb8cbe672c82d4",
+  "retry_in": 600
+}
+```
 
 
 Deleted files
@@ -978,7 +1027,9 @@ Deleted files
 Special care is needed with deleted files to ensure that "ghost" copies of
 deleted files don't reappear unexpectedly.
 
-Consider the following example:
+The solution chosen by ClearSkies is to track the path of deleted files
+indefinitely.  Consider the following example of what would happen if these
+files were not tracked:
 
 1. Peers A, B, and C know about a file
 2. Only peers A and B are running.
@@ -1085,19 +1136,15 @@ an access code of each type:
 ```
 
 
-Known issues
-------------
-
-
-
 Checking for missing shares
 ---------------------------
 
-Each directory should have a hidden file, perhaps named ".ClearSkiesID", which
-is not synced but is used to check if a drive is not mounted or a removable
-drive is not present.  The file should contain the Share ID.  If this file is
-not present, the software should not attempt to do any synchronization, instead
-showing an error state for the share.
+Each directory should have a hidden file, perhaps named ".ClearSkies", which is
+not synced but is used to check if a drive is not mounted or a removable drive
+is not present.  The file should contain the Share ID or another ID that is
+unique to the share.  If this file is not present, the software should not
+attempt to do any synchronization, instead showing an error state for the
+share.
 
 
 Archival
@@ -1108,15 +1155,16 @@ copies in an archival directory.  If an archive is kept, it is recommended that
 the SHA1 of these files still be tracked so that they can be used for
 deduplication in the future.
 
-Software may opt to limit the archive to a certain size, or offer a friendly
-way to navigate through the archive.
+Software could limit the archive to a certain size, or offer a friendly way to
+navigate through the archive.
 
 
 Deduplication
 -------------
 
 The SHA1 hash should be used to avoid requesting duplicate files when already
-present in the local share.  Instead, a copy of the local file should be used.
+present somewhere else in the local share.  Instead, a copy of the local file
+should be used.
 
 
 Ignoring files
@@ -1124,9 +1172,6 @@ Ignoring files
 
 Software may choose to allow the user to ignore files with certain extensions
 or matching a pattern.  These files won't be sent to peers.
-
-
-
 
 
 Subtree copy
