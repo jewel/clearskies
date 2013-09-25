@@ -1049,10 +1049,14 @@ and sha256 of the encrypted contents (if known).  This message should be signed.
 }
 ```
 
-File moves do not require special handling (they are just sent with type "update"), since the file ID
-is unique and only the encrypted metadata changed.
+File moves do not require special handling (they are just sent with type
+"update"), since the file ID is unique and only the encrypted metadata changed.
 
-File deletes are handled as an "update" where the "deleted" member is set to true.
+File deletes are handled as an "update" where the "deleted" member is set to
+true.
+
+Just like with read-write and read-only file changes, the change messages
+should be appended to the copy of the manifest including their signatures.
 
 
 Deduplicating on untrusted peers
