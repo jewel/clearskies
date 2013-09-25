@@ -540,7 +540,7 @@ The following fields are tracked for each file:
  * "mtime" - last modified time as a unix timestamp
  * "mode" - unix mode bits
  * "sha256" - SHA256 of file contents
- * "aes128" - a 128-bit encryption key, stored as hex
+ * "key" - a 256-bit encryption key, stored as hex
 
 If a file is deleted, the deleted boolean is set to true.  Any fields listed
 after the deleted field in the list above can be blanked.  The entry for the
@@ -559,14 +559,13 @@ file.  This is represented as an octal number, for example "0755".
 The SHA256 of the file contents should be cached in a local database for
 performance reasons, and should be updated with the file size or mtime changes.
 
-The file ID is used for untrusted peers.  It is changed every time the SHA256
-changes.  If the SHA256 of this file matches some other file, use the other
-file's ID.  (This allows for deduplication.)
+The file ID is used for untrusted peers.  It is created when the file entry
+is first created and does not change again.
 
-The aes128 encryption key is only used when sending the file to untrusted
-peers.  It is predetermined so that all peers agree on how to encrypt the file.
-It should be changed whenever the SHA256 changes.  As explained for the file ID,
-it should be random except when deduplicating.
+The key field holds an 128-bit encryption key and a 128-bit Initialization
+Vector (IV), in that order.  The key is used to encrypt files when being sent
+to untrusted peers.  They are predetermined so that all peers agree on how to
+encrypt the file.
 
 
 Windows compatibility
@@ -642,7 +641,7 @@ is not shown.
       "mode": "0664",
       "sha256": "cf16aec13a8557cab5e5a5185691ab04f32f1e581cf0f8233be72ddeed7e7fc1",
       "id": "8adbd1cdaa0200747f6f2551ce2e1244",
-      "aes128": "5121f93b5b2fe518fd2b1d33136ddc33",
+      "key": "5121f93b5b2fe518fd2b1d33136ddc33d8fba39749d57c763bf30380a387a1fa"
     },
     {
       "path": "photos/img2.jpg",
@@ -652,7 +651,7 @@ is not shown.
       "mode": "0600",
       "sha256": "64578d0dc44b088b030ee4b258de316b5cb07fdf42b8d40050fe2635659303ed",
       "id": "ade5f6098c8d99bd6b5472e51c64e09a",
-      "aes128": "2304bde0b070a0d3ca65c78127f2f189"
+      "key": "2304bde0b070a0d3ca65c78127f2f1895121f93b5b2fe518fd2b1d33136ddc33"
     },
     {
       "path": "photos/img3.jpg",
@@ -864,7 +863,7 @@ Notification of a new or changed file looks like this:
     "mode": "0664",
     "sha256": "cf16aec13a8557cab5e5a5185691ab04f32f1e581cf0f8233be72ddeed7e7fc1",
     "id": "8adbd1cdaa0200747f6f2551ce2e1244",
-    "aes128": "5121f93b5b2fe518fd2b1d33136ddc33",
+    "key": "5121f93b5b2fe518fd2b1d33136ddc3361fd9c18cb94086d9a676a9166f9ac52"
   }
 }
 ```
@@ -900,7 +899,7 @@ Notification of a moved file looks like this:
     "mode": "0664",
     "sha256": "cf16aec13a8557cab5e5a5185691ab04f32f1e581cf0f8233be72ddeed7e7fc1",
     "id": "8adbd1cdaa0200747f6f2551ce2e1244",
-    "aes128": "5121f93b5b2fe518fd2b1d33136ddc33"
+    "key": "5121f93b5b2fe518fd2b1d33136ddc3371ea246f902804fb64e7cf822eb8453c"
   }
 }
 ```
@@ -922,18 +921,17 @@ notification that they have the file.
 Untrusted peers
 ---------------
 
-Absent from the above description is how to communicate with an untrusted peer.
+Absent from the sections above is how to communicate with an untrusted peer.
 Untrusted peers are given encrypted files, which they will then send to peers
-of all other types, including other untrusted peers.  Its behavior is similar to
-how read-write and read-only peers interact.
+of all other types, including other untrusted peers.  Its behavior is similar
+to how read-write and read-only peers interact.
 
 What follows is a high-level overview of the entire operation of an untrusted
 peer.  Detailed descriptions of each process are in later sections.
 
-The peer's manifest is encrypted with the read-only PSK and base64 encoded.
-This is combined with an unencrypted peer ID and "version", as well as a list
-of all the file IDs available and their sizes for files present on the peer.
-The result is then signed with the read-only RSA key.
+The peer's encrypted manifest is combined with a list of all relevant file IDs,
+this is known as the untrusted manifest.  The result is then signed with the
+read-only RSA key.
 
 This manifest is sent to untrusted peers.  The untrusted peer stores the
 manifest and then asks the read-only peer for each file by ID, and saves the
@@ -955,17 +953,155 @@ storing.
 Untrusted manifests
 -------------------
 
-FIXME
+Manifests are negotiated with the "get_manifest" and "manifest_current" messages
+as usual.
+
+A read-only or read-write peer will encrypt its manifest with the read-only
+PSK, as described in the "File Encryption" section below, and the result is
+base64 encoded.  This is encrypted with the read-only manifest is encrypted
+with the read-only PSK and base64 encoded.  This is combined with the peer ID
+and "version", as well as a list of all the file IDs and their sizes.  If the
+SHA256 of the encrypted file is known, it should be added to the file.  Note
+that the file list should only include files actually present on the peer, and
+all deleted files.
+
+The message is signed with the read-write or read-only RSA key (as appropriate
+for the peer).
+
+```json
+{
+  "type": "manifest",
+  "peer": "989a2afee79ec367c561e3857c438d56",
+  "version": 1380082110,
+  "manifest": "VGhpcyBpcyBzdXBwb3NlZCB0byBiZSB0aGUgZW5jcn...",
+  "files": [
+    {
+      "id": "8adbd1cdaa0200747f6f2551ce2e1244",
+      "utime": 1379220476,
+      "size": 2387629
+    },
+    {
+      "id": "eefacb80ad05fe664d6f0222060607c0",
+      "utime": 1379318976,
+      "size": 3932,
+      "sha256": "220a60ecd4a3c32c282622a625a54db9ba0ff55b5ba9c29c7064a2bc358b6a3e"
+    }
+  ]
+}
+```
+
+The manifest sent from an untrusted peer includes any manifests necessary to
+prove that the files it has are legitimate and a bitmask:
+
+```json
+{
+  "type": "manifest",
+  "peer": "7494ab07987ba112bd5c4f9857ccfb3f",
+  "version": 1380084843,
+  "sources": [
+    {
+      "manifest": "{\"type\":\"manifest\",\"peer\":\"989fac...}\nMC4CFQCEvTIi0bTukg9fz++hel4+wTXMdAIVALoBMcgmqHVB7lYpiJIcPGoX9ukC\n",
+      "bitmask": "Lg=="
+    }
+  ]
+}
+```
+
+This should follow the same manifest merging algorithm explained in an earlier
+section.
+
+The list of files is merged using the tree merging algorithm also as explained
+earlier.
+
+File change updates work in a similar manner to how they work between
+read-write and read-only peers.  Here is a regular update from the earlier
+section:
+
+```json
+{
+  "type": "update",
+  "file": {
+    "path": "photos/img1.jpg",
+    "utime": 1379220476,
+    "size": 2387629
+    "mtime": 1379220393.518242,
+    "mode": "0664",
+    "sha256": "cf16aec13a8557cab5e5a5185691ab04f32f1e581cf0f8233be72ddeed7e7fc1",
+    "id": "8adbd1cdaa0200747f6f2551ce2e1244",
+    "key": "5121f93b5b2fe518fd2b1d33136ddc3361fd9c18cb94086d9a676a9166f9ac52"
+  }
+}
+```
+
+The entire message and its signature (separated by a newline), are encrypted
+with the read-only PSK and put into a similar message containing the ID, size,
+and sha256 of the encrypted contents (if known).  This message should be signed.
+
+```json
+{
+  "type": "update",
+  "proof": "Z29vZCBncmllZiwgbW9yZSBmYWtlIGRhdGEuI...",
+  "file": {
+    "id": "8adbd1cdaa0200747f6f2551ce2e1244",
+    "utime": 1379220476,
+    "size": 2387629
+  }
+}
+```
+
+File moves do not require special handling (they are just sent with type "update"), since the file ID
+is unique and only the encrypted metadata changed.
+
+File deletes are handled as an "update" where the "deleted" member is set to true.
+
+
+Deduplicating on untrusted peers
+--------------------------------
+
+Since untrusted peers do not have access to the unencrypted SHA256, the
+read-only and read-write peers need to help the untrusted peers know which file
+IDs match, and when those file IDs stop matching.  A "matches" member is added
+to the untrusted manifest on all but the first duplicate file (where "first" is
+considered to be the file ID that is lowest when the hex value is sorted with
+strcmp).
+
+```json
+{
+  "type": "manifest",
+  "peer": "989a2afee79ec367c561e3857c438d56",
+  "version": 1380082110,
+  "manifest": "VGhpcyBpcyBzdXBwb3NlZCB0byBiZSB0aGUgZW5jcn...",
+  "files": [
+    {
+      "id": "8adbd1cdaa0200747f6f2551ce2e1244",
+      "utime": 1379220476,
+      "size": 2387629
+    },
+    {
+      "id": "eefacb80ad05fe664d6f0222060607c0",
+      "utime": 1379318976,
+      "size": 3932,
+      "sha256": "220a60ecd4a3c32c282622a625a54db9ba0ff55b5ba9c29c7064a2bc358b6a3e"
+    },
+    {
+      "id": "dd711c53e77e793bb77555a53a5feb84",
+      "utime": 1379221088,
+      "matches": "8adbd1cdaa0200747f6f2551ce2e1244"
+    }
+  ]
+}
+```
 
 
 File Encryption
 ---------------
 
-The encryption should be done with AES128 in CBC mode.  A random encryption key
-is chosen.  This is XOR'd with the encryption key and written as the first 16
-bytes of the file.  The next 16 bytes in the file should be the initialization
-vector (IV).  This is followed by the encrypted data.  The end of the file is 
-
+Encryption should be done with AES128 in CTR mode (CTR mode is seekable).  The
+first sixteen bytes of the file are "ClearSkiesCrypt1".  A random encryption
+key is chosen.  This is XOR'd with the encryption key and written as the next
+16 bytes of the file.  The following 16 bytes in the file should be the
+initialization vector (IV).  Then the encrypted data is written.  The last 32
+bytes in the file should be the SHA256 of the file.
 
 
 Untrusted proof of storage
@@ -992,14 +1128,13 @@ The read-write peer then asks for file verification with a *signed* message:
 }
 ```
 
-The untrusted peer concatenates the 32-bytes and the contents of the file and
-sends back the result, as well as the IV (which is stored in the file):
+The untrusted peer concatenates the 32-bytes and the entire contents of the
+file and sends back the result:
 
 ```json
 {
   "type": "verify_result",
   "file_id": "a0929405c4ff5a96ffeb8cbe672c82d4",
-  "iv": "625432f4ac16a03312bb2c8a415c5b13",
   "result": "fff8acd78f7528c143cb5a6971f911d3869368cbc177f3f4404d945c6accc08d"
 }
 ```
@@ -1042,7 +1177,7 @@ files were not tracked:
 
 
 
-Keepalive
+Keep-alive
 ---------
 
 A message of type "ping" should be sent by each peer occasionally to keep
@@ -1152,7 +1287,7 @@ Archival
 
 When files are changed or deleted on one peer, the other peer may opt to save
 copies in an archival directory.  If an archive is kept, it is recommended that
-the SHA1 of these files still be tracked so that they can be used for
+the SHA256 of these files still be tracked so that they can be used for
 deduplication in the future.
 
 Software could limit the archive to a certain size, or offer a friendly way to
@@ -1162,7 +1297,7 @@ navigate through the archive.
 Deduplication
 -------------
 
-The SHA1 hash should be used to avoid requesting duplicate files when already
+The SHA256 hash should be used to avoid requesting duplicate files when already
 present somewhere else in the local share.  Instead, a copy of the local file
 should be used.
 
