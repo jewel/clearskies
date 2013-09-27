@@ -1,0 +1,103 @@
+#!/usr/bin/env ruby
+#
+# ClearSkies, a two-way synchronization program
+#
+#
+# This is the command-line user-interface to the clearskies daemon.  It
+# launches the daemon and can issue commands to it.
+
+
+# Find libraries
+dir = File.dirname( $0 ) + "/lib"
+if File.exists?( "#{dir}/permahash.rb" )
+  $: << dir
+else
+  abort "Cannot find lib directory"
+end
+
+require 'daemon'
+require 'control'
+
+# Parse command-line arguments
+require 'optparse'
+
+options = {}
+OptionParser.new do |opts|
+  opts.banner = "Usage: clearskies [command]"
+
+  opts.on( "-v", "--verbose", "Output informational messages" ) do |v|
+    options[:verbose] = v
+  end
+
+  opts.on( "--config", "Configuration file" ) do |c|
+    options[:config] = c
+  end
+
+  opts.on( "--local-port", "Local control port" ) do |l|
+    options[:local_port] = l
+  end
+end
+
+command = ARGV.shift
+
+case command
+when "start"
+  Daemon.start
+
+when "stop"
+  Control.issue :stop
+
+when "restart"
+  Control.issue :stop
+  Daemon.start
+
+when "status"
+  Control.issue :status do |res|
+    p res
+  end
+
+when "create"
+  path = ARGV.shift
+
+  path = File.realpath(path)
+
+  Control.issue :create, path
+
+when "ls", "list"
+  Control.issue :list do |res|
+    puts "Path                  Status"
+    res[:shares].each do |share|
+      puts "#{share[:path]} #{share[:status]}"
+    end
+  end
+
+when "share"
+  path = ARGV.shift
+  mode = ARGV.shift
+  passphrase = ARGV.shift
+
+  path = File.realpath(path)
+
+  Control.issue :share, path, mode, passprhase do |res|
+    break if passphrase
+    puts "Access code is #{res[:access_code]}"
+  end
+
+when "add"
+  code = ARGV.shift
+  path = ARGV.shift
+
+  path = File.realpath(path)
+
+  Control.issue :add, code, path
+
+when "remove"
+  path = ARGV.shift
+
+  path = File.realpath(path)
+
+  Control.issue :remove, path
+
+else
+  abort "Invalid command"
+end
