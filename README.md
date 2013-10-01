@@ -12,6 +12,12 @@ This repository contains the protocol documentation as well as an in-the-works
 reference implementation.  The reference implementation is open source and free
 software.
 
+Status
+------
+
+The draft protocol is written and ready to be implemented.  The reference
+implementation is not yet functional.
+
 
 Core Protocol Features
 ----------------------
