@@ -5,10 +5,13 @@ require 'openssl'
 
 # This class mostly acts like the "File" class, although it doesn't implement
 # methods intended for text data, such as puts and gets.
+#
 class EncryptedFile
   HEADER_SIZE = 16
   FOOTER_SIZE = 8
 
+  # FIXME this also needs to be able to operate on strings, without
+  # a physical file involved
   def initialize path, mode, key
     @path = path
     @mode = mode + 'b'
