@@ -19,6 +19,14 @@ class Message
     @data = {}
   end
 
+  def [] key
+    @data[key]
+  end
+
+  def []= key, val
+    @data[key] = val
+  end
+
   def signed?
     @signed
   end
@@ -27,9 +35,15 @@ class Message
     @has_binary_payload
   end
 
-  def verify_signature public_key
+  def binary_payload size, &block
+    @binary_payload_length = size
+    @binary_payload = block
+  end
+
+  def verify public_key
     raise "Message not signed" unless signed?
-    # verify @signature using openssl's RSA methods
+    digest = OpenSSL::Digest::SHA256.new
+    public_key.verify digest, @signature, @signed_message
   end
 
   def sign private_key
@@ -76,8 +90,44 @@ class Message
 
   def write_to_io io
     json = JSON.stringify( @data )
+    msg = ""
     if @private_key
-      signature = openssl_rsa_sign( @private_key, json )
+      digest = OpenSSL::Digest::SHA256.new
+      signature = @private_key.sign digest, json
+      msg << "$"
     end
+
+    binary_data = nil
+    if @has_binary_payload
+      msg << "!#@binary_payload_length!"
+    end
+
+    msg << json
+
+    raise "No newlines allowed in JSON" if msg =~ /\n/
+
+    io.write msg + "\n"
+
+    raise "No newlines allowed in RSA signature" if msg =~ /\n/
+
+    io.write signature + "\n" if signature
+
+    if @has_binary_payload
+      len = 0
+
+      while data = @binary_payload.call
+        len += data.size
+        if len > @binary_payload_length
+          raise "More data than promised for binary payload"
+        end
+        io.write data
+      end
+
+      if len < @binary_payload_length
+        raise "Less data than promised for binary payload"
+      end
+    end
+
+    io.write "\n"
   end
 end
