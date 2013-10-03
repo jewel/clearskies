@@ -13,10 +13,11 @@ require 'json'
 require 'openssl'
 
 class Message
-  def initialize
+  def initialize type, opts={}
     @signed = false
     @has_binary_payload = false
-    @data = {}
+    @data = opts.clone
+    @data[:type] = type
   end
 
   def [] key
