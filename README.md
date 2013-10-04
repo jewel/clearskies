@@ -18,6 +18,8 @@ Status
 The draft protocol is written and ready to be implemented.  The reference
 implementation is not yet functional.
 
+I am writing about my progress at [my blog](http://stevenjewel.com).
+
 
 Core Protocol Features
 ----------------------
