@@ -346,7 +346,7 @@ Another example of possibly binary data
 ```
 
 Most messages are not signed (as no security benefit would be gained from
-signing them).
+signing them, and signatures are expensive to calculate).
 
 As a rule, the receiver of file data should always be the one to request it.
 It should never be pushed unrequested.  This allows streaming content and do
@@ -620,9 +620,9 @@ and a signature are together called a manifest.
 A read-write peer will generate a new manifest whenever requested by a peer
 from the contents of its database.  It contains the entire contents of the
 database, including the database "version" timestamp.  The file entries should
-be sorted by path.  Its own peer_id is also included.  The entire manifest will be
-signed (using the key-signing mechanism explained earlier) when sent to other
-peers.
+be sorted by path.  Its own peer_id is also included.  The entire manifest will
+be signed (using the key-signing mechanism explained earlier) except when being
+sent to other read-write peers.
 
 Here is an example manifest JSON as would be sent over the wire.  The signature
 is not shown.
@@ -689,7 +689,7 @@ respond with an "manifest_current" message.
 ```
 
 If the "get_manifest" request didn't include a "version" field, or the manifest
-version is not current, the peer should respond with the full signed "manifest"
+version is not current, the peer should respond with the full "manifest"
 message, as explained above.
 
 A peer may elect not to request a manifest, and may also elect to ignore the
@@ -837,7 +837,8 @@ match, the mtime should be checked one last time to make sure that the file
 hasn't been written to while the hash was being computed.  Peers should then be
 notified of the change.
 
-Change notifications are signed messages.
+Change notifications are signed messages except when sent to other read-write
+peers.
 
 Read-only peers should append the change notification, and its signature, to
 the stored manifest that it's keeping for each read-write peer.  (Each piece
