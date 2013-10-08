@@ -785,7 +785,8 @@ following message:
 ```
 
 The "range" parameter is optional and allows the client to request only certain
-bytes from the file.
+bytes from the file.  The first number is the start byte, and the second number
+is the number of bytes.
 
 The server responds with the file data.  This will have a binary payload of
 the file contents (encoding of the binary payload was explained in an earlier
