@@ -1,6 +1,5 @@
 require 'minitest/autorun'
 
-require 'change_monitor/gem_inotify'
 
 require 'tmpdir'
 require 'fileutils'
@@ -9,8 +8,14 @@ SLEEP_LENGTH = 0.1
 
 class TestGemInotify < MiniTest::Unit::TestCase
   def setup
-    @cm = ChangeMonitor::RbInotify.new
     @tmpdir = Dir::mktmpdir
+    begin
+      require 'rb-inotify'
+    rescue LoadError
+      skip "rb-inotify not present"
+    end
+    require 'change_monitor/gem_inotify'
+    @cm = ChangeMonitor::RbInotify.new
 
     @detected_changes = []
     @cm.on_change { |p| @detected_changes.push p } 
