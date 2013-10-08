@@ -28,7 +28,7 @@ class Permahash
   end
 
   def each &bl
-    @hash.each &bl
+    @hash.each(&bl)
   end
 
   def [] key
@@ -43,6 +43,14 @@ class Permahash
   def delete key
     @hash.delete key
     save 'd', key, val
+  end
+
+  def values
+    @hash.values
+  end
+
+  def keys
+    @hash.keys
   end
 
   private

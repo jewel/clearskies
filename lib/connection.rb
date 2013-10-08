@@ -116,9 +116,10 @@ class Connect
       send res
     when :file_data
       @share.write_file msg[:path] do |f|
-        msg[
+        msg.get_binary_data do |data|
+          f.write data
+        end
       end
-
     end
   end
 
@@ -219,7 +220,7 @@ class Connect
         close
       end
 
-      @level = greatest_common_access(@access, @share[:access]),
+      @level = greatest_common_access(@access, @share[:access])
 
       send :starttls, {
         peer: @share.peer_id,
