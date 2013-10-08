@@ -1,20 +1,25 @@
 # In-memory hash structure, persisted to disk via log file
+#
+# We usually don't flush to disk, since the data being stored can be
+# regenerated.
 
-class PermaHash
+class Permahash
   # Percent storage efficiency should reach before vacuuming
   DESIRED_EFFICIENCY = 0.25
 
   # Never vacuum if log has less than this many entries
   MINIMUM_VACUUM_SIZE = 1024
 
+  HEADER = "CLEARSKIES PERMAHASH v1"
+
   def initialize path
     @path = path
     @hash = {}
-    @logfile = File.open @path, 'ab'
+    # FIXME Use locking to ensure that we don't open the logfile twice
     @logsize = 0
-    if File.exists? path
-      read_from_file
-    end
+    read_from_file if File.exists? path
+    @logfile = File.open @path, 'ab'
+    @logfile.puts HEADER if @logsize == 0
   end
 
   # Pass some operations through
@@ -58,8 +63,21 @@ class PermaHash
 
   def read_from_file
     File.open( @path, 'rb' ) do |f|
+      first = f.gets.chomp
+      raise "Invalid file header" unless first == HEADER
+
+      bytes = 0
+
       while !f.eof?
         command = f.gets
+        # If the last line is a partial line, we discard it
+        unless f =~ /\n\Z/
+          f.truncate bytes
+          break
+        end
+
+        bytes += command.size
+
         oper, keysize, valsize = command.split ':'
         keysize = keysize.to_i
         valsize = valsize.to_i
@@ -80,6 +98,7 @@ class PermaHash
     temp = @path + ".#$$.tmp"
     @logfile = File.open temp, 'wb'
     @logsize = 0
+    @logfile.puts HEADER
     @hash.each do |key,val|
       save 'r', key, val
     end
