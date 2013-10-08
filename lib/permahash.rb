@@ -8,7 +8,7 @@ class Permahash
   DESIRED_EFFICIENCY = 0.25
 
   # Never vacuum if log has less than this many entries
-  MINIMUM_VACUUM_SIZE = 1024
+  MINIMUM_VACUUM_SIZE = 4096
 
   HEADER = "CLEARSKIES PERMAHASH v1"
 
@@ -20,6 +20,7 @@ class Permahash
     read_from_file if File.exists? path
     @logfile = File.open @path, 'ab'
     @logfile.puts HEADER if @logsize == 0
+    @logfile.flush
   end
 
   # Pass some operations through
@@ -41,8 +42,9 @@ class Permahash
   end
 
   def delete key
-    @hash.delete key
+    val = @hash.delete key
     save 'd', key, val
+    val
   end
 
   def values
@@ -51,6 +53,12 @@ class Permahash
 
   def keys
     @hash.keys
+  end
+
+  def close
+    @logfile.flush
+    @logfile.close
+    @logfile = nil
   end
 
   private
@@ -71,26 +79,42 @@ class Permahash
 
   def read_from_file
     File.open( @path, 'rb' ) do |f|
-      first = f.gets.chomp
-      raise "Invalid file header" unless first == HEADER
+      first = f.gets
+      raise "Invalid file header" unless first.chomp == HEADER
 
-      bytes = 0
+      bytes = first.size
 
       while !f.eof?
         command = f.gets
         # If the last line is a partial line, we discard it
-        unless f =~ /\n\Z/
-          f.truncate bytes
-          break
+        unless command =~ /\n\Z/
+          discard_until bytes
+          return
         end
-
-        bytes += command.size
 
         oper, keysize, valsize = command.split ':'
         keysize = keysize.to_i
         valsize = valsize.to_i
-        key = Marshal.load f.read(keysize)
-        val = Marshal.load f.read(valsize)
+
+        keyd = f.read keysize
+        vald = f.read valsize
+
+        if !keyd || !vald
+          discard_until bytes
+          return
+        end
+
+        if keyd.size != keysize || vald.size != valsize
+          discard_until bytes
+          return
+        end
+
+        bytes += command.size
+        bytes += keysize
+        bytes += valsize
+
+        key = Marshal.load keyd
+        val = Marshal.load vald
         @logsize += 1
         case oper
         when 'r' # replace
@@ -102,7 +126,13 @@ class Permahash
     end
   end
 
+  def discard_until bytes
+    warn "Incomplete database: #@path, truncating to #{bytes} bytes" if $DEBUG
+    File.truncate @path, bytes
+  end
+
   def vacuum
+    warn "Vacuuming #{@path.inspect}, has #@logsize entries, only needs #{@hash.size}" if $DEBUG
     temp = @path + ".#$$.tmp"
     @logfile = File.open temp, 'wb'
     @logsize = 0
@@ -110,6 +140,7 @@ class Permahash
     @hash.each do |key,val|
       save 'r', key, val
     end
+    @logfile.close
     File.rename temp, @path
     @logfile = File.open @path, 'ab'
   end

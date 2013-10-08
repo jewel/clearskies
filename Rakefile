@@ -1,7 +1,6 @@
-require 'rake/testtask'
-
-Rake::TestTask.new do |t|
-    t.test_files = FileList['test/**/*.rb']
+task :test do
+  $: << 'lib'
+  Dir.glob('./test/**/*.rb').each { |file| require file}
 end
 
 task :default => :test
