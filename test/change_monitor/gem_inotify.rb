@@ -1,12 +1,10 @@
 require 'minitest/autorun'
 
-
 require 'tmpdir'
 require 'fileutils'
-require 'timeout'
 
-SLEEP_LENGTH = 0.1
-TIMEOUT_LENGTH = 1
+SLEEP_DURATION = 0.01
+TIMEOUT = 1
 
 class TestGemInotify < MiniTest::Unit::TestCase
   def setup
@@ -30,15 +28,11 @@ class TestGemInotify < MiniTest::Unit::TestCase
   end
 
   def changed? path
-    begin
-      Timeout::timeout(TIMEOUT_LENGTH) {
-        until @detected_changes.include? path 
-          sleep SLEEP_LENGTH
-        end
-      }
-    rescue ExitError
-      #timed out
-      return false
+    naptime = 0.0
+    until @detected_changes.include? path
+      sleep SLEEP_DURATION
+      naptime += SLEEP_DURATION
+      return false if naptime > TIMEOUT
     end
     true
   end
