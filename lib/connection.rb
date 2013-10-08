@@ -1,36 +1,36 @@
 # Represents a connection with another peer
 #
-# The protocol is documented in protocol/core
+# The full protocol is documented in ../protocol/core.md
 
 require 'socket'
 require 'thread'
 require 'openssl'
 
-class Peer
-  attr_reader :peer_id, :access, :software, :friendly_name
+class Connect
+  attr_reader :peer, :access, :software, :friendly_name
 
   SOFTWARE = "clearskies 0.1pre"
 
-  # Create a new Peer and begin communication with it.
+  # Create a new Connect and begin communication with it.
   #
   # Outgoing connections will already know the share it is communicating with.
-  #
-  # This should be called within the context of its own thread.  All methods are
-  # threadsafe.
   def initialize socket, share=nil
     @share = share
     @socket = socket
 
     @incoming = !share
 
-    handshake
-    receive_messages
+    @receiving_thread = Thread.new do
+      handshake
+      request_manifest
+      receive_messages
+    end
   end
 
   # Attempt to make an outbound connection with a peer
   def self.connect share, ip, port
     socket = TCPSocket.connect ip, port
-    self.new share, socket, false
+    self.new socket, share
   end
 
   private
@@ -67,17 +67,115 @@ class Peer
   def receive_messages
     loop do
       msg = recv
-      handle msg
+      begin
+        handle msg
+      rescue
+        warn "Error handling message #{msg[:type].inspect}: #$!"
+      end
     end
   end
 
   def handle msg
     case msg.type
     when :get_manifest
-
+      if msg[:version] && msg[:version] == @share.version
+        send :manifest_current
+        return
+      end
+      send_manifest
     when :manifest_current
+      receive_manifest @peer.manifest
+      request_file
+    when :manifest
+      @peer.manifest = msg
+      receive_manifest msg
+      request_file
+    when :update
+    when :move
+    when :get
+      fp = @share.read_file msg[:path]
+      res = Message.new :file_data, { path: msg[:path] }
+      remaining = fp.size
+      if msg[:range]
+        fp.pos = msg[:range][0]
+        res[:range] = msg[:range]
+        remaining = msg[:range][1]
+      end
+
+      res.binary_data(remaining) do
+        if remaining > 0
+          data = fp.read [1024 * 256, remaining].max
+          remaining -= data.size
+          data
+        else
+          fp.close
+          nil
+        end
+      end
+
+      send res
+    when :file_data
+      @share.write_file msg[:path] do |f|
+        msg[
+      end
 
     end
+  end
+
+  def send_manifest
+    msg = Message.new :manifest
+    msg[:peer] = @share.peer_id
+    msg[:version] = @share.version
+    msg[:files] = []
+    @share.each do |file|
+      next unless file.scanned?
+
+      if file.deleted?
+        obj = {
+          path: file.path,
+          utime: file.utime,
+          deleted: true,
+          id: file.id
+        }
+      else
+        obj = {
+          path: file.path,
+          utime: file.utime,
+          size: file.size,
+          mtime: file.mtime,
+          mode: file.mode,
+          sha256: file.sha256,
+          id: file.id,
+          key: file.key,
+        }
+      end
+
+      msg[:files] << obj
+    end
+
+    send msg
+  end
+
+  def receive_manifest msg
+    @files = msg[:files]
+    @remaining = @files.select { |file|
+      next if file[:deleted]
+
+      ours = @share.by_path file[:path]
+
+      next if file[:utime] < ours[:utime]
+      # FIXME We'd also want to skip it if there is a pending download of this
+      # file from another peer with an even newer utime
+
+      !ours || file[:sha256] != ours[:sha256]
+    }
+  end
+
+  def request_file
+    file = @remaining.sample
+    send :get, {
+      path: file[:path]
+    }
   end
 
   def send_messages
@@ -138,6 +236,7 @@ class Peer
     @socket = OpenSSL::SSL::SSLSocket.new @tcp_socket, ssl_context
 
     start_send_thread
+
     send :identity, {
       name: Shares.friendly_name,
       time: Time.new.to_i,
@@ -149,6 +248,16 @@ class Peer
     time_diff = identity[:time] - Time.new.to_i
     if time_diff.abs > 60
       raise "Peer clock is too far #{time_diff > 0 ? 'ahead' : 'behind'} yours (#{time_diff.abs} seconds)"
+    end
+  end
+
+  def request_manifest
+    if @peer.manifest && @peer.manifest.version
+      send :get_manifest, {
+        version: @peer.manifest.version
+      }
+    else
+      send :get_manifest
     end
   end
 
