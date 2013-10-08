@@ -15,7 +15,7 @@ class TestGemInotify < MiniTest::Unit::TestCase
       skip "rb-inotify not present"
     end
     require 'change_monitor/gem_inotify'
-    @cm = ChangeMonitor::RbInotify.new
+    @cm = ChangeMonitor::GemInotify.new
 
     @detected_changes = []
     @cm.on_change { |p| @detected_changes.push p } 

@@ -4,7 +4,7 @@ require 'thread'
 
 module ChangeMonitor
 
-  class RbInotify
+  class GemInotify
     def initialize
       @notifier = INotify::Notifier.new
 

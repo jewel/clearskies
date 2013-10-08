@@ -5,7 +5,7 @@ module ChangeMonitor
   def find
     begin
       require 'change_monitor/gem_inotify'
-      return ChangeMonitor::RbInotify.new
+      return ChangeMonitor::GemInotify.new
     rescue LoadError
     end
 
