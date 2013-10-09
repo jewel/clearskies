@@ -246,20 +246,19 @@ LAN Broadcast
 -------------
 
 Peers are discovered on the LAN by a UDP broadcast to port 60106.  The
-broadcast contains the following JSON payload (whitespace has been added for
-legibility):
+broadcast contains the following JSON payload:
 
 ```json
 {
   "name": "ClearSkiesBroadcast",
   "version": 1,
-  "ids": ["22596363b3de40b06f981fb85d82312e8c0ed511"],
+  "id": "22596363b3de40b06f981fb85d82312e8c0ed511",
   "peer": "2a3728dca353324de4d6bfbebf2128d9",
   "myport": 40121
 }
 ```
 
-The IDs are the share IDs or access IDs that the software is aware of.
+The ID is the share ID or access ID that the software is aware of.
 
 Broadcast should be sent on startup, when a new share is added, when a new
 network connection is detected, when a new access id is created, and every
