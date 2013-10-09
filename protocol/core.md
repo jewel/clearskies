@@ -180,7 +180,7 @@ Note that both peers should register themselves immediately with the tracker,
 and re-registration should happen if the local IP address changes, or after the
 TTL period has expired of the registration.
 
-A peer ID is an 128-bit random ID that should be generated when the share is
+The peer ID is an 128-bit random ID that should be generated when the share is
 first created, and is unique to each peer.
 
 The ID and listening port are used to make a GET request to the tracker
