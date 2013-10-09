@@ -313,16 +313,21 @@ is required).  The protocol is almost entirely stateless.  For forward
 compatibility, unsupported message types or extra keys are silently ignored.
 
 A message with a binary data payload is also encoded in JSON, but it is
-prefixed an exclamation point, followed by the size (in bytes) of the binary
-payload, followed by an exclamation point, and then the JSON message as usual,
-including the termination newline.  After the newline, the entire binary
-payload will be sent.
+prefixed an exclamation point and then the JSON message as usual, including the
+termination newline.  After the newline, the entire binary payload is sent.  It
+is sent in one or more chunks, ending with a zero-length binary chunk.  Each
+chunk begins with its length in ASCII digits, followed by a newline, followed
+by the binary data.
 
 For example:
 
 ```
-!44!{"type":"file_data","path":"test/file.txt",...}
+!{"type":"file_data","path":"test/file.txt",...}
+45
 This is just text, but could be binary data!
+25
+This is more binary data
+0
 ```
 
 A signed message will be prefixed with a $.  The JSON message is then sent, and
@@ -340,9 +345,11 @@ not cover the binary data, just the JSON text.  Here is the previous
 example, but with binary data added:
 
 ```
-$!39!{"type":"foo","arg":"bar"}
+$!{"type":"foo","arg":"bar"}
 MC0CFGq+pt0m53OP9eZSndaUtWwKnoJ7AhUAy6ScPi8Kbwe4SJiIvsf9DUFHWKE=
+40
 Another example of possibly binary data
+0
 ```
 
 Most messages are not signed (as no security benefit would be gained from
@@ -793,8 +800,10 @@ the file contents (encoding of the binary payload was explained in an earlier
 section):
 
 ```
-!100000!{"type": "file_data","path":"photos/img1.jpg", ... }
+!{"type": "file_data","path":"photos/img1.jpg", ... }
+100000
 JFIF.123l;jkasaSDFasdfs...
+0
 ```
 
 A better look at the JSON above:
