@@ -11,13 +11,18 @@
 
 require 'json'
 require 'openssl'
+require 'base64'
 
 class Message
-  def initialize type, opts={}
+  def initialize type=nil, opts={}
     @signed = false
     @has_binary_payload = false
     @data = opts.clone
     @data[:type] = type
+  end
+
+  def type
+    self[:type].to_sym
   end
 
   def [] key
@@ -36,9 +41,24 @@ class Message
     @has_binary_payload
   end
 
-  def binary_payload size, &block
-    @binary_payload_length = size
+  def binary_payload &block
+    @has_binary_payload = true
     @binary_payload = block
+  end
+
+  def read_binary_payload
+    raise "No binary payload" unless @has_binary_payload
+    len = @binary_io.gets
+    unless len =~ /\A\d+\n\Z/
+      raise "Invalid binary payload chunk boundary: #{len.inspect}"
+    end
+
+    len = len.to_i
+    return nil if len == 0
+
+    data = @binary_io.read len
+    raise "Premature end of stream" if data.nil?
+    data
   end
 
   def verify public_key
@@ -64,15 +84,14 @@ class Message
 
     if first == '$'
       @signed = true
-      first = msg[1]
       msg = msg[1..-1]
+      first = msg[0]
     end
 
     if first == '!'
       @has_binary_payload = true
-      msg =~ /\A!(\d+)!/ or raise "Invalid message: #{msg.inspect}"
-      @binary_payload_length = $1.to_i
-      msg = $'
+      @binary_io = io
+      msg = msg[1..-1]
       first = msg[0]
     end
 
@@ -81,26 +100,28 @@ class Message
     end
 
     @data = JSON.parse msg, symbolize_names: true
-    raise "Message has no type: #{@message.inspect}" unless @message[:type]
+    raise "Message has no type: #{@data.inspect}" unless @data[:type]
 
     if @signed
-      @signature = io.gets
+      @signature = Base64.decode64 io.gets
       @signed_message = msg.chomp
     end
   end
 
   def write_to_io io
-    json = JSON.stringify( @data )
+    json = @data.to_json
     msg = ""
     if @private_key
       digest = OpenSSL::Digest::SHA256.new
       signature = @private_key.sign digest, json
+      signature = Base64.encode64 signature
+      signature.gsub! "\n", ""
       msg << "$"
     end
 
     binary_data = nil
     if @has_binary_payload
-      msg << "!#@binary_payload_length!"
+      msg << "!"
     end
 
     msg << json
@@ -109,26 +130,17 @@ class Message
 
     io.write msg + "\n"
 
-    raise "No newlines allowed in RSA signature" if msg =~ /\n/
-
-    io.write signature + "\n" if signature
+    if signature
+      io.write signature + "\n"
+    end
 
     if @has_binary_payload
-      len = 0
-
       while data = @binary_payload.call
-        len += data.size
-        if len > @binary_payload_length
-          raise "More data than promised for binary payload"
-        end
+        io.puts data.size.to_s
         io.write data
       end
 
-      if len < @binary_payload_length
-        raise "Less data than promised for binary payload"
-      end
+      io.puts 0.to_s
     end
-
-    io.write "\n"
   end
 end

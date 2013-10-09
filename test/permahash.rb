@@ -9,7 +9,7 @@ def new_path
   path
 end
 
-describe Permahash, "Permahash saves to disk" do
+describe Permahash, "saves to disk" do
   describe "when used in-memory" do
     before do
       @path = new_path

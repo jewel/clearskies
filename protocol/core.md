@@ -314,10 +314,10 @@ compatibility, unsupported message types or extra keys are silently ignored.
 
 A message with a binary data payload is also encoded in JSON, but it is
 prefixed an exclamation point and then the JSON message as usual, including the
-termination newline.  After the newline, the entire binary payload is sent.  It
-is sent in one or more chunks, ending with a zero-length binary chunk.  Each
-chunk begins with its length in ASCII digits, followed by a newline, followed
-by the binary data.
+termination newline.  After the newline, the binary payload is sent.  It is
+sent in one or more chunks, ending with a zero-length binary chunk.  Each chunk
+begins with its length in ASCII digits, followed by a newline, followed by the
+binary data.
 
 For example:
 
@@ -1370,6 +1370,8 @@ Computer resources
 
 This section is a set of recommendations for implementors and are not part of
 the protocol.
+
+Software should attempt to resume partial file transfers.
 
 The period between directory scans should be a multiple of the time it takes to
 do rescans, for example, scans may be done every ten minutes, unless it takes
