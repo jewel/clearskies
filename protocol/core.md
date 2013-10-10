@@ -11,19 +11,17 @@ Draft Status
 ------------
 
 This is a draft of the version 1 protocol and is subject to changes as the need
-arises.  The final version will replace this document.
+arises.  However, it is believed to be feature complete.
 
-If something in this document is ambiguous, the reference implementation may
-be illuminating.
-
-Comments and suggestions are welcome.
+Comments and suggestions are welcome in the form of github issues.
+Analysis of the cryptography is doubly welcome.
 
 
 License
 -------
 
-This protocol documentation is in the public domain.  Private implementations
-of this protocol are not constrained by the terms of the GPL v3.
+This license is in the public domain.  See the file LICENSE in this same
+directory for licensing information about the protocol.
 
 
 Access Levels
