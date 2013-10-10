@@ -1,5 +1,5 @@
 module Daemon
-  def self.start
+  def self.daemonize
     pid = fork
     raise 'First fork failed' if pid == -1
     return if pid
@@ -19,8 +19,12 @@ module Daemon
     # Run as low priority
     Process.setpriority( Process::PRIO_USER, 0, 15 )
 
-    require 'database'
-    Database.start
+    run
+  end
+
+  def self.run
+    require 'shares'
+    require 'share'
 
     require 'scanner'
     Scanner.start
@@ -28,9 +32,7 @@ module Daemon
     require 'network'
     Network.start
 
-    require 'control'
-    Control.start
-
-    Control.wait
+    require 'control_server'
+    ControlServer.run
   end
 end

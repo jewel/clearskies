@@ -1,11 +1,12 @@
 # A list of the active shares
 #
 require 'permahash'
+require 'conf'
 
 module Shares
   # A database to keep track of all the valid shares.
   # It contains path => share_id
-  db_path = "#{CONFIG}/shares.db"
+  db_path = "#{Conf.data_dir}/shares.db"
   @db = Permahash.new db_path
 
   # Also keep references to the Share objects

@@ -5,19 +5,20 @@
 require 'share/file'
 require 'permahash'
 require 'securerandom'
+require 'conf'
 
 class Share
   attr_reader :id, :peer_id
 
   def initialize share_id
     @id = share_id
-    path = "#$config[:data_path]/share_#{share_id}.db"
+    path = "#{Conf.data_path}/share_#{share_id}.db"
     @db = Permahash.new path
 
     @by_sha = {}
     self.each { |path,file| @by_sha[file.sha256] = file }
 
-    @peer_id = @db[:peer_id] ||= SecureRandom.hex 32
+    @peer_id = @db[:peer_id] ||= SecureRandom.hex(32)
   end
 
   def key level
