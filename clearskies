@@ -16,7 +16,7 @@ else
 end
 
 require 'daemon'
-require 'control'
+require 'control_client'
 
 # Parse command-line arguments
 require 'optparse'
@@ -36,23 +36,64 @@ OptionParser.new do |opts|
   opts.on( "--local-port", "Local control port" ) do |l|
     options[:local_port] = l
   end
-end
+
+  opts.on( "--version", "Get software version" ) do |v|
+    puts "ClearSkies cli version 0"
+    puts "Daemon is version #{ControlClient.issue(:version)}"
+    exit 0
+  end
+
+  opts.on( "-h", "--help" ) do |h|
+    puts opts
+    puts "
+Daemon management:
+  start                   Start background program
+  stop                    Cause background program to exit
+  restart                 Restart background program
+  status                  Show program status
+
+Share management:
+  create [path]           Create new share
+  list                    List all shares and sync status
+  share [path] [mode]     Make access code to be given to someone else
+                          mode is one of (rw, ro, untrusted)
+  connect [code] [path]   Add access code from someone else, creating new share at [path]
+  disconnect [path]       Stop syncing path
+"
+    exit
+  end
+end.parse!
 
 command = ARGV.shift
+
+if !command
+  abort "No command given, try --help"
+end
 
 case command
 when "start"
   Daemon.start
 
+when "debug"
+  # FIXME this is temporary until better argument parsing makes it possible to
+  # start it without forking
+  Daemon.run
+
 when "stop"
-  Control.issue :stop
+  ControlClient.issue :stop
 
 when "restart"
-  Control.issue :stop
+  ControlClient.issue :stop
   Daemon.start
 
-when "status"
-  Control.issue :status do |res|
+when "pause"
+  ControlClient.issue "pause"
+
+when "resume", "unpause"
+  ControlClient.issue "resume"
+
+when "status", "st", "stat"
+  ControlClient.issue :status do |res|
     p res
   end
 
@@ -61,14 +102,13 @@ when "create"
 
   path = File.realpath(path)
 
-  Control.issue :create, path
+  ControlClient.issue :create, path
 
 when "ls", "list"
-  Control.issue :list do |res|
-    puts "Path                  Status"
-    res[:shares].each do |share|
-      puts "#{share[:path]} #{share[:status]}"
-    end
+  res = ControlClient.issue :list
+  puts "Path                  Status"
+  res[:shares].each do |share|
+    puts "#{share[:path]} #{share[:status]}"
   end
 
 when "share"
@@ -78,9 +118,9 @@ when "share"
 
   path = File.realpath(path)
 
-  Control.issue :share, path, mode, passprhase do |res|
-    break if passphrase
-    puts "Access code is #{res[:access_code]}"
+  res = ControlClient.issue :share, path, mode, passprhase
+  unless passphrase
+    puts "Access code is #{res[:access_code]}, expires on #{res[:expiration]}"
   end
 
 when "add"
@@ -89,14 +129,14 @@ when "add"
 
   path = File.realpath(path)
 
-  Control.issue :add, code, path
+  ControlClient.issue :add, code, path
 
-when "remove"
+when "remove", "rm"
   path = ARGV.shift
 
   path = File.realpath(path)
 
-  Control.issue :remove, path
+  ControlClient.issue :remove, path
 
 else
   abort "Invalid command"
