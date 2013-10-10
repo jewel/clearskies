@@ -17,9 +17,10 @@ class Permahash
     @hash = {}
     # FIXME Use locking to ensure that we don't open the logfile twice
     @logsize = 0
-    read_from_file if File.exists? path
+    exists = File.exists? path
+    read_from_file if exists
     @logfile = File.open @path, 'ab'
-    @logfile.puts HEADER if @logsize == 0
+    @logfile.puts HEADER unless exists
     @logfile.flush
   end
 

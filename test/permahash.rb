@@ -115,4 +115,14 @@ describe Permahash, "saves to disk" do
       }.must_raise RuntimeError
     end
   end
+
+  describe "when empty" do
+    it "should save and restore normally" do
+      path = new_path
+      3.times do
+        db = Permahash.new path
+        db.close
+      end
+    end
+  end
 end
