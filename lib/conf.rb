@@ -21,4 +21,8 @@ module Conf
   def self.control_path
     data_dir "control"
   end
+
+  def self.version
+    "clearskies 0.1pre"
+  end
 end

@@ -1,3 +1,6 @@
+require 'thread'
+Thread.abort_on_exception = true
+
 module Daemon
   def self.daemonize
     pid = fork

@@ -5,11 +5,10 @@
 require 'socket'
 require 'thread'
 require 'openssl'
+require 'conf'
 
 class Connect
   attr_reader :peer, :access, :software, :friendly_name
-
-  SOFTWARE = "clearskies 0.1pre"
 
   # Create a new Connect and begin communication with it.
   #
@@ -188,7 +187,7 @@ class Connect
   def handshake
     if @incoming
       send :greeting, {
-        software: SOFTWARE,
+        software: Conf.version,
         protocol: [1],
         features: []
       }
@@ -200,7 +199,7 @@ class Connect
       end
 
       send :start, {
-        software: SOFTWARE,
+        software: Conf.version,
         protocol: 1,
         features: [],
         id: share.id,

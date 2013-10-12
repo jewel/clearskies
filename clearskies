@@ -6,7 +6,6 @@
 # This is the command-line user-interface to the clearskies daemon.  It
 # launches the daemon and can issue commands to it.
 
-
 # Find libraries
 dir = File.dirname( $0 ) + "/lib"
 if File.exists?( "#{dir}/permahash.rb" )
@@ -93,9 +92,8 @@ when "resume", "unpause"
   ControlClient.issue "resume"
 
 when "status", "st", "stat"
-  ControlClient.issue :status do |res|
-    p res
-  end
+  res = ControlClient.issue :status
+  p res
 
 when "create"
   path = ARGV.shift

@@ -19,16 +19,17 @@ module ControlClient
 
     @socket.puts json
 
-    JSON.parse @socket.gets, symbolize_keys: true
+    res = @socket.gets
+
+    JSON.parse res, symbolize_names: true
   end
 
   private
   def self.connect
 
-    @socket = UNIXSocket.new Conf.control_path
-    @socket.sync = true
+    @socket = UNIXSocket.open Conf.control_path
 
-    greeting = JSON.parse @socket.gets, symbolize_keys: true
+    greeting = JSON.parse @socket.gets, symbolize_names: true
 
     unless greeting[:service] == 'ClearSkies Control'
       abort "Invalid daemon service: #{greeting.inspect}"
