@@ -4,6 +4,7 @@
 
 require 'socket'
 require 'json'
+require 'conf'
 
 module ControlClient
 
@@ -23,9 +24,10 @@ module ControlClient
 
   private
   def self.connect
-    path = Conf.control_path
 
-    @socket = UNIXSocket.new path
+    @socket = UNIXSocket.new Conf.control_path
+    @socket.sync = true
+
     greeting = JSON.parse @socket.gets, symbolize_keys: true
 
     unless greeting[:service] == 'ClearSkies Control'

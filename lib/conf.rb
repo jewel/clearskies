@@ -6,10 +6,11 @@
 require 'fileutils'
 
 module Conf
-  def self.data_dir
+  def self.data_dir filename=nil
     # FIXME Is this the right place according to the relevant standard?
     path = "#{ENV['HOME']}/.local/share/clearskies"
     FileUtils.mkdir_p path
+    path = "#{path}/#{filename}" if filename
     path
   end
 
@@ -17,7 +18,7 @@ module Conf
     0
   end
 
-  def self.control_listen_port
-    60106
+  def self.control_path
+    data_dir "control"
   end
 end

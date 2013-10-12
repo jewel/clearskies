@@ -120,7 +120,7 @@ Creating a new share is done with "create_share":
 }
 ```
 
-Listing all shares is done with "list".  The response looks like:
+Listing all shares is done with "list_shares".  The response looks like:
 ```json
 {
   "shares": {
