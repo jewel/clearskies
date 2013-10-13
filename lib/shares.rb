@@ -31,8 +31,8 @@ module Shares
     @shares[id] ||= Share.new id
   end
 
-  def self.create path, share
-    @db[path] = share.id
-    @shares[id] = share
+  def self.add share
+    @db[share.path] = share.id
+    @shares[share.id] = share
   end
 end

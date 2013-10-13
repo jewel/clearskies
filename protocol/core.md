@@ -102,12 +102,13 @@ Implementations may choose to also support advanced access codes, which may be
 multi-use and persist for a longer time (even indefinitely).
 
 The human-sharable version of the access code is written with a prefix of
-'CLEARSKIES', followed by the access code itself.  The access code should be
-represented as base32, as defined in
-[RFC 4648](http://tools.ietf.org/html/rfc4648), with the equals-sign padding at
-the end removed.  Finally, a LUN check digit is added, using the
-[LUN mod N algorithm](http://en.wikipedia.org/wiki/Luhn_mod_N_algorithm), where
-N is 32.
+'CLEA', followed by the access code itself.  The access code should be
+represented as base32, as defined in [RFC
+4648](http://tools.ietf.org/html/rfc4648).  Since the access code is 16 bytes,
+and base32 requires lengths that are divisible by 5, a prefix is added to the
+access code so that the final result spells CLEARSKIES.  The prefix bytes are
+8C948248.  Finally, a LUN check digit is added, using the [LUN mod N
+algorithm](http://en.wikipedia.org/wiki/Luhn_mod_N_algorithm), where N is 32.
 
 The 128-bit number is run through SHA256 to get an access ID.  This is used
 to locate other peers.

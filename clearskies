@@ -100,10 +100,10 @@ when "create"
 
   path = File.realpath(path)
 
-  ControlClient.issue :create, path
+  ControlClient.issue :create_share, path
 
 when "ls", "list"
-  res = ControlClient.issue :list
+  res = ControlClient.issue :list_shares
   puts "Path                  Status"
   res[:shares].each do |share|
     puts "#{share[:path]} #{share[:status]}"
@@ -112,30 +112,35 @@ when "ls", "list"
 when "share"
   path = ARGV.shift
   mode = ARGV.shift
-  passphrase = ARGV.shift
 
   path = File.realpath(path)
 
-  res = ControlClient.issue :share, path, mode, passprhase
-  unless passphrase
-    puts "Access code is #{res[:access_code]}, expires on #{res[:expiration]}"
-  end
+  res = ControlClient.issue :create_access_code, {
+    path: path,
+    mode: mode,
+  }
+
+  puts res[:access_code]
 
 when "add"
   code = ARGV.shift
   path = ARGV.shift
 
+  FileUtils.mkdir_p path
   path = File.realpath(path)
 
-  ControlClient.issue :add, code, path
+  ControlClient.issue :add_share, {
+    code: code,
+    path: path
+  }
 
 when "remove", "rm"
   path = ARGV.shift
 
   path = File.realpath(path)
 
-  ControlClient.issue :remove, path
+  ControlClient.issue :remove_share, path
 
 else
-  abort "Invalid command"
+  abort "Invalid command: #{command.inspect}"
 end

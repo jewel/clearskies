@@ -21,6 +21,12 @@ class Share
     @peer_id = @db[:peer_id] ||= SecureRandom.hex(32)
   end
 
+  def self.create path
+    share = Share.new
+    share.path = path
+    share
+  end
+
   def key level
     nil
   end

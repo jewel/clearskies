@@ -8,20 +8,23 @@ require 'conf'
 
 module ControlClient
 
-  def self.issue command, *args
+  def self.issue type, opts={}
     connect if !@socket
-    json = {
-      type: command,
-      args: args,
-    }.to_json
+    opts[:type] = type
+    json = opts.to_json
 
     json.gsub! "\n", ''
 
     @socket.puts json
 
-    res = @socket.gets
+    json = @socket.gets
 
-    JSON.parse res, symbolize_names: true
+    res = JSON.parse json, symbolize_names: true
+    if res[:error]
+      raise "server can't #{type.inspect}, says: #{res[:error]} #{res[:message]}"
+    end
+
+    res
   end
 
   private

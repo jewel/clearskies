@@ -4,6 +4,8 @@
 
 require 'json'
 require 'thread'
+require 'access_code'
+require 'pending_codes'
 
 module ControlServer
   def self.run
@@ -48,6 +50,8 @@ module ControlServer
       begin
         res = handle_command command
       rescue
+        warn "Control error: #$!"
+        warn $!.backtrace.join( "\n" )
         res = { error: $!.class, message: $!.to_s }
       end
       res ||= {}
@@ -59,9 +63,20 @@ module ControlServer
     case command[:type].to_sym
     when :stop
       warn "Control command to stop daemon, exiting"
-      exit
+      Thread.new do
+        sleep 0.2
+        exit
+      end
+      nil
+
     when :pause
+      Network.pause
+      nil
+
     when :resume
+      Network.resume
+      nil
+
     when :status
       {
         paused: false,
@@ -70,8 +85,36 @@ module ControlServer
         upload_rate: 0,
         download_rate: 0,
       }
+
     when :create_share
+      share = Share.create command[:path]
+      Shares.add share
+      nil
+
+    when :create_access_code
+      share = Shares.by_path command[:path]
+      code = AccessCode.create
+
+      {
+        access_code: code.to_s
+      }
+
     when :list_shares
+      {
+        shares: Shares.map do |share|
+          {
+            path: share.path,
+            status: share.status,
+          }
+        end
+      }
+
+    when :add_share
+      PendingCodes.add command[:path], command[:code]
+      nil
+
+    else
+      raise "Invalid control command: #{command[type].inspect}"
     end
   end
 end

@@ -7,8 +7,8 @@ require 'fileutils'
 
 module Conf
   def self.data_dir filename=nil
-    # FIXME Is this the right place according to the relevant standard?
-    path = "#{ENV['HOME']}/.local/share/clearskies"
+    # FIXME Is this the proper default directory?
+    path = ENV['CLEARSKIES_DIR'] || "#{ENV['HOME']}/.local/share/clearskies"
     FileUtils.mkdir_p path
     path = "#{path}/#{filename}" if filename
     path
