@@ -2,11 +2,12 @@
 # Sample ClearSkies tracker server
 
 require 'json'
+require 'webrick'
 
-trap 'INT' { server.shutdown }
-trap 'TERM' { server.shutdown }
+trap('INT'){ server.shutdown }
+trap('TERM'){ server.shutdown }
 
-server = WEBRick::HTTPServer.new({
+server = WEBrick::HTTPServer.new({
   :Port => ENV['PORT'] || 1234,
 })
 
@@ -15,7 +16,7 @@ server.mount_proc '/' do |req,res|
   res.body = "This is the example ClearSkies tracker server\n"
 end
 
-class Tracker < Webrick::HTTPServlet::AbstractServlet
+class Tracker < WEBrick::HTTPServlet::AbstractServlet
   @peers = {}
 
   TIMEOUT = 30
