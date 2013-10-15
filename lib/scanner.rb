@@ -90,15 +90,16 @@ module Scanner
       # Make note of file metadata now.  We will come back and calculate
       # the SHA256 later.
       unless share[path]
-        share[path] = Share::File.new(:path => path)
+        share[path] = Share::File.new(path)
       end
     end
   end
 
   def self.calculate_hashes share
-    share.each do |file|
-      unless file.sha256 
-        file.sha256 = Digest::SHA256.file(share.path).hexdigest
+    share.each do |db_path,file|
+      unless file.sha256
+        file.sha256 = Digest::SHA256.file(file.path).hexdigest
+        share.save file.path
       end
     end
   end
