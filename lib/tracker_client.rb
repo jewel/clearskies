@@ -10,12 +10,17 @@ module TrackerClient
     end
   end
 
+  def self.on_peer_discovered &block
+    @discovered = block
+  end
+
   private
   def self.run
     loop do
       wait_time = 60
       Shares.each do |share|
         trackers.each do |url|
+          warn "Tracking against #{url}"
           uri = URI(url)
           uri.query = URI.encode_www_form({
             :id => share.id,
@@ -23,6 +28,7 @@ module TrackerClient
             :myport => Network.listen_port,
           })
           res = Net::HTTP.get_response uri
+          warn "Tracker said #{res}"
           next unless res.is_a? Net::HTTPSuccess
           info = JSON.parse res.body, symbolize_names: true
 
@@ -44,6 +50,6 @@ module TrackerClient
   end
 
   def self.trackers
-    ["http://localhost:1234"]
+    ["http://localhost:10234"]
   end
 end

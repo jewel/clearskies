@@ -29,8 +29,11 @@ module ControlClient
 
   private
   def self.connect
-
-    @socket = UNIXSocket.open Conf.control_path
+    begin
+      @socket = UNIXSocket.open Conf.control_path
+    rescue Errno::ENOENT
+      abort "Daemon not running"
+    end
 
     greeting = JSON.parse @socket.gets, symbolize_names: true
 

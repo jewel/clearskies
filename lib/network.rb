@@ -3,16 +3,23 @@
 require 'socket'
 require 'thread'
 require 'broadcaster'
+require 'tracker_client'
 
 module Network
   def self.start
     Thread.new do
       listen
     end
-    Broadcaster.on_receive do |peer_id,addr,port|
-      puts "Got #{peer_id} #{addr} #{port}"
+
+    Broadcaster.on_peer_discovered do |peer_id,addr,port|
+      warn "Got #{peer_id} #{addr} #{port}"
     end
     Broadcaster.start
+
+    TrackerClient.on_peer_discovered do |peer_id,addr,port|
+      warn "Got #{peer_id} #{addr} #{port}"
+    end
+    TrackerClient.start
   end
 
   private

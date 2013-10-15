@@ -7,8 +7,8 @@ require 'socket'
 module Broadcaster
   BROADCAST_PORT = 60106
 
-  def self.on_receive &block
-    @received = block
+  def self.on_peer_discovered &block
+    @discovered = block
   end
 
   def self.start
@@ -42,13 +42,12 @@ module Broadcaster
       warn "Got message: #{json}"
       next if msg[:name] != "ClearSkiesBroadcast"
       next if msg[:version] != 1
-      @received.call msg[:peer], sender[2], msg[:myport]
+      @discovered.call msg[:peer], sender[2], msg[:myport]
     end
   end
 
   def self.run
     loop do
-      puts "Broadcasting"
       Shares.each do |share|
         send_broadcast share.id, share.peer_id
       end
@@ -64,7 +63,6 @@ module Broadcaster
       :peer => share.peer_id,
       :myport => Network.lan_listen_port,
     }.to_json
-    warn "Broadcasting #{message}"
     @socket.send message, 0, '<broadcast>', BROADCAST_PORT
   end
 end

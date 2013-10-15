@@ -4,13 +4,12 @@
 require 'json'
 require 'webrick'
 
-trap('INT'){ server.shutdown }
-trap('TERM'){ server.shutdown }
-
 server = WEBrick::HTTPServer.new({
-  :Port => ENV['PORT'] || 1234,
+  :Port => ENV['PORT'] || 10234,
 })
 
+trap('INT'){ server.shutdown }
+trap('TERM'){ server.shutdown }
 
 server.mount_proc '/' do |req,res|
   res.body = "This is the example ClearSkies tracker server\n"
