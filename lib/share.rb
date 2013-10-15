@@ -12,7 +12,7 @@ class Share
 
   def initialize share_id
     @id = share_id
-    path = "#{Conf.data_path}/share_#{share_id}.db"
+    path = "#{Conf.data_dir}/share_#{share_id}.db"
     @db = Permahash.new path
 
     @by_sha = {}
@@ -23,9 +23,17 @@ class Share
   end
 
   def self.create path
-    share = Share.new
+    share = Share.new 'FIXME'
     share.path = path
     share
+  end
+
+  def path= path
+    @db[:path] = path
+  end
+
+  def path
+    @db[:path]
   end
 
   def key level
