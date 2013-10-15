@@ -589,6 +589,9 @@ In a similar manner, Windows software should preserve unix mode bits.  A
 read-only file in unix can be mapped to the read-only attribute in Windows.
 Files that originate on Windows should be mapped to mode '0600' by default.
 
+Windows clients will also need to transparently handle multiple files with the
+same name but different case, such as Secret.txt and secret.txt.
+
 Finally, Windows should always use '/' as a directory separator when
 communicating with other peers.
 
