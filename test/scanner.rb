@@ -16,6 +16,12 @@ class Share
     @path
   end
 
+  def each
+  end
+
+  def save path
+  end
+
   def [] path
     @storage[path]
   end
