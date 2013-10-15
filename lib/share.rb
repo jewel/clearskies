@@ -52,9 +52,12 @@ class Share
   end
 
   def []= path, file
-    file.on_save do
-      @db["file/#{path}"] = file
-    end
-    file.save!
+    @db["file/#{path}"] = file
+  end
+
+  # Make changes to the file objects atomic by needing to call save() after any
+  # changes are made
+  def save path
+    @db["file/#{path}"] = @db["file/#{path}"]
   end
 end
