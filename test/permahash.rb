@@ -37,6 +37,20 @@ describe Permahash, "saves to disk" do
       @db.delete(:baz).must_equal 102
       @db[:baz].must_equal nil
     end
+
+    it "should preserve arbitrary objects" do
+      class Foo
+        attr_accessor :v, :j
+      end
+      @db[:obj] = { :test_key => "test_value" }
+      @db[:obj].must_equal({:test_key => "test_value"})
+      f = Foo.new
+      f.v = "v"
+      f.j = "j"
+      @db[:foo_class] = f
+      @db[:foo_class].v.must_equal f.v
+      @db[:foo_class].j.must_equal f.j
+    end
   end
 
   describe "when restored from disk" do
