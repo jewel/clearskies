@@ -24,6 +24,14 @@ class Permahash
     @logfile.flush
   end
 
+  def sync= bool
+    @logfile.sync = bool
+  end
+
+  def flush
+    @logfile.flush
+  end
+
   # Pass some operations through
   def size
     @hash.size

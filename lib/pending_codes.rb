@@ -7,6 +7,7 @@ require 'fileutils'
 class PendingCodes
   path = Conf.data_dir "pending_codes.db"
   @db = Permahash.new path
+  @db.sync = true
 
   def self.add path, code
     FileUtils.mkdir_p path

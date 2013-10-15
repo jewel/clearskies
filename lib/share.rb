@@ -19,6 +19,7 @@ class Share
     self.each { |path,file| @by_sha[file.sha256] = file }
 
     @peer_id = @db[:peer_id] ||= SecureRandom.hex(32)
+    @db.flush
   end
 
   def self.create path
