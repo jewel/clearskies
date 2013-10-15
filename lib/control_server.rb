@@ -93,6 +93,12 @@ module ControlServer
 
     when :create_access_code
       share = Shares.by_path command[:path]
+      if !share
+        share = Share.create command[:path]
+        Shares.add share
+        warn "Now we have a share, #{share.inspect} inside of #{Shares.inspect}"
+      end
+
       code = AccessCode.create
 
       {

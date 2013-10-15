@@ -17,6 +17,7 @@ module TrackerClient
   private
   def self.run
     loop do
+      sleep 2
       wait_time = 60
       Shares.each do |share|
         trackers.each do |url|

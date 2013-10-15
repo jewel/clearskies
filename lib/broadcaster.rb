@@ -59,8 +59,8 @@ module Broadcaster
     message = {
       :name => "ClearSkiesBroadcast",
       :version => 1,
-      :id => share.id,
-      :peer => share.peer_id,
+      :id => id,
+      :peer => peer_id,
       :myport => Network.lan_listen_port,
     }.to_json
     @socket.send message, 0, '<broadcast>', BROADCAST_PORT
