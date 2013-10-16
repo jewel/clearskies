@@ -7,10 +7,10 @@ require 'thread'
 require 'openssl'
 require 'conf'
 
-class Connect
+class Connection
   attr_reader :peer, :access, :software, :friendly_name
 
-  # Create a new Connect and begin communication with it.
+  # Create a new Connection and begin communication with it.
   #
   # Outgoing connections will already know the share it is communicating with.
   def initialize socket, share=nil
@@ -18,18 +18,34 @@ class Connect
     @socket = socket
 
     @incoming = !share
+    warn "Starting #{@incoming ? 'incoming' : 'outgoing'} connection with #{@socket.peeraddr[2]}"
+  end
 
+  def start
     @receiving_thread = Thread.new do
+      warn "Shaking hands"
       handshake
+      warn "Requesting manifest"
       request_manifest
+      warn "Receiving messages"
       receive_messages
     end
   end
 
   # Attempt to make an outbound connection with a peer
   def self.connect share, ip, port
+    warn "Opening socket to #{ip} #{port}"
     socket = TCPSocket.connect ip, port
+    warn "Opened socket to #{ip} #{port}"
     self.new socket, share
+  end
+
+  def on_disconnect &block
+    @on_disconnect = block
+  end
+
+  def on_discover_share &block
+    @on_discover_share = block
   end
 
   private

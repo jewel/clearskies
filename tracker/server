@@ -6,6 +6,7 @@ require 'webrick'
 
 server = WEBrick::HTTPServer.new({
   :Port => ENV['PORT'] || 10234,
+  :ReuseAddr => true,
 })
 
 trap('INT'){ server.shutdown }
@@ -16,27 +17,29 @@ server.mount_proc '/' do |req,res|
 end
 
 class Tracker < WEBrick::HTTPServlet::AbstractServlet
-  @peers = {}
+  @@peers = {}
 
   TIMEOUT = 30
 
   def do_GET req, res
     q = req.query
 
-    id = q[:id]
-    peer = q[:peer]
-    addr = req.remote_addr[2].to_s
-    port = q[:myport]
+    id = q["id"]
+    peer = q["peer"]
+    addr = req.remote_ip.to_s
+    port = q["myport"]
 
     # FIXME Validate incoming parameters
 
-    @peers[ q[:id] ] ||= {}
+    @@peers[id] ||= {}
 
     now = Time.new.to_i
-    @peers[id][peer] = [ addr, port, now ]
+    @@peers[id][peer] = [ addr, port, now ]
+
+    p @@peers
 
     others = []
-    @peers[ q[:id] ].each do |peer_id,info|
+    @@peers[id].each do |peer_id,info|
       next if peer_id == peer
       next if info[2] + TIMEOUT < now
       others.push "#{peer_id}@#{info[0]}:#{info[1]}"
@@ -44,7 +47,7 @@ class Tracker < WEBrick::HTTPServlet::AbstractServlet
 
     res.content_type = 'application/json'
     res.body = {
-      your_ip: req.remote_addr.to_s,
+      your_ip: addr,
       others: others,
       ttl: TIMEOUT
     }.to_json

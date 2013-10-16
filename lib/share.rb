@@ -19,6 +19,8 @@ class Share
     self.each { |path,file| @by_sha[file.sha256] = file }
 
     @peer_id = @db[:peer_id] ||= SecureRandom.hex(32)
+    @db[:codes] ||= []
+
     @db.flush
   end
 
@@ -44,6 +46,19 @@ class Share
     @db.each do |key,val|
       next unless key =~ /\Afile\//
       yield key, val
+    end
+  end
+
+  def add_code code
+    @db[:codes] << code
+
+    # force save
+    @db[:codes] = @db[:codes]
+  end
+
+  def each_code
+    @db[:codes].each do |code|
+      yield code
     end
   end
 

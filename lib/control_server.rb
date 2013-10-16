@@ -100,6 +100,7 @@ module ControlServer
       end
 
       code = AccessCode.create
+      share.add_code code
 
       {
         access_code: code.to_s
@@ -116,7 +117,7 @@ module ControlServer
       }
 
     when :add_share
-      PendingCodes.add command[:path], command[:code]
+      PendingCodes.add command[:path], AccessCode.parse(command[:code])
       nil
 
     else

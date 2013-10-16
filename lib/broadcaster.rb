@@ -42,7 +42,7 @@ module Broadcaster
       warn "Got message: #{json}"
       next if msg[:name] != "ClearSkiesBroadcast"
       next if msg[:version] != 1
-      @discovered.call msg[:peer], sender[2], msg[:myport]
+      @discovered.call msg[:id], msg[:peer], sender[2], msg[:myport]
     end
   end
 
@@ -61,7 +61,7 @@ module Broadcaster
       :version => 1,
       :id => id,
       :peer => peer_id,
-      :myport => Network.lan_listen_port,
+      :myport => Network.listen_port,
     }.to_json
     @socket.send message, 0, '<broadcast>', BROADCAST_PORT
   end

@@ -17,4 +17,10 @@ class PendingCodes
   def self.delete code
     @db.delete code
   end
+
+  def self.each
+    @db.each do |path,code|
+      yield path, code
+    end
+  end
 end
