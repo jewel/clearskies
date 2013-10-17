@@ -1,6 +1,8 @@
 # Talk with the central tracker
 require 'net/http'
 require 'thread'
+require 'pending_codes'
+require 'id_mapper'
 
 module TrackerClient
   def self.start
@@ -16,24 +18,14 @@ module TrackerClient
 
   private
   def self.run
+    sleep 2 # FIXME temporary for testing
     loop do
-      sleep 2
       # FIXME we really need to wait the exact amount of time requested by
       # each tracker
-      wait_time = 10
-      Shares.each do |share|
+      wait_time = 120
+      IDMapper.each do |share_id,peer_id|
         trackers.each do |url|
-          poll_tracker share.id, share.peer_id, url
-
-          share.each_code do |code|
-            poll_tracker code.id, share.peer_id, url
-          end
-        end
-      end
-
-      PendingCodes.each do |code,path|
-        trackers.each do |url|
-          poll_tracker code.id, 'FIXME_' + SecureRandom.hex(16), url
+          poll_tracker share_id, peer_id, url
         end
       end
 
@@ -66,6 +58,4 @@ module TrackerClient
   def self.trackers
     ["http://localhost:10234/clearskies/track"]
   end
-
-
 end

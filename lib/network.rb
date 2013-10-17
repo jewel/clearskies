@@ -5,6 +5,7 @@ require 'thread'
 require 'broadcaster'
 require 'tracker_client'
 require 'connection'
+require 'id_mapper'
 
 module Network
   def self.start
@@ -47,16 +48,15 @@ module Network
   end
 
   def self.listen_port
-    Conf.listen_port
+    @server.local_address.ip_port
   end
 
   def self.peer_discovered share_id, peer_id, addr, port
-    share = Shares.by_id share_id
-    # FIXME need to look up access codes here
-    raise "We don't have share #{share_id}" unless share
+    share, code = IDMapper.find share_id
+
+    raise "Can't find ID #{share_id}" unless share || code
 
     @connections[share_id] ||= {}
-    p @connections
     return if @connections[share_id][peer_id]
 
     connection = Connection.connect share, addr, port

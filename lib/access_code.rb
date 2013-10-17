@@ -4,8 +4,11 @@ require 'digest/sha2'
 require 'securerandom'
 
 class AccessCode
+  attr_accessor :peer_id
+
   def initialize payload
     @payload = payload
+    @peer_id = SecureRandom.hex 16
   end
 
   def self.create
@@ -35,7 +38,7 @@ class AccessCode
   end
 
   def id
-    Digest::SHA256.hexdigest(@payload)
+    @id ||= Digest::SHA256.hexdigest(@payload)
   end
 
   def to_s

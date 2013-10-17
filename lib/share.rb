@@ -25,7 +25,8 @@ class Share
   end
 
   def self.create path
-    share = Share.new 'FIXME'
+    share_id = SecureRandom.hex 16
+    share = Share.new share_id
     share.path = path
     share
   end

@@ -6,6 +6,7 @@ require 'socket'
 require 'thread'
 require 'openssl'
 require 'conf'
+require 'message'
 
 class Connection
   attr_reader :peer, :access, :software, :friendly_name
@@ -35,7 +36,7 @@ class Connection
   # Attempt to make an outbound connection with a peer
   def self.connect share, ip, port
     warn "Opening socket to #{ip} #{port}"
-    socket = TCPSocket.connect ip, port
+    socket = TCPSocket.new ip, port
     warn "Opened socket to #{ip} #{port}"
     self.new socket, share
   end

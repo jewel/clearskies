@@ -5,7 +5,6 @@ require 'json'
 require 'webrick'
 
 server = WEBrick::HTTPServer.new({
-  :Bind => '',
   :Port => ENV['PORT'] || 10234,
 })
 
