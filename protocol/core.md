@@ -2,7 +2,7 @@ ClearSkies Protocol v1 Draft
 =========================
 
 The ClearSkies protocol is a two-way (or multi-way) directory synchronization
-protocol, inspired by BitTorrent Sync.  It is a friend-to-friend protocol as
+protocol, inspired by BitTorrent Sync.  It is a friend-to-friend protocol, as
 opposed to a peer-to-peer protocol, meaning that files are only shared with
 computers that are given an access key -- never anonymously.
 
@@ -49,21 +49,24 @@ signatures are used to ensure that there is no foul play.
 Cryptographic Keys
 ------------------
 
-When a share is first created, a 128-bit encryption keys is generated.  This
-must not be generated with a psuedo-random number generator (PRNG), but
-must come from a source of cryptographically secure numbers, such as
-"/dev/random" on Linux, CryptGenRandom() on Windows, or RAND_bytes() in
-OpenSSL.
+When a share is first created, a 128-bit encryption key is generated.  It must
+not be generated with a psuedo-random number generator (PRNG), but must come
+from a source of cryptographically secure numbers, such as "/dev/random" on
+Linux, CryptGenRandom() on Windows, or RAND_bytes() in OpenSSL.
 
 This key is used as the communication key.  All of the read-write peers posses
 it, but they do not give it to read-only peers.  It will be referred to as the
-read-write PSK.  Details of communication encryption will come later.
+read-write pre-shared-key (PSK).  (Details of communication encryption are found
+in the "Handshake" section.
 
 The SHA256 of the read-write PSK is called the share ID.  This is used to
-locate other peers of the share.
+locate other share peers.
+
+A 128-bit random number called the peer ID is also generated.  Each peer has
+its own peer ID, and the peer should use a different peer ID for each share.
 
 A 4096-bit RSA key should be generated for the share.  It will be used to
-digitally sign some messages to stop read-only shares from pretending to be
+digitally sign messages to stop read-only shares from pretending to be
 read-write shares.
 
 More keys should be generated for the other access levels:
@@ -122,29 +125,30 @@ Long-lived access codes are spread to other nodes with the same (or higher)
 level of access so that the sharing node does not have to stay online.
 
 
-Access code UI
+Access Code UI
 --------------
 
-What follows is only a suggested user interface.
+This section contains a suggested user interface for sharing access codes.
 
-When the user activates the "share" button a dialog is shown with the following:
+When the user activates the "share" button, a dialog is shown with the
+following:
 
 * A radio input for one of "read-write", "read-only", and "untrusted"
 * The new access code, as a text field that can be edited
 * A status area
-* A "Cancel access code" button
-* A "Extend access code" button
+* A "Cancel Access Code" button
+* A "Extend Access Code" button
 
-If the user chooses to "Cancel access code", the access code should no longer
-unlock the share.  The "Extend access code" button should present advanced
+If the user chooses to "Cancel Access Code", the access code should no longer
+unlock the share.  The "Extend Access Code" button should present advanced
 options, and perhaps default to 24 hours.
 
-Once the access code has used by the friend and both computers are connected,
-the status area should indicate as such.  It will no longer be possible to
-cancel the access code, but it can still be extended.
+Once the access code has been used by the friend and both computers are
+connected, the status area should indicate as such.  It will no longer be
+possible to cancel the access code, but it can still be extended.
 
 
-Peer discovery
+Peer Discovery
 --------------
 
 When first given an access code, the access ID is used to find peers.  If the
@@ -156,7 +160,6 @@ Various sources of peers are supported:
  * Manual entry by the user
  * LAN broadcast
  * A distributed hash table (DHT) amongst all participants
- * Previously valid addresses for the share
 
 Each of these methods can be disabled by the user on a per-share basis and
 implementations can elect not to implement them at their discretion.
@@ -165,7 +168,7 @@ Peer addresses are represented as ASCII, with the address and port number
 separated by a colon.  IPv6 addresses should be surrounded by square brackets.
 
 
-Tracker protocol
+Tracker Protocol
 ----------------
 
 The tracker is an HTTP or HTTPS service.  The main tracker service runs at
@@ -178,9 +181,6 @@ allowed to customize the tracker list.
 Note that both peers should register themselves immediately with the tracker,
 and re-registration should happen if the local IP address changes, or after the
 TTL period has expired of the registration.
-
-The peer ID is an 128-bit random ID that should be generated when the share is
-first created, and is unique to each peer.
 
 The ID and listening port are used to make a GET request to the tracker
 (whitespace has been added for clarity):
@@ -200,7 +200,7 @@ JSON body like the following (whitespace has been added for clarity):
 }
 ```
 
-The TTL is a number of seconds until the client should register again.
+The TTL is the number of seconds until the client should register again.
 
 The "others" key contains a list of all other peers that have registered for
 this ID, with the client's "peer ID", followed by an @ sign, and then
@@ -208,7 +208,7 @@ peer's IP address.  The IP address can be an IPV4 address, or an IPV6 address
 surrounded in square brackets.
 
 
-Fast tracker extension
+Fast Tracker Extension
 ----------------------
 
 The fast tracker service is an extension to the tracker protocol that avoids
@@ -273,7 +273,7 @@ contains a mapping from share ID to peer address.
 Future updates to protocol version 1 will include the DHT mechanism.
 
 
-Firewall transversal
+Firewall Transversal
 --------------------
 
 There is no standard port number on which to listen.
@@ -285,7 +285,7 @@ Future updates to the protocol will include a method for communicating over
 UDP.
 
 
-Wire protocol
+Wire Protocol
 -------------
 
 The wire protocol is composed of JSON messages.  Some message types include
@@ -311,11 +311,11 @@ is required).  The protocol is almost entirely stateless.  For forward
 compatibility, unsupported message types or extra keys are silently ignored.
 
 A message with a binary data payload is also encoded in JSON, but it is
-prefixed an exclamation point and then the JSON message as usual, including the
-termination newline.  After the newline, the binary payload is sent.  It is
-sent in one or more chunks, ending with a zero-length binary chunk.  Each chunk
-begins with its length in ASCII digits, followed by a newline, followed by the
-binary data.
+prefixed with an exclamation point and then the JSON message as usual,
+including the termination newline.  After the newline, the binary payload is
+sent.  It is sent in one or more chunks, ending with a zero-length binary
+chunk.  Each chunk begins with its length in ASCII digits, followed by a
+newline, followed by the binary data.
 
 For example:
 
@@ -328,9 +328,10 @@ This is more binary data
 0
 ```
 
-A signed message will be prefixed with a $.  The JSON message is then sent, and
-then on the next line the RSA signature is given, encoded with base64, and
-followed up with a newline.  The base64 data should not include any newlines.
+A signed message will be prefixed with a dollar sign.  The JSON message is then
+sent, and then on the next line the RSA signature is given, encoded with
+base64, and followed up with a newline.  The base64 data should not include any
+newlines.
 
 ```
 ${"type":"foo","arg":"bar"}
@@ -339,8 +340,8 @@ MC0CFGq+pt0m53OP9eZSndaUtWwKnoJ7AhUAy6ScPi8Kbwe4SJiIvsf9DUFHWKE=
 
 If a message has both a binary payload and a signature, it will start with a
 dollar sign and then an exclamation mark, in that order.  The signature does
-not cover the binary data, just the JSON text.  Here is the previous
-example, but with binary data added:
+not cover the binary data, just the JSON text.  Here is the previous example,
+but with binary data added:
 
 ```
 $!{"type":"foo","arg":"bar"}
@@ -371,7 +372,7 @@ server can be the computer that only has an access code so far.
 
 The handshake negotiates a protocol version as well as optional features, such
 as compression.  When a connection is opened, the server sends a "greeting"
-that lists all the protocol versions it supports, as well as an optional
+that lists all of the protocol versions it supports, as well as an optional
 feature list.  The protocol version is an integer.  The features are strings.
 
 The current protocol version is 1.  Future improvements to version 1 will be
@@ -382,8 +383,8 @@ Officially supported features will be documented here.  Unofficial features
 should start with a period and then a unique prefix (similar to Java).
 Unofficial messages should prefix the "type" key with its unique prefix.
 
-What follows is an example greeting.  (Newlines have been added for legibility,
-but they would not be legal to send over the wire.)
+What follows is an example greeting (newlines have been added for legibility,
+but they would not be legal to send over the wire):
 
 ```json
 {
@@ -398,7 +399,7 @@ The client will examine the greeting and decide which protocol version and
 features it has in common with the server.  It will then respond with a start
 message, which asks for a particular share by the share's public ID.  (See the
 encryption section for an explanation of public IDs.)  Here is an example
-"start" message.
+"start" message:
 
 ```json
 {
@@ -420,8 +421,8 @@ The "access" level is one of "read_write", "read_only", "untrusted", or
 The "peer" field is the ID explained in the tracker section.  This is used
 to avoid accidental loopback.
 
-If the server does not recognize the id it will send back a "cannot_start"
-message, and close the connection:
+If the server does not recognize the ID, it will send back a "cannot_start"
+message and close the connection:
 
 ```json
 {
@@ -429,7 +430,7 @@ message, and close the connection:
 }
 ```
 
-Otherwise it will send back a "starttls" message:
+Otherwise, it will send back a "starttls" message:
 
 ```json
 {
@@ -473,12 +474,11 @@ The "name" field is a human-friendly identifier for the computer.
 
 The "time" is a unix timestamp of the current time.  This is sent because the
 conflict resolution relies on an accurate time.  If the difference between the
-times is too great, software may notify the user, and/or attempt to account for
-the difference in conflict resolution algorithm, at the software's discretion.
-The software may also refuse to participate.
+times is too great, software may notify the user and refuse to participate or
+may attempt to account for the difference in conflict resolution algorithm.
 
 
-Key exchange
+Key Exchange
 ------------
 
 If the access level negotiated in the handshake is "unknown", then the keys
@@ -489,11 +489,11 @@ was chosen when the access code was created.
 
 RSA keys should be encoded as PEM files, and the PSKs should be encoded as hex.
 
-Keys that the peer should not have are also be sent, encrypted with the
-read-write PSK.  This is necessary so that the master passphrase can be used to
-create a read-write peer when there are no longer any read-write peers.
+Keys that the peer should not have are also sent, encrypted with the read-write
+PSK.  This is necessary so that the master passphrase can be used to create a
+read-write peer when there are no longer any read-write peers.
 
-The "file encryption" section explains how to encrypt files.  After encrypting
+The "File Encryption" section explains how to encrypt files.  After encrypting
 each key, it should be base64 encoded.
 
 Here is an example key exchange for a read-only node.  RSA keys have been
@@ -520,14 +520,23 @@ abbreviated for clarity:
 If the keys given are encrypted, the key name should be prefixed with
 "encrypted_".  Note that the read-write PSK is never included in this exchange.
 
-As soon as the keys have been sent the corresponding access code should be
-deactivated, unless it was a multi-use access code.
+Once the keys are received, the peer should respond with a
+"keys_acknowledgement" message:
 
-The connection is then closed, and the new share ID is used with the tracker
-to reconnect.
+```json
+{
+  "type": "keys_acknowledgement"
+}
+```
+
+As soon as the acknowledgment is received, the corresponding access code
+should be deactivated, unless it was a multi-use access code.
+
+The connection is then closed, and the new share ID is used to create a new
+connection.
 
 
-File tree database
+File Tree Database
 ------------------
 
 Each read-write peer needs to keep a persistent database of all the files in a
@@ -549,8 +558,8 @@ The following fields are tracked for each file:
 
 If a file is deleted, the deleted boolean is set to true.  Any fields listed
 after the deleted field in the list above can be blanked.  The entry for the
-deleted file will persist indefinitely in the database.  An explanation for
-this behavior is in a later section devoted to this topic.
+deleted file will persist indefinitely in the database.  An explanation for the
+necessity of this behavior is in the later section called "Deleted Files".
 
 The "mtime" is the integer number of seconds since the unix epoch (normally
 called a unix timestamp) since the file contents were last modified.
@@ -573,14 +582,14 @@ to untrusted peers.  They are predetermined so that all peers agree on how to
 encrypt the file.
 
 
-Windows compatibility
+Windows Compatibility
 ---------------------
 
 Software running on an operating system that doesn't support all the characters
 that unix supports in a filename, such as Microsoft Windows, must ensure
 filenames with unsupported characters are handled properly, such as '\', '/',
 ':', '*', '?', '"', '<', '>', '|'.  The path used on disk can use URL encoding
-for these characters, that is to say the percent character, followed by two hex
+for these characters, that is to say the percent character followed by two hex
 digits.  The software should then keep an additional field that tracks the
 original file path, and continue to interact with other peers as if that were
 the file name on disk.
@@ -598,7 +607,7 @@ communicating with other peers.
 Said another way, software for Windows should pretend to be a peer running unix.
 
 
-First sync
+First Sync
 ----------
 
 When a user types in an access code and picks a non-empty directory in which to
@@ -616,7 +625,7 @@ The scan should capture the entire list of files before hashing any of them,
 which will allow "utime" tracking to work like normal.
 
 
-Read-write manifests
+Read-Write Manifests
 --------------------
 
 Once an encrypted connection is established, the peers usually ask for each
@@ -629,11 +638,11 @@ A read-write peer will generate a new manifest whenever requested by a peer
 from the contents of its database.  It contains the entire contents of the
 database, including the database "version" timestamp.  The file entries should
 be sorted by path.  Its own peer_id is also included.  The entire manifest will
-be signed (using the key-signing mechanism explained earlier) except when being
-sent to other read-write peers.
+be signed (using the key-signing mechanism explained in the "Wire Protocol"
+section) except when being sent to other read-write peers.
 
-Here is an example manifest JSON as would be sent over the wire.  The signature
-is not shown.
+Here is an example manifest JSON as would be sent over the wire (the signature
+is not shown):
 
 ```json
 {
@@ -673,8 +682,8 @@ is not shown.
 
 The contents of the shared directory can diverge between two read-write peers,
 and stay diverged for a long time.  (Most notably, this happens when a peer
-opts not to sync some files, as in "subtree copies", explained later.)  For
-this reason, each read-write peer has its own manifest.
+opts not to sync some files, as is explained in the "Subtree Copy" section.)
+For this reason, each read-write peer has its own manifest.
 
 To request a manifest, a "get_manifest" message is sent.  The message may
 optionally contain the last-synced "version" of the peer's database.
@@ -688,7 +697,7 @@ optionally contain the last-synced "version" of the peer's database.
 ```
 
 If the manifest version matches the current database number, the peer will
-respond with an "manifest_current" message.
+respond with a "manifest_current" message.
 
 ```json
 {
@@ -704,14 +713,14 @@ A peer may elect not to request a manifest, and may also elect to ignore the
 "get_manifest" message.
 
 
-Tree merge algorithm
+Tree Merge Algorithm
 --------------------
 
 When two read-write peers are connected, they merge their manifests together in
 memory on a file-by-file basis in what is called tree merging.  A tree merge
-looks at each entry and the one with the latest "utime" field wins.  If the
-"utime" matches, the file with the latest "mtime" wins.  If the "mtime" matches,
-the largest file wins.  If the sizes match, the file with the smallest "sha256"
+compares entry and the one with the latest "utime" field wins.  If the "utime"
+matches, the file with the latest "mtime" wins.  If the "mtime" matches, the
+largest file wins.  If the sizes match, the file with the smallest "sha256"
 wins.
 
 This merged tree is kept in memory and is used to decide which files need to be
@@ -719,17 +728,17 @@ retrieved from the peer.  Information about the new files shouldn't be applied
 to the database until after the files have been retrieved. 
 
 
-Read-only manifests
+Read-Only Manifests
 -------------------
 
-A read-only peer cannot change files but needs to prove to other read-only
+A read-only peer cannot change files, but needs to prove to other read-only
 peers that the files it has are genuine.  To do this, it saves the read-write
 manifest and signature to disk whenever it receives it.  The manifest and
 signature should be combined, with a newline separating them, and a newline
 after the signature.
 
-It then builds its own manifest from the read-write manifest, called a
-read-only manifest.  When it does not have all the files mentioned in the
+The read-only peer builds its own manifest from the read-write manifest, called
+a read-only manifest.  When it does not have all the files mentioned in the
 manifest, it includes a bitmask of the files it has, encoded as base64.
 
 If there are two diverged read-write peers and a single read-only peer, there
@@ -758,7 +767,7 @@ read-write manifest abbreviated with an ellipsis for clarity:
 ```
 
 
-Manifest merging
+Manifest Merging
 ----------------
 
 When building the read-only manifest from two or more read-write manifests, the
@@ -772,11 +781,11 @@ strategy means that the read-only manifest will only contain one read-write
 manifest.
 
 
-Retrieving files
+Retrieving Files
 ----------------
 
 Files should be asked for in a random order so that if many peers are involved
-with the share the files spread as quickly as possible.
+with the share, the files spread as quickly as possible.
 
 In this section, "client" and "server" are used to denote the peer receiving
 and peer sending the file, respectively.
@@ -796,9 +805,9 @@ The "range" parameter is optional and allows the client to request only certain
 bytes from the file.  The first number is the start byte, and the second number
 is the number of bytes.
 
-The server responds with the file data.  This will have a binary payload of
-the file contents (encoding of the binary payload was explained in an earlier
-section):
+The server responds with the file data.  This will have a binary payload of the
+file contents (encoding of the binary payload is explained in the "Wire
+Protocol" section):
 
 ```
 !{"type": "file_data","path":"photos/img1.jpg", ... }
@@ -836,7 +845,7 @@ connection to the peer.
 Software may choose to respond to multiple "get" requests out of order.
 
 
-File change notification
+File Change Notification
 ------------------------
 
 Files should be monitored for changes on read-write shares.  This can be done
@@ -857,10 +866,10 @@ should have a newline after it.)
 
 The "utime" for file changes is the current time if OS hooks are being used.
 If it is detected by a file scan, then the mtime should be used if it is before
-the previous time the file was scanned, otherwise the previous scan time should
-be used.  Deleted files should always use the previous scan time as the
+the previous time the file was scanned.  Otherwise the previous scan time
+should be used.  Deleted files should always use the previous scan time as the
 "utime".  (The start time of the previous scan can be used instead of the
-previous scan time for the file in question if desired.)
+previous scan time for the file in question, if desired.)
 
 Notification of a new or changed file looks like this:
 
@@ -930,7 +939,7 @@ been successfully retrieved, assuming the other peers haven't already sent
 notification that they have the file.
 
 
-Untrusted peers
+Untrusted Peers
 ---------------
 
 Absent from the sections above is how to communicate with an untrusted peer.
@@ -946,8 +955,8 @@ this is known as the untrusted manifest.  The result is then signed with the
 read-only RSA key.
 
 This manifest is sent to untrusted peers.  The untrusted peer stores the
-manifest and then asks the read-only peer for each file by ID, and saves the
-encrypted version to disk.
+manifest and then asks the read-only peer for each file, which is then saved to
+disk.
 
 When an untrusted peer connects to another untrusted peer, it sends an
 untrusted manifest, which is built using one or more encrypted manifests, each
@@ -962,7 +971,7 @@ read-write peers to see if they are actually storing files they claim to be
 storing.
 
 
-Untrusted manifests
+Untrusted Manifests
 -------------------
 
 Manifests are negotiated with the "get_manifest" and "manifest_current" messages
@@ -1071,7 +1080,7 @@ Just like with read-write and read-only file changes, the change messages
 should be appended to the copy of the manifest including their signatures.
 
 
-Deduplicating on untrusted peers
+Deduplicating on Untrusted Peers
 --------------------------------
 
 Since untrusted peers do not have access to the unencrypted SHA256, the
@@ -1120,7 +1129,7 @@ initialization vector (IV).  Then the encrypted data is written.  The last 32
 bytes in the file should be the SHA256 of the file.
 
 
-Untrusted proof of storage
+Untrusted Proof of Storage
 --------------------------
 
 Untrusted peers can be asked to prove that they are storing a file.  This is
@@ -1157,7 +1166,7 @@ file and sends back the result:
 
 The read-write peer then uses the prefix and IV to recreate the experiment and
 validate that resulting hash is correct.  If the hash is not correct, software
-may notify the user or it could change the file_id and encryption key for that
+may notify the user, or it could change the file_id and encryption key for that
 file so that the untrusted node re-downloads an undamaged version.
 
 If an untrusted peer is overloaded, it may choose to ignore the proof-of-storage
@@ -1172,7 +1181,7 @@ request.  It may also send back a busy message:
 ```
 
 
-Deleted files
+Deleted Files
 -------------
 
 Special care is needed with deleted files to ensure that "ghost" copies of
@@ -1182,14 +1191,13 @@ The solution chosen by ClearSkies is to track the path of deleted files
 indefinitely.  Consider the following example of what would happen if these
 files were not tracked:
 
-1. Peers A, B, and C know about a file
+1. Peers A, B, and C know about a file.
 2. Only peers A and B are running.
 3. The file is deleted on A.
 4. B also deletes its file.
-5. A disconnects
+5. A disconnects.
 6. C connects to B.  Since C has the file and B does not, the file reappears on B.
 7. A reconnects to B.  The file reappears on A.
-
 
 
 
@@ -1206,7 +1214,7 @@ connections from being dropped:
 The "timeout" specified is the absolute minimum amount of time to wait for the
 peer to send another ping before dropping the connection.  A peer should adjust
 its own timeout to be same as the timeout of its peer if the peer's timeout is
-greater, that software on mobile devices can adjust for battery life and
+greater, that way software on mobile devices can adjust for battery life and
 network conditions.
 
 
@@ -1231,14 +1239,14 @@ They should not be removed from the database until they expire, if time limited,
 otherwise they should be kept indefinitely.
 
 Passphrases are not stored verbatim but instead the SHA256(SHA256(...)) is
-stored instead.  Note that this is a 256-bit access code instead of the usual
-128-bit codes.
+stored.  Note that this is a 256-bit access code instead of the usual 128-bit
+codes.
 
 When first connected to a peer, all known access codes should be sent.
-Thereafter only database updates need to be sent.  Updates do not need to be
+Thereafter, only database updates need to be sent.  Updates do not need to be
 relayed.
 
-The "access_code_list" message is used for the initial list and subsequent
+The "access_code_list" message is used for the initial list, and subsequent
 updates send an "access_code_update".  Here is an example message, which shows
 an access code of each type:
 
@@ -1287,7 +1295,7 @@ an access code of each type:
 ```
 
 
-Checking for missing shares
+Checking for Missing Shares
 ---------------------------
 
 Each directory should have a hidden file, perhaps named ".ClearSkies", which is
@@ -1303,7 +1311,7 @@ Archival
 
 When files are changed or deleted on one peer, the other peer may opt to save
 copies in an archival directory.  If an archive is kept, it is recommended that
-the SHA256 of these files still be tracked so that they can be used for
+the SHA256 of these files is still tracked so that they can be used for
 deduplication in the future.
 
 Software could limit the archive to a certain size, or offer a friendly way to
@@ -1318,25 +1326,25 @@ present somewhere else in the local share.  Instead, a copy of the local file
 should be used.
 
 
-Ignoring files
+Ignoring Files
 --------------
 
 Software may choose to allow the user to ignore files with certain extensions
-or matching a pattern.  These files won't be sent to peers.
+or that match a pattern.  These files won't be sent to peers.
 
 
-Subtree copy
+Subtree Copy
 ------------
 
-Software may support the ability to only checkout a single subdirectory of a
-share.  This does not require peer cooperation or knowledge.
+Software may support the ability to only sync a single subdirectory of a share.
+This does not require peer cooperation or knowledge.
 
-In order to make this efficient, the client should keep a cached copy of the
-entire tree so that the server doesn't need to send a complete copy of the tree
-at connection time.
+In order to make this efficient, the software should keep a cached copy of the
+peer's manifest so that the peer doesn't need to send a complete copy of the
+tree on every connection.
 
 
-Partial copy
+Partial Copy
 ------------
 
 Software may opt to implement the ability to not sync some folders or files
@@ -1346,8 +1354,8 @@ The software may let the user specify extensions not to sync, give them the
 ability to match patterns, or give them a GUI to pick files or folders to
 avoid.
 
-As with partial copies, the client should keep a cached copy of the metadata
-for the entire tree for efficiency reasons.
+As with partial copies, the client should keep a cached copy of the peer
+manifests for efficiency reasons.
 
 
 Streaming
@@ -1362,11 +1370,11 @@ It should also be possible to stream writes back to the server.  The client
 would need to keep a buffer of outgoing files on local storage while waiting
 for the server.
 
-As with subtree copies and  the client should keep a cached copy of the metadata
-for the entire tree for efficiency reasons.
+As with subtree copies and partial copies the client should keep a cached copy
+of the peer's manifest for efficiency reasons.
 
 
-Computer resources
+Computer Resources
 ------------------
 
 This section is a set of recommendations for implementors and are not part of
@@ -1375,7 +1383,7 @@ the protocol.
 Software should attempt to resume partial file transfers.
 
 The period between directory scans should be a multiple of the time it takes to
-do rescans, for example, scans may be done every ten minutes, unless it takes
+do rescans.  For example, scans may be done every ten minutes, unless it takes
 more than a minute to run a scan, in which case the scan won't be run until ten
 times the time it took to run the scan.  This guarantees that scanning overhead
 will be less than 10% of system load.
@@ -1383,17 +1391,16 @@ will be less than 10% of system load.
 The software should run with low priority.  It should let the user pause sync
 activity.
 
-The software should and give battery users the option to not sync while on
-battery.
+The software should give battery users the option to not sync while on battery.
 
 Software should implement rate limiting, as sync is intended as something that
 will run in the background without interfering with normal usage.
 
 Software should also consider that many ISPs limit the amount of bandwidth that
-can be consumed in a month, and support for limits can be used to ensure that
-the cap isn't exceeded.
+can be consumed in a month, and support for limits that can be used to ensure
+that the cap isn't exceeded.
 
-The software should debounce files changes so that it can stop syncing a file
+The software should debounce file changes so that it can stop syncing a file
 that is changing too frequently.
 
 The software should not lock files for reading while syncing them so that the
@@ -1403,19 +1410,19 @@ The software should give the users a rough estimate of the amount of time
 remaining to sync a share so that the user can manually transfer files through
 sneakernet if necessary.
 
-Users may be relying on your software to back up important files.  You may want
-to alert the user (on both computers) if the share has not synced with its peer
-if has been longer than certain threshold (perhaps defaulting to a week).
+Users may be relying on the software to back up important files.  The software
+may want to alert the user if the share has not synced with its peer after a
+certain threshold (perhaps defaulting to a week).
 
 Software can rescan files from time-to-time to detect files that cannot be read
 from disk or that have become corrupted, and replace them with good copies from
 other peers.
 
 Software may choose to create read-only directories, and read-only files, in
-read-only mode, so that a user doesn't make changes that will be immediately be
+read-only mode, so that a user doesn't make changes that will be immediately
 overwritten.  It could detect changes in the read-only directory and warn the
 user that they will not be saved.
 
 While it is not the designed use case of this protocol, some shares may have
-hundreds or thousands of peers.  In this case it is recommended that
+hundreds or thousands of peers.  In this case, it is recommended that
 connections only be made to a few dozen of them, chosen at random.
