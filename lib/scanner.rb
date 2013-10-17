@@ -4,6 +4,8 @@
 require 'thread'
 require 'digest/sha2'
 require 'find'
+require 'securerandom'
+require 'pathname'
 
 module Scanner
   DELAY_MULTIPLIER = 10
@@ -80,17 +82,36 @@ module Scanner
 
   def self.register_and_scan share, change_monitor
     Find.find( share.path ) do |path|
-      # Avoid race conditions by monitoring before scanning the file
+      stat = File.stat(path)
+      relpath = Pathname.new(path).relative_path_from(Pathname.new(share.path)).to_s
+
+      #don't want pipes, sockets, devices, directories.. etc
+      # FIXME this will also skip symlinks
+      next unless stat.file?
+
+      unless stat.readable?
+        warn 'File #{path} is not readable. It will be skipped...'
+      end
+
+      # Monitor it before we do anything
       if change_monitor
         change_monitor.monitor path
       end
 
-      next if File.directory? path
+      unless share[relpath]
+        #This is the first time the file has ever been seen
+        # Make note of file metadata now.  We will come back and calculate
+        # the SHA256 later.
+        file = Share::File.new
+        file.path = relpath
+        file.mode = stat.mode.to_s(8).to_i
+        file.mtime = stat.mtime.to_i
+        file.size = stat.size
+        file.utime = Time.new.to_i
+        file.id = SecureRandom.hex 16
+        file.key = SecureRandom.hex 32
 
-      # Make note of file metadata now.  We will come back and calculate
-      # the SHA256 later.
-      unless share[path]
-        share[path] = Share::File.new(path)
+        share[relpath] = file
       end
     end
   end
@@ -98,7 +119,7 @@ module Scanner
   def self.calculate_hashes share
     share.each do |db_path,file|
       unless file.sha256
-        file.sha256 = Digest::SHA256.file(file.path).hexdigest
+        file.sha256 = Digest::SHA256.file(share.path + '/' + file.path).hexdigest
         share.save file.path
       end
     end
