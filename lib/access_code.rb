@@ -1,6 +1,4 @@
 # Class to represent a single access code.
-#
-# This class acts mostly like the Share class
 
 require 'base32'
 require 'luhn_check'
@@ -8,15 +6,8 @@ require 'digest/sha2'
 require 'securerandom'
 
 class AccessCode
-  attr_accessor :peer_id
-
   def initialize payload
     @payload = payload
-    @peer_id = SecureRandom.hex 16
-  end
-
-  def access_level
-    :unknown
   end
 
   def self.create
@@ -51,5 +42,14 @@ class AccessCode
 
   def to_s
     LuhnCheck.generate('CLEA' + Base32.encode("\x8C\x94\x82\x48" + @payload))
+  end
+
+  def key access_level
+    raise "Invalid access level" unless access_level = :unknown
+    @payload
+  end
+
+  def access_level
+    :unknown
   end
 end

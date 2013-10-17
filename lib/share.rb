@@ -44,8 +44,12 @@ class Share
     "abcdef"
   end
 
-  def access_code
+  def access_level
     :read_write
+  end
+
+  def access_level= val
+    # FIXME
   end
 
   def each

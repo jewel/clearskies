@@ -117,7 +117,10 @@ module ControlServer
       }
 
     when :add_share
-      PendingCodes.add command[:path], AccessCode.parse(command[:code])
+      FileUtils.mkdir_p command[:path]
+      code = PendingCode.parse(command[:code])
+      code.path = command[:path]
+      PendingCodes.add code
       nil
 
     else

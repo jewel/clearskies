@@ -80,6 +80,7 @@ class Message
 
   def read_from_io io
     msg = io.gets
+    raise "Connection lost" unless msg
     first = msg[0]
 
     if first == '$'

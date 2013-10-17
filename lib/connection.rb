@@ -28,6 +28,7 @@ class Connection
     @receiving_thread = Thread.new do
       warn "Shaking hands"
       handshake
+      break if @code
       warn "Requesting manifest"
       request_manifest
       warn "Receiving messages"
@@ -73,10 +74,10 @@ class Connection
   end
 
   def recv type=nil
-    msg = Message.read_from_io @socket
-    if type && msg.type.to_s != type.to_s
+    loop do
+      msg = Message.read_from_io @socket
+      return msg if !type || msg.type.to_s == type.to_s
       warn "Unexpected message: #{msg[:type]}, expecting #{type}"
-      return recv type
     end
 
     msg
@@ -258,6 +259,11 @@ class Connection
 
     @socket = OpenSSL::SSL::SSLSocket.new @tcp_socket, ssl_context
 
+    if @code
+      key_exchange
+      return
+    end
+
     start_send_thread
 
     send :identity, {
@@ -284,6 +290,42 @@ class Connection
     end
   end
 
+  def key_exchange
+    if @share
+      # FIXME This should take the access level into account
+
+      send :keys, {
+        access: @share.access_level,
+        share_id: @share.id,
+        untrusted: {
+          psk: @share.psk( :untrusted ),
+        },
+        read_only: {
+          psk: @share.psk( :read_only ),
+          rsa: @share.private_key( :read_only ),
+        },
+        read_write: {
+          psk: @share.psk( :read_write ),
+          rsa: @share.private_key( :read_write ),
+        },
+      }
+    else
+      msg = recv :keys
+      share = Share.new msg[:share_id]
+      share.path = @code.path
+
+      share.level = msg[:access_level]
+      share.set_key :rsa, :read_write, msg[:read_write][:rsa]
+      share.set_key :rsa, :read_only, msg[:read_only][:rsa]
+
+      share.set_key :psk, :read_write, msg[:read_write][:psk]
+      share.set_key :psk, :read_only, msg[:read_only][:psk]
+      share.set_key :psk, :untrusted, msg[:untrusted][:psk]
+
+      Shares.add share
+    end
+  end
+
   def greatest_common_access l1, l2
     levels = [:unknown, :untrusted, :read_only, :read_write]
     i1 = levels.index l1
@@ -295,9 +337,9 @@ class Connection
   end
 
   def ssl_context
-    context = OpenSSL::SSL::SSLContext.new
-    context.key = @share.key @level
-    context.ciphers = ['TLS_DHE_PSK_WITH_AES_128_CBC_SHA']
+    context = OpenSSL::SSL::SSLContext.new :TLSv1
+    context.key = (@code || @share).key @level
+    context.ciphers = ['AES-128-CBC']
     context.tmp_dh_callback = Proc.new do
       share.tls_dh_key
     end

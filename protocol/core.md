@@ -503,9 +503,9 @@ abbreviated for clarity:
 {
   "type": "keys",
   "access": "read_only",
+  "share_id": "2bd01bbb634ec221f916e176cd2c7c6c2fa04e641c494979613d3485defd7d18",
   "untrusted": {
     "psk": "1f5d969cdbfe090bf740974d27e7d8ee",
-    "rsa": "-----BEGIN RSA PRIVATE KEY-----\nMIIJKAIBAAKCAgEAtQetKXO732...TE KEY-----\n"
   },
   "read_only": {
     "psk": "b699049ce1f453628117e8ba6ee75f42",

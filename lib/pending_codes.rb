@@ -3,15 +3,15 @@
 
 require 'permahash'
 require 'fileutils'
+require 'pending_code'
 
 class PendingCodes
   path = Conf.data_dir "pending_codes.db"
   @db = Permahash.new path
   @db.sync = true
 
-  def self.add path, code
-    FileUtils.mkdir_p path
-    @db[code] = path
+  def self.add code
+    @db[code] = true
   end
 
   def self.delete code
@@ -19,8 +19,8 @@ class PendingCodes
   end
 
   def self.each
-    @db.each do |path,code|
-      yield path, code
+    @db.each do |code,val|
+      yield code
     end
   end
 end
