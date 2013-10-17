@@ -5,9 +5,13 @@ require 'json'
 require 'webrick'
 
 server = WEBrick::HTTPServer.new({
+  :Bind => '',
   :Port => ENV['PORT'] || 10234,
-  :ReuseAddr => true,
 })
+
+server.listeners.each do |socket|
+  socket.setsockopt Socket::SOL_SOCKET, Socket::SO_REUSEADDR, true
+end
 
 trap('INT'){ server.shutdown }
 trap('TERM'){ server.shutdown }
