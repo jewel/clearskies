@@ -1,3 +1,7 @@
+# Class to represent a single access code.
+#
+# This class acts mostly like the Share class
+
 require 'base32'
 require 'luhn_check'
 require 'digest/sha2'
@@ -9,6 +13,10 @@ class AccessCode
   def initialize payload
     @payload = payload
     @peer_id = SecureRandom.hex 16
+  end
+
+  def access_level
+    :unknown
   end
 
   def self.create

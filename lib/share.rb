@@ -40,7 +40,12 @@ class Share
   end
 
   def key level
-    nil
+    # FIXME
+    "abcdef"
+  end
+
+  def access_code
+    :read_write
   end
 
   def each

@@ -7,6 +7,7 @@ require 'thread'
 require 'openssl'
 require 'conf'
 require 'message'
+require 'id_mapper'
 
 class Connection
   attr_reader :peer, :access, :software, :friendly_name
@@ -14,11 +15,12 @@ class Connection
   # Create a new Connection and begin communication with it.
   #
   # Outgoing connections will already know the share it is communicating with.
-  def initialize socket, share=nil
+  def initialize socket, share=nil, code=nil
     @share = share
+    @code = code
     @socket = socket
 
-    @incoming = !share
+    @incoming = !share && !code
     warn "Starting #{@incoming ? 'incoming' : 'outgoing'} connection with #{@socket.peeraddr[2]}"
   end
 
@@ -34,11 +36,11 @@ class Connection
   end
 
   # Attempt to make an outbound connection with a peer
-  def self.connect share, ip, port
+  def self.connect share, code, ip, port
     warn "Opening socket to #{ip} #{port}"
     socket = TCPSocket.new ip, port
     warn "Opened socket to #{ip} #{port}"
-    self.new socket, share
+    self.new socket, share, code
   end
 
   def on_disconnect &block
@@ -219,9 +221,9 @@ class Connection
         software: Conf.version,
         protocol: 1,
         features: [],
-        id: share.id,
-        access: share.access_level,
-        peer: share.peer_id,
+        id: (@code || @share).id,
+        access: (@code || @share).access_level,
+        peer: (@code || @share).peer_id,
       }
     end
 
@@ -230,16 +232,20 @@ class Connection
       @peer_id = start[:peer]
       @access = start[:access].to_sym
       @software = start[:software]
-      @share = Share.by_id start[:id]
-      if !@share
+      @share, @code = IDMapper.find start[:id]
+      if !@share && !@code
         send :cannot_start
         close
       end
 
-      @level = greatest_common_access(@access, @share[:access])
+      if @share
+        @level = greatest_common_access(@access, @share.access_level)
+      else
+        @level = :unknown
+      end
 
       send :starttls, {
-        peer: @share.peer_id,
+        peer: (@share || @code).peer_id,
         access: @level,
       }
     else

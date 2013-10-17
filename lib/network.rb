@@ -51,19 +51,19 @@ module Network
     @server.local_address.ip_port
   end
 
-  def self.peer_discovered share_id, peer_id, addr, port
-    share, code = IDMapper.find share_id
+  def self.peer_discovered id, peer_id, addr, port
+    share, code = IDMapper.find id
 
-    raise "Can't find ID #{share_id}" unless share || code
+    raise "Can't find ID #{id}" unless share || code
 
-    @connections[share_id] ||= {}
-    return if @connections[share_id][peer_id]
+    @connections[id] ||= {}
+    return if @connections[id][peer_id]
 
-    connection = Connection.connect share, addr, port
-    @connections[share_id][peer_id] = connection
+    connection = Connection.connect share, code, addr, port
+    @connections[id][peer_id] = connection
 
     connection.on_disconnect do
-      @connections[share_id].delete peer_id
+      @connections[id].delete peer_id
     end
 
     connection.start
