@@ -1,0 +1,48 @@
+#!/bin/bash
+
+ctrl_c()
+{
+  # FIXME make this less specific, perhaps by adding a pid file
+
+  killall -q ruby sleep
+  rm -rf /tmp/1 /tmp/2
+  exit $?
+}
+
+trap ctrl_c SIGINT
+
+killall -q ruby sleep
+rm -rf /tmp/1 /tmp/2
+
+mkdir -p /tmp/1/stuff
+echo my first file > /tmp/1/stuff/first
+echo my second file > /tmp/1/stuff/second
+
+gnome-terminal -e tracker/server --title="Tracker"
+
+gnome-terminal -e "bash -c 'CLEARSKIES_DIR=/tmp/1 ./clearskies debug; sleep 600'" --title="Daemon Server"
+
+gnome-terminal -e "bash -c 'CLEARSKIES_DIR=/tmp/2 ./clearskies debug; sleep 600'" --title="Daemon Client"
+
+echo "Waiting for server"
+while ! test -e /tmp/1/control
+do
+  sleep 0.1
+done
+
+echo "Waiting for client"
+while ! test -e /tmp/2/control
+do
+  sleep 0.1
+done
+
+echo "Requesting access code from server"
+code=$(CLEARSKIES_DIR=/tmp/1 ./clearskies share /tmp/1/stuff read_write)
+echo "Code is '$code'"
+
+echo "Adding access code to client"
+CLEARSKIES_DIR=/tmp/2 ./clearskies add "$code" /tmp/2/stuff
+
+echo "Share has been added"
+
+sleep 600
