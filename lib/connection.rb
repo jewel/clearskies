@@ -28,7 +28,6 @@ class Connection
     @receiving_thread = Thread.new do
       warn "Shaking hands"
       handshake
-      break if @code
       warn "Requesting manifest"
       request_manifest
       warn "Receiving messages"
@@ -54,7 +53,7 @@ class Connection
 
   private
 
-  def send type, opts=nil
+  def send type, opts={}
     if !type.is_a? Message
       message = Message.new type, opts
     else
@@ -224,7 +223,7 @@ class Connection
         features: [],
         id: (@code || @share).id,
         access: (@code || @share).access_level,
-        peer: (@code || @share).peer_id,
+        peer: my_peer_id,
       }
     end
 
@@ -257,17 +256,15 @@ class Connection
 
     @tcp_socket = @socket
 
-    @socket = OpenSSL::SSL::SSLSocket.new @tcp_socket, ssl_context
+    # @socket = OpenSSL::SSL::SSLSocket.new @tcp_socket, ssl_context
+    # FIXME OpenSSL doesn't support the mode we need, skipping for now.
 
-    if @code
-      key_exchange
-      return
-    end
+    key_exchange if @code
 
     start_send_thread
 
     send :identity, {
-      name: Shares.friendly_name,
+      name: Conf.friendly_name,
       time: Time.new.to_i,
     }
 
@@ -298,23 +295,26 @@ class Connection
         access: @share.access_level,
         share_id: @share.id,
         untrusted: {
-          psk: @share.psk( :untrusted ),
+          psk: @share.key( :psk, :untrusted ),
         },
         read_only: {
-          psk: @share.psk( :read_only ),
-          rsa: @share.private_key( :read_only ),
+          psk: @share.key( :psk, :read_only ),
+          rsa: @share.key( :rsa, :read_only ),
         },
         read_write: {
-          psk: @share.psk( :read_write ),
-          rsa: @share.private_key( :read_write ),
+          psk: @share.key( :psk, :read_write ),
+          rsa: @share.key( :rsa, :read_write ),
         },
       }
+      warn "Sent key exchange"
+      recv :keys_acknowledgment
     else
       msg = recv :keys
-      share = Share.new msg[:share_id]
+      @share = share = Share.new msg[:share_id]
       share.path = @code.path
+      share.peer_id = @code.peer_id
 
-      share.level = msg[:access_level]
+      share.access_level = msg[:access_level]
       share.set_key :rsa, :read_write, msg[:read_write][:rsa]
       share.set_key :rsa, :read_only, msg[:read_only][:rsa]
 
@@ -323,6 +323,8 @@ class Connection
       share.set_key :psk, :untrusted, msg[:untrusted][:psk]
 
       Shares.add share
+      warn "New share created"
+      send :keys_acknowledgment
     end
   end
 
@@ -334,6 +336,14 @@ class Connection
     raise "Invalid access level: #{l2.inspect}" unless i2
     common = [i1, i2].min
     levels[common]
+  end
+
+  def my_peer_id
+    if @share
+      @share.peer_id
+    else
+      @code.peer_id
+    end
   end
 
   def ssl_context

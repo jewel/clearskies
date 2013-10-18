@@ -25,4 +25,8 @@ module Conf
   def self.version
     "clearskies 0.1pre"
   end
+
+  def self.friendly_name
+    "ClearSkies Client"
+  end
 end

@@ -512,27 +512,31 @@ abbreviated for clarity:
   },
   "read_write": {
     "encrypted_rsa": "KaPwf85p4PUXUImWMEn1MwlRC77TWlEtZjqxI+QhDKTlFxi...",
+    "public_rsa": -----BEGIN RSA PUBLIC KEY-----\nMIIBgjAcBgoqhkiG9w0BDAEDMA4E..."
   }
 }
 ```
 
 If the keys given are encrypted, the key name should be prefixed with
-"encrypted_".  Note that the read-write PSK is never included in this exchange.
+"encrypted_".  The "public_rsa" key is not required, since it can be derived
+from the private key.
+
+Note that the read-write PSK is never included in this exchange in its
+encrypted form, since it would be encrypted with itself.
 
 Once the keys are received, the peer should respond with a
-"keys_acknowledgement" message:
+"keys_acknowledgment" message:
 
 ```json
 {
-  "type": "keys_acknowledgement"
+  "type": "keys_acknowledgment"
 }
 ```
 
 As soon as the acknowledgment is received, the corresponding access code
 should be deactivated, unless it was a multi-use access code.
 
-The connection is then closed, and the new share ID is used to create a new
-connection.
+The rest of the connection can then proceed as normal.
 
 
 File Tree Database
