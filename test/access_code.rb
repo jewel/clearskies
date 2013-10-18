@@ -1,17 +1,19 @@
 require 'minitest/autorun'
 
+$: << 'lib'
+
 require 'access_code'
 
 describe AccessCode, "generating" do
-  it "should start with CLEARSKIES" do
-    AccessCode.create.to_s.must_match /\ACLEARSKIES/
+  it "should start with SYNC" do
+    AccessCode.create.to_s.must_match /\ASYNC/
   end
 
-  it "should be 37 characters" do
-    AccessCode.create.to_s.size.must_equal 37
+  it "should be 17 characters" do
+    AccessCode.create.to_s.size.must_equal 17
   end
 
-  it "should be parseable itself" do
+  it "should parse back to itself" do
     16.times do
       str = AccessCode.create.to_s
       code = AccessCode.parse str

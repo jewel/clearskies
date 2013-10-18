@@ -11,27 +11,25 @@ class AccessCode
   end
 
   def self.create
-    payload = SecureRandom.random_bytes 16
+    payload = SecureRandom.random_bytes 7
     self.new payload
   end
 
   def self.parse str
-    raise "Wrong length, should be 37 characters" unless str.size == 37
+    raise "Wrong length, should be 17 characters, not #{str.size} characters" unless str.size == 17
 
-    raise "Missing 'CLEARSKIES' prefix" unless str =~ /\ACLEARSKIES/
+    raise "Missing 'SYNC' prefix" unless str =~ /\ASYNC/
 
     # remove check digit
     str = LuhnCheck.verify str
 
     raise "Fails Luhn_mod_N check" unless str
 
-    # remove CLEA
-    str = str[4..-1]
-
     binary = Base32.decode str
 
-    # remove "\x8C\x94\x82\x48"
-    payload = binary[4..-1]
+    # Remove "\x96\x1A\x2B"
+
+    payload = binary[3..-1]
 
     self.new payload
   end
@@ -41,11 +39,11 @@ class AccessCode
   end
 
   def to_s
-    LuhnCheck.generate('CLEA' + Base32.encode("\x8C\x94\x82\x48" + @payload))
+    LuhnCheck.generate(Base32.encode("\x96\x1A\x2B" + @payload))
   end
 
   def key access_level
-    raise "Invalid access level" unless access_level = :unknown
+    raise "Invalid access level" unless access_level == :unknown
     @payload
   end
 

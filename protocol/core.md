@@ -95,7 +95,8 @@ Access Codes
 ------------
 
 To grant access to a new peer, an access code is generated.  Access codes are
-random 128-bit numbers that are regenerated each time an access code is needed.
+random 56-bit numbers.  While 56 bits seems weak, the access code is not used
+directly as an encryption key, but is instead used as a proof-of-identity.
 
 The default method of granting access sharing uses codes that are short-lived,
 single-use code.  This is to reduce the risk of sharing the code over
@@ -104,16 +105,14 @@ less-secure channels, such as SMS.
 Implementations may choose to also support advanced access codes, which may be
 multi-use and persist for a longer time (even indefinitely).
 
-The human-sharable version of the access code is written with a prefix of
-'CLEA', followed by the access code itself.  The access code should be
-represented as base32, as defined in [RFC
-4648](http://tools.ietf.org/html/rfc4648).  Since the access code is 16 bytes,
-and base32 requires lengths that are divisible by 5, a prefix is added to the
-access code so that the final result spells CLEARSKIES.  The prefix bytes are
-8C948248.  Finally, a LUN check digit is added, using the [LUN mod N
+The human-sharable version of the access code is represented as base32, as
+defined in [RFC 4648](http://tools.ietf.org/html/rfc4648).  Since the access
+code is 7 bytes, and base32 requires lengths that are divisible by 5, a special
+prefix is added to the access code.  The prefix bytes are 0x96, 0x1A, 0x2B.
+Finally, a LUN check digit is added, using the [LUN mod N
 algorithm](http://en.wikipedia.org/wiki/Luhn_mod_N_algorithm), where N is 32.
 
-The 128-bit number is run through SHA256 to get an access ID.  This is used
+The 56-bit number is run through SHA256 to get an access ID.  This is used
 to locate other peers.
 
 The user may opt to replace the provided access code with a passphrase before
