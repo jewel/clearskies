@@ -47,12 +47,18 @@ class Permahash
 
   def []= key, val
     @hash[key] = val
-    save 'r', key, val
+    append 'r', key, val
+  end
+
+  # Save the given key again.  This should be done if the value inside is
+  # changed, such as would be case if it were an array or object.
+  def save key
+    append 'r', key, @hash[key]
   end
 
   def delete key
     val = @hash.delete key
-    save 'd', key, val
+    append 'd', key, val
     val
   end
 
@@ -72,7 +78,7 @@ class Permahash
 
   private
   # Save an update to disk
-  def save oper, key, val=nil
+  def append oper, key, val=nil
     keyd = Marshal.dump key
     vald = Marshal.dump val
     @logfile.puts "#{oper}:#{keyd.size}:#{vald.size}"
@@ -147,7 +153,7 @@ class Permahash
     @logsize = 0
     @logfile.puts HEADER
     @hash.each do |key,val|
-      save 'r', key, val
+      append 'r', key, val
     end
     @logfile.close
     File.rename temp, @path

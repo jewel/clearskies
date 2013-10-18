@@ -14,7 +14,6 @@ module Shares
   @shares = {}
 
   def self.each
-    warn "Shares are #{@db.inspect}"
     @db.each do |path,id|
       yield by_id(id)
     end

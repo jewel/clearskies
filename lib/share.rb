@@ -8,6 +8,7 @@ require 'securerandom'
 require 'conf'
 require 'openssl'
 require 'digest'
+require 'peer'
 
 class Share
   attr_reader :id
@@ -21,7 +22,9 @@ class Share
     @by_sha = {}
     self.each { |path,file| @by_sha[file.sha256] = file }
 
-    @db[:codes]   ||= []
+    @db[:codes] ||= []
+    @db[:peers] ||= []
+    @db[:version] ||= Time.new.to_f
 
     @db.flush
   end
@@ -29,6 +32,10 @@ class Share
   def check_key_type_and_level type, level
     raise "Invalid key type #{type.inspect}" unless [:rsa, :psk].include? type
     raise "Invalid access level" unless [:read_write, :read_only, :untrusted].include? level
+  end
+
+  def version
+    @db[:version]
   end
 
   def peer_id= val
@@ -99,7 +106,7 @@ class Share
   def each
     @db.each do |key,val|
       next unless key =~ /\Afile\//
-      yield key, val
+      yield val
     end
   end
 
@@ -107,12 +114,25 @@ class Share
     @db[:codes] << code
 
     # force save
-    @db[:codes] = @db[:codes]
+    @db.save :codes
   end
 
   def each_code
     @db[:codes].each do |code|
       yield code
+    end
+  end
+
+  def add_peer peer
+    @db[:peers] << peer
+
+    # force save
+    @db.save :peers
+  end
+
+  def each_peer
+    @db[:peers].each do |peer|
+      yield peer
     end
   end
 
@@ -124,9 +144,14 @@ class Share
     @db["file/#{path}"] = file
   end
 
+  def full_path partial_path
+    "#{path}/#{partial_path}"
+  end
+
   # Make changes to the file objects atomic by needing to call save() after any
   # changes are made
   def save path
-    @db["file/#{path}"] = @db["file/#{path}"]
+    @db.save "file/#{path}"
+    @db[:version] = Time.new.to_f
   end
 end

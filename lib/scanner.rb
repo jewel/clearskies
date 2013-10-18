@@ -26,8 +26,9 @@ module Scanner
   # Thread entry point
   private
   def self.work
+    sleep 2 # FIXME temporary for testing
     # TODO Lower own priority
-    
+
     change_monitor = get_change_monitor
 
     change_monitor.on_change = monitor_callback if change_monitor
@@ -117,7 +118,7 @@ module Scanner
   end
 
   def self.calculate_hashes share
-    share.each do |db_path,file|
+    share.each do |file|
       unless file.sha256
         file.sha256 = Digest::SHA256.file(share.path + '/' + file.path).hexdigest
         share.save file.path

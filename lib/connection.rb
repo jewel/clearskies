@@ -85,11 +85,12 @@ class Connection
   def receive_messages
     loop do
       msg = recv
-      begin
+      p msg
+      # begin
         handle msg
-      rescue
-        warn "Error handling message #{msg[:type].inspect}: #$!"
-      end
+      # rescue
+      #   warn "Error handling message #{msg[:type].inspect}: #$!"
+      # end
     end
   end
 
@@ -111,7 +112,7 @@ class Connection
     when :update
     when :move
     when :get
-      fp = @share.read_file msg[:path]
+      fp = File.open @share.full_path(msg[:path]), 'rb'
       res = Message.new :file_data, { path: msg[:path] }
       remaining = fp.size
       if msg[:range]
@@ -120,7 +121,7 @@ class Connection
         remaining = msg[:range][1]
       end
 
-      res.binary_data(remaining) do
+      res.binary_payload do
         if remaining > 0
           data = fp.read [1024 * 256, remaining].max
           remaining -= data.size
@@ -133,11 +134,14 @@ class Connection
 
       send res
     when :file_data
-      @share.write_file msg[:path] do |f|
-        msg.get_binary_data do |data|
+      File.open @share.full_path(msg[:path]), 'wb' do |f|
+        while data = msg.read_binary_payload
           f.write data
         end
       end
+      # FIXME Notify the scanner of the file via the share so that it can be
+      # updated immediately
+      #
     end
   end
 
@@ -147,9 +151,9 @@ class Connection
     msg[:version] = @share.version
     msg[:files] = []
     @share.each do |file|
-      next unless file.scanned?
+      next unless file[:sha256]
 
-      if file.deleted?
+      if file[:deleted]
         obj = {
           path: file.path,
           utime: file.utime,
@@ -180,9 +184,9 @@ class Connection
     @remaining = @files.select { |file|
       next if file[:deleted]
 
-      ours = @share.by_path file[:path]
+      ours = @share[ file[:path] ]
 
-      next if file[:utime] < ours[:utime]
+      next if ours && file[:utime] < ours[:utime]
       # FIXME We'd also want to skip it if there is a pending download of this
       # file from another peer with an even newer utime
 
@@ -192,6 +196,7 @@ class Connection
 
   def request_file
     file = @remaining.sample
+    return unless file
     send :get, {
       path: file[:path]
     }
@@ -271,6 +276,20 @@ class Connection
     identity = recv :identity
     @friendly_name = identity[:name]
 
+    # We now trust that the peer_id was right, since we couldn't have received
+    # the encrypted :identity message otherwise
+    @share.each_peer do |peer|
+      @peer = peer if peer.id == @peer_id
+    end
+
+    unless @peer
+      @peer = Peer.new
+      @peer.id = @peer_id
+      @share.add_peer @peer
+    end
+
+    @peer.friendly_name = @friendly_name
+
     time_diff = identity[:time] - Time.new.to_i
     if time_diff.abs > 60
       raise "Peer clock is too far #{time_diff > 0 ? 'ahead' : 'behind'} yours (#{time_diff.abs} seconds)"
@@ -278,9 +297,9 @@ class Connection
   end
 
   def request_manifest
-    if @peer.manifest && @peer.manifest.version
+    if @peer.manifest && @peer.manifest[:version]
       send :get_manifest, {
-        version: @peer.manifest.version
+        version: @peer.manifest[:version]
       }
     else
       send :get_manifest
@@ -289,7 +308,7 @@ class Connection
 
   def key_exchange
     if @share
-      # FIXME This should take the access level into account
+      # FIXME This should take the intended access level of the code into account
 
       send :keys, {
         access: @share.access_level,

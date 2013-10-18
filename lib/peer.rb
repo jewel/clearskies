@@ -3,4 +3,5 @@
 # This information is made permanent as part of the corresponding Share
 
 class Peer
+  attr_accessor :id, :friendly_name, :manifest
 end
