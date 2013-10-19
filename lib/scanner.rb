@@ -84,7 +84,7 @@ module Scanner
   def self.register_and_scan share, change_monitor
     Find.find( share.path ) do |path|
       stat = File.stat(path)
-      relpath = Pathname.new(path).relative_path_from(Pathname.new(share.path)).to_s
+      relpath = share.partial_path path
 
       #don't want pipes, sockets, devices, directories.. etc
       # FIXME this will also skip symlinks
@@ -120,7 +120,7 @@ module Scanner
   def self.calculate_hashes share
     share.each do |file|
       unless file.sha256
-        file.sha256 = Digest::SHA256.file(share.path + '/' + file.path).hexdigest
+        file.sha256 = Digest::SHA256.file(share.full_path(file.path)).hexdigest
         share.save file.path
       end
     end

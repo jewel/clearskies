@@ -11,6 +11,7 @@ require 'digest'
 require 'peer'
 
 class Share
+  include Enumerable
   attr_reader :id
 
   def initialize share_id
@@ -20,7 +21,7 @@ class Share
     @db = Permahash.new path
 
     @by_sha = {}
-    self.each { |path,file| @by_sha[file.sha256] = file }
+    self.each { |file| @by_sha[file.sha256] = file }
 
     @db[:codes] ||= []
     @db[:peers] ||= []
@@ -146,6 +147,11 @@ class Share
 
   def full_path partial_path
     "#{path}/#{partial_path}"
+  end
+
+  # Return a relative path to a file in the share from a full path
+  def partial_path full_path
+    Pathname.new(full_path).relative_path_from(Pathname.new(path)).to_s
   end
 
   # Make changes to the file objects atomic by needing to call save() after any
