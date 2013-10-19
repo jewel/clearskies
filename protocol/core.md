@@ -65,14 +65,14 @@ locate other share peers.
 A 128-bit random number called the peer ID is also generated.  Each peer has
 its own peer ID, and the peer should use a different peer ID for each share.
 
-A 4096-bit RSA key should be generated for the share.  It will be used to
+A 2048-bit RSA key should be generated for the share.  It will be used to
 digitally sign messages to stop read-only shares from pretending to be
 read-write shares.
 
 More keys should be generated for the other access levels:
 
 * A 128-bit read-only PSK
-* A 4096-bit read-only RSA key
+* A 2048-bit read-only RSA key
 * A 128-bit untrusted PSK
 
 Once generated, all keys are saved to disk.
