@@ -3,22 +3,22 @@
 
 kill_pid()
 {
-  if test -e "$1" && test -e /proc/`cat "$1"`
+  if test -e "$1"
   then
-    kill `cat "$1"`
+    kill `cat "$1"` 2>/dev/null
   fi
 }
 
 cleanup()
 {
   kill_pid /tmp/tracker/pid
-  kill_pid /tmp/testing/Tracker
-
   kill_pid /tmp/1/pid
-  kill_pid "/tmp/testing/Daemon Server"
-
   kill_pid /tmp/2/pid
-  kill_pid "/tmp/testing/Daemon Client"
+
+  sleep 0.1
+  kill_pid /tmp/testing/Tracker
+  kill_pid "/tmp/testing/Daemon-Client"
+  kill_pid "/tmp/testing/Daemon-Server"
 
   rm -rf /tmp/1 /tmp/2 /tmp/tracker /tmp/testing
 }
@@ -35,9 +35,6 @@ run_program()
   tempfile=/tmp/testing/`echo "$1" | tr ' ' '-'`
 
   gnome-terminal --title "$1" -e "bash -c '($2; sleep 600) & echo \$! > $tempfile; wait \$!'" &
-  sleep 1
-
-  echo $tempfile: `cat $tempfile`
 }
 
 trap ctrl_c SIGINT
