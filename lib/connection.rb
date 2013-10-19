@@ -139,6 +139,7 @@ class Connection
           f.write data
         end
       end
+      request_file
       # FIXME Notify the scanner of the file via the share so that it can be
       # updated immediately
       #
