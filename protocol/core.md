@@ -1426,6 +1426,46 @@ read-only mode, so that a user doesn't make changes that will be immediately
 overwritten.  It could detect changes in the read-only directory and warn the
 user that they will not be saved.
 
+Software should rate limit authentication attempts to avoid key guessing.
+
 While it is not the designed use case of this protocol, some shares may have
 hundreds or thousands of peers.  In this case, it is recommended that
 connections only be made to a few dozen of them, chosen at random.
+
+
+Known Issues
+------------
+
+This is a list of known issues or problems with the protocol.  The serious
+issues will be addressed before the spec is finalized.
+
+* The access code method is vulnerable to man-in-the-middle attacks.  We could
+  recommend that users break the access code into two or more pieces and send
+  them over multiple mediums to reduce the attack surface.
+
+* 56-bit access codes can be large enough for transport protection, since we're
+  using DHE to generate the actual keys, but only if the software rate limits
+  connection attempts.
+
+* 56-bit access codes are insufficient since the tracker will learn the
+  share ID, from which it could derive the access code.  This will take on
+  average 40 years on a current generation i7, but on a hypothetical ASIC
+  similar to those made for bitcoin (a 5 billion hash-per-second chip sells for
+  $40 at the time of writing), it could be cracked in 83 days on average.
+
+* Taking the SHA256 of the read-write key to generate the share id is
+  unnecessarily exposing the read-write key, however small of an exposure it
+  may be.  (We're currently doing this so that we can have shares with a master
+  password.)
+
+* Master passwords have to be created at the time the share is created, they
+  can't be added later.  Master passwords should act more like access codes,
+  i.e. be advertised separately.  This would mean we'd need to encrypt the
+  entire key set and send it all nodes, which would complicate key management.
+
+* Master password key protection is probably insufficient, even with 20 million
+  SHA256 rounds.  Since a cheap bitcoin ASIC can do 5 billion hashes per second.
+  This could be mitigated by only using half of the bits to generate the share
+  ID, and using the other half to decrypt the key file.
+
+* Access code passphrases have the same issues as master passwords.
