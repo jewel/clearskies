@@ -59,4 +59,10 @@ end
 
 server.mount '/clearskies/track', Tracker
 
+if ENV['PIDFILE']
+  File.open ENV['PIDFILE'], 'w' do |f|
+    f.puts $$
+  end
+end
+
 server.start

@@ -1,48 +1,118 @@
 #!/bin/bash
 
+
+kill_pid()
+{
+  if test -e "$1" && test -e /proc/`cat "$1"`
+  then
+    kill `cat "$1"`
+  fi
+}
+
+cleanup()
+{
+  kill_pid /tmp/tracker/pid
+  kill_pid /tmp/testing/Tracker
+
+  kill_pid /tmp/1/pid
+  kill_pid "/tmp/testing/Daemon Server"
+
+  kill_pid /tmp/2/pid
+  kill_pid "/tmp/testing/Daemon Client"
+
+  rm -rf /tmp/1 /tmp/2 /tmp/tracker /tmp/testing
+}
+
 ctrl_c()
 {
-  # FIXME make this less specific, perhaps by adding a pid file
+  cleanup
+  exit 1
+}
 
-  killall -q ruby sleep
-  rm -rf /tmp/1 /tmp/2
-  exit $?
+run_program()
+{
+  mkdir -p /tmp/testing
+  tempfile=/tmp/testing/`echo "$1" | tr ' ' '-'`
+
+  gnome-terminal --title "$1" -e "bash -c '($2; sleep 600) & echo \$! > $tempfile; wait \$!'" &
+  sleep 1
+
+  echo $tempfile: `cat $tempfile`
 }
 
 trap ctrl_c SIGINT
 
-killall -q ruby sleep
-rm -rf /tmp/1 /tmp/2
+cleanup
+
+mkdir -p /tmp/tracker
+run_program "Tracker" "PIDFILE=/tmp/tracker/pid tracker/server"
 
 mkdir -p /tmp/1/stuff
 echo my first file > /tmp/1/stuff/first
 echo my second file > /tmp/1/stuff/second
 
-gnome-terminal -e tracker/server --title="Tracker"
+# ----- Server -----
 
-gnome-terminal -e "bash -c 'CLEARSKIES_DIR=/tmp/1 ./clearskies debug; sleep 600'" --title="Daemon Server"
+run_program "Daemon Server" "CLEARSKIES_DIR=/tmp/1 ./clearskies debug"
 
-gnome-terminal -e "bash -c 'CLEARSKIES_DIR=/tmp/2 ./clearskies debug; sleep 600'" --title="Daemon Client"
-
-echo "Waiting for server"
+echo "Waiting for server to start"
 while ! test -e /tmp/1/control
 do
   sleep 0.1
 done
 
-echo "Waiting for client"
+echo "Creating share on server"
+echo "Requesting access code from server"
+code=$(CLEARSKIES_DIR=/tmp/1 ./clearskies share /tmp/1/stuff read_write)
+echo "Code is '$code'"
+
+# ----- Client -----
+
+run_program "Daemon Client" "CLEARSKIES_DIR=/tmp/2 ./clearskies debug"
+
+echo "Waiting for client to start"
 while ! test -e /tmp/2/control
 do
   sleep 0.1
 done
 
-echo "Requesting access code from server"
-code=$(CLEARSKIES_DIR=/tmp/1 ./clearskies share /tmp/1/stuff read_write)
-echo "Code is '$code'"
-
 echo "Adding access code to client"
 CLEARSKIES_DIR=/tmp/2 ./clearskies add "$code" /tmp/2/stuff
 
-echo "Share has been added"
+# ----- Wait for sync -----
 
-sleep 600
+echo "Share has been added, waiting for 'first' file to sync"
+
+while ! test -e /tmp/2/stuff/first
+do
+  sleep 1
+done
+
+echo "'first' file synced, waiting for 'second' file"
+
+while ! test -e /tmp/2/stuff/second
+do
+  sleep 1
+done
+
+echo "'second' file synced, comparing files"
+
+if ! cmp /tmp/{1,2}/stuff/first
+then
+  echo "'first' file doesn't match"
+  cleanup
+  exit -1
+fi
+
+if ! cmp /tmp/{1,2}/stuff/second
+then
+  echo "'second' file doesn't match"
+  cleanup
+  exit -1
+fi
+
+echo "Sync successful!"
+
+cleanup
+
+exit 0

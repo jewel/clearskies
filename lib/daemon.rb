@@ -26,6 +26,10 @@ module Daemon
   end
 
   def self.run
+    File.open Conf.data_dir("pid"), 'w' do |f|
+      f.puts $$
+    end
+
     require 'shares'
     require 'share'
 
