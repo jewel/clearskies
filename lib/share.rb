@@ -148,6 +148,11 @@ class Share
     "#{path}/#{partial_path}"
   end
 
+  # Return a relative path to a file in the share from a full path
+  def partial_path full_path
+    Pathname.new(full_path).relative_path_from(Pathname.new(path)).to_s
+  end
+
   # Make changes to the file objects atomic by needing to call save() after any
   # changes are made
   def save path
