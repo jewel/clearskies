@@ -11,6 +11,7 @@ require 'digest'
 require 'peer'
 
 class Share
+  include Enumerable
   attr_reader :id
 
   def initialize share_id
@@ -20,7 +21,7 @@ class Share
     @db = Permahash.new path
 
     @by_sha = {}
-    self.each { |path,file| @by_sha[file.sha256] = file }
+    self.each { |file| @by_sha[file.sha256] = file }
 
     @db[:codes] ||= []
     @db[:peers] ||= []
