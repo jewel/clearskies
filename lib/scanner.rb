@@ -6,14 +6,15 @@ require 'digest/sha2'
 require 'find'
 require 'securerandom'
 require 'pathname'
+require 'change_monitor'
 
 module Scanner
   DELAY_MULTIPLIER = 10
   MIN_RESCAN = 60
   def self.start
+    load_change_monitor
     @worker = Thread.new { work }
     @worker.abort_on_exception = true
-    load_change_monitor
   end
 
   def self.pause
@@ -58,7 +59,7 @@ module Scanner
 
       last_scan_start = Time.now
       Shares.each do |share|
-        register_and_scan share, nil
+        register_and_scan share
       end
       last_scan_time = Time.now - last_scan_start
     end
@@ -66,14 +67,9 @@ module Scanner
 
   # Return appropriate ChangeMonitor for platform
   def self.load_change_monitor
-    begin
-      require 'rb-inotify'
-    rescue LoadError
-      return
-    end
+    @change_monitor = ChangeMonitor.find
+    return unless @change_monitor
 
-    require 'change_monitor/gem_inotify'
-    @change_monitor = ChangeMonitor::GemInotify.new
     @change_monitor.on_change do |path|
       monitor_callback path
     end

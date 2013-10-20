@@ -2,13 +2,14 @@
 module ChangeMonitor
 
   # Search for the best available method of monitoring changes
-  def find
+  def self.find
     begin
-      require 'change_monitor/gem_inotify'
-      return ChangeMonitor::GemInotify.new
+      require 'rb-inotify'
     rescue LoadError
+      return nil
     end
 
-    return nil
+    require 'change_monitor/gem_inotify'
+    return ChangeMonitor::GemInotify.new
   end
 end

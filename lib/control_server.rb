@@ -96,7 +96,6 @@ module ControlServer
       if !share
         share = Share.create command[:path]
         Shares.add share
-        warn "Now we have a share, #{share.inspect} inside of #{Shares.inspect}"
       end
 
       code = AccessCode.create
