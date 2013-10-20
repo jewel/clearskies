@@ -7,6 +7,7 @@ require 'find'
 require 'securerandom'
 require 'pathname'
 require 'change_monitor'
+require 'set'
 
 module Scanner
   DELAY_MULTIPLIER = 10
@@ -86,7 +87,7 @@ module Scanner
   # An event was triggered or we scanned this path
   # either way need to decide if it is updated and
   # add it to the database.
-  def self.process_path path
+  def self.process_path share, path
     relpath = share.partial_path path
 
     begin
@@ -106,7 +107,7 @@ module Scanner
 
     # Don't want pipes, sockets, devices, directories.. etc
     # FIXME this will also skip symlinks
-    next unless stat.file?
+    return unless stat.file?
 
     unless stat.readable?
       warn 'File #{path} is not readable. It will be skipped...'
@@ -143,8 +144,15 @@ module Scanner
   end
 
   def self.register_and_scan share
+    known_files = Set.new(share.map { |f| share.full_path f.path })
     Find.find( share.path ) do |path|
-      process_path path
+      known_files.delete? path
+      process_path share, path
+    end
+
+    # What is left over are the deleted files.
+    known_files.each do |path|
+      process_path share, path
     end
   end
 
