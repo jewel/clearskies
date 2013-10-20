@@ -111,11 +111,17 @@ class Connection
       receive_manifest @peer.manifest
       request_file
     when :manifest
+      # FIXME this isn't being saved
       @peer.manifest = msg
+      @peer.updates = []
       receive_manifest msg
       request_file
     when :update
+      @peer.updates << msg
+      @remaining.push msg[:file] if need_file? msg[:file]
+      request_file
     when :move
+      raise "Move not yet handled"
     when :get
       fp = File.open @share.full_path(msg[:path]), 'rb'
       res = Message.new :file_data, { path: msg[:path] }
@@ -210,17 +216,23 @@ class Connection
 
   def receive_manifest msg
     @files = msg[:files]
-    @remaining = @files.select { |file|
-      next if file[:deleted]
+    @remaining = []
+    @files.each do |file|
+      @remaining.push file if need_file? file
+    end
+  end
 
-      ours = @share[ file[:path] ]
+  def need_file? file
+    # FIXME we need to actually delete it if its deleted
+    return false if file[:deleted]
 
-      next if ours && file[:utime] < ours[:utime]
-      # FIXME We'd also want to skip it if there is a pending download of this
-      # file from another peer with an even newer utime
+    ours = @share[ file[:path] ]
 
-      !ours || file[:sha256] != ours[:sha256]
-    }
+    return false if ours && file[:utime] < ours[:utime]
+    # FIXME We'd also want to skip it if there is a pending download of this
+    # file from another peer with an even newer utime
+
+    !ours || file[:sha256] != ours[:sha256]
   end
 
   def request_file

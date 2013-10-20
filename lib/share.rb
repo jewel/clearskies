@@ -145,7 +145,7 @@ class Share
 
   def []= path, file
     @db["file/#{path}"] = file
-    notify path
+    notify file
     file
   end
 

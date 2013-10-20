@@ -72,7 +72,7 @@ module Scanner
   def self.monitor_callback path
     warn "Some change has happened with #{path}"
     Shares.each do |share|
-      next unless path.begin_with? share.path
+      next unless path.start_with? share.path
       process_path share, path
     end
   end
@@ -82,6 +82,9 @@ module Scanner
   # add it to the database.
   def self.process_path share, path
     relpath = share.partial_path path
+    return if relpath =~ /\.!sync\Z/
+
+    warn "Learning about #{relpath}"
 
     begin
       stat = File.stat path
@@ -130,7 +133,7 @@ module Scanner
     file.mtime = stat.mtime.to_i
     file.size = stat.size
     file.utime = Time.new.to_i
-    share.save relpath
+    share[relpath] = file
   end
 
   def self.register_and_scan share

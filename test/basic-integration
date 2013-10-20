@@ -111,6 +111,8 @@ verify_synced fourth
 
 echo "Test successful!"
 
+sleep 2
+
 cleanup
 
 exit 0
