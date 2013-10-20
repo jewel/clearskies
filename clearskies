@@ -111,7 +111,19 @@ when "ls", "list"
 
 when "share"
   path = ARGV.shift
-  mode = ARGV.shift
+  mode_input = ARGV.shift
+
+  modes = {
+    "rw" => "read_write",
+    "read-write" => "read_write",
+    "read_write" => "read_write",
+    "ro" => "read_only",
+    "read-only" => "read_only",
+    "read_only" => "read_only",
+    "untrusted" => "untrusted",
+  }
+
+  mode = modes[mode_input.downcase]
 
   path = File.realpath(path)
 
