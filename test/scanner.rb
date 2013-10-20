@@ -21,7 +21,6 @@ end
 
 describe Scanner, "finds files" do
   before do
-    puts "Before!"
     @tmpdir = Dir.mktmpdir
     @share = Share.create @tmpdir
     Shares.add @share
@@ -37,12 +36,9 @@ describe Scanner, "finds files" do
 
     Scanner.start false
 
-    until Scanner.scanned # FIXME use a timeout
-      sleep 0.1
-    end
+    sleep 3
 
     @share.map{|f| @share.full_path f.path }.sort.must_equal files.sort
-    # "Scanner found different files.\nFound:\n  #{@share.map{|f| @share.full_path f.path}.join("\n  ")}\nExpected:\n  #{@share_files.join("\n  ")}"
   end
 
   it "should detect new files" do
@@ -58,16 +54,12 @@ describe Scanner, "finds files" do
 
     Scanner.start
 
-    until Scanner.scanned # FIXME use a timeout
-      sleep 0.1
-    end
+    sleep 3
 
-    deleted_file = files.pop
-    File.delete deleted_file
+    File.delete files.pop
 
     sleep 1
 
-    @share[@share.partial_path(deleted_file)].deleted.must_equal true
-
+    @share.map{|f| @share.full_path f.path }.sort.must_equal files.sort
   end
 end
