@@ -13,6 +13,10 @@ module Scanner
   def self.start
     @worker = Thread.new { work }
     @worker.abort_on_exception = true
+    @change_monitor = load_change_monitor
+    send_monitor :on_change do |path|
+      monitor_callback path
+    end
   end
 
   def self.pause
@@ -23,20 +27,19 @@ module Scanner
     @worker.start
   end
 
+  def self.add_share share
+    register_and_scan share
+  end
+
   # Thread entry point
   private
   def self.work
-    sleep 2 # FIXME temporary for testing
     # TODO Lower own priority
-
-    change_monitor = get_change_monitor
-
-    change_monitor.on_change = monitor_callback if change_monitor
 
     last_scan_start = Time.now
 
     Shares.each do |share|
-      register_and_scan share, change_monitor
+      register_and_scan share
     end
 
     Shares.each do |share|
@@ -45,11 +48,7 @@ module Scanner
 
     last_scan_time = Time.now - last_scan_start
 
-    if change_monitor
-      loop do
-        Thread.self.pause
-      end
-    end
+    return if @change_monitor
 
     loop do
       next_scan_time = Time.now + [last_scan_time * DELAY_MULTIPLIER, MIN_RESCAN].max
@@ -69,24 +68,37 @@ module Scanner
   end
 
   # Return appropriate ChangeMonitor for platform
-  def self.get_change_monitor
-    nil
+  def self.load_change_monitor
+    begin
+      require 'rb-inotify'
+
+    rescue LoadError
+      return nil
+    end
+
+    require 'change_monitor/gem_inotify'
+    ChangeMonitor::GemInotify.new
   end
 
   def self.monitor_callback path
+    warn "Some change has happened with #{path}"
     #TODO: grab the global lock
 
     # Stat the file to check mtime and size
 
-    # Add the file to the sha1 queue
+    # Add the file to the sha256 queue
   end
 
-  def self.register_and_scan share, change_monitor
+  def self.register_and_scan share
     Find.find( share.path ) do |path|
+      p path
       stat = File.stat(path)
       relpath = share.partial_path path
 
-      #don't want pipes, sockets, devices, directories.. etc
+      # Monitor directories and unreadable files
+      send_monitor :monitor, path
+
+      # Don't want pipes, sockets, devices, directories.. etc
       # FIXME this will also skip symlinks
       next unless stat.file?
 
@@ -94,13 +106,8 @@ module Scanner
         warn 'File #{path} is not readable. It will be skipped...'
       end
 
-      # Monitor it before we do anything
-      if change_monitor
-        change_monitor.monitor path
-      end
-
       unless share[relpath]
-        #This is the first time the file has ever been seen
+        # This is the first time the file has ever been seen
         # Make note of file metadata now.  We will come back and calculate
         # the SHA256 later.
         file = Share::File.new
@@ -124,5 +131,10 @@ module Scanner
         share.save file.path
       end
     end
+  end
+
+  def self.send_monitor method, *args
+    return unless @change_monitor
+    @change_monitor.send method, *args
   end
 end

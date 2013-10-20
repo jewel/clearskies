@@ -123,7 +123,7 @@ describe Permahash, "saves to disk" do
   end
 
   describe "when given a bad file" do
-    it "should throw an exception" do
+    it "should raise an exception" do
       proc {
         Permahash.new "/etc/passwd"
       }.must_raise RuntimeError

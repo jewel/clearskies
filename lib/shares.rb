@@ -35,5 +35,6 @@ module Shares
   def self.add share
     @db[share.path] = share.id
     @shares[share.id] = share
+    Scanner.add_share share
   end
 end
