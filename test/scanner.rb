@@ -1,8 +1,9 @@
 require 'minitest/autorun'
 
-ENV['CLEARSKIES_DIR'] = Dir::mktmpdir
-
 require 'tmpdir'
+
+ENV['CLEARSKIES_DIR'] = Dir.mktmpdir
+
 require 'fileutils'
 require 'scanner'
 require 'shares'
@@ -10,7 +11,7 @@ require 'share'
 
 class TestScanner < MiniTest::Unit::TestCase
   def setup
-    @tmpdir = Dir::mktmpdir
+    @tmpdir = Dir.mktmpdir
     @share = Share.create @tmpdir
     Shares.add @share
     @share_files = %w{ tmp1 tmp2 tmp3 }.map { |f| @tmpdir + '/' + f }
