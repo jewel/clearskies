@@ -134,11 +134,19 @@ class Connection
 
       send res
     when :file_data
-      File.open @share.full_path(msg[:path]), 'wb' do |f|
+      # FIXME Make sure we're not writing outside the share (perhaps this could
+      # be done by Share)
+      dest = @share.full_path msg[:path]
+      temp = "#{File.dirname(dest)}/.#{File.basename(dest)}.#$$.#{Thread.current.object_id}.!sync"
+
+      File.open temp, 'wb' do |f|
         while data = msg.read_binary_payload
           f.write data
         end
       end
+
+      File.rename temp, dest
+
       @remaining.delete_if do |file|
         file[:path] == msg[:path]
       end
@@ -146,7 +154,6 @@ class Connection
       request_file
       # FIXME Notify the scanner of the file via the share so that it can be
       # updated immediately
-      #
     end
   end
 
