@@ -110,17 +110,16 @@ class Message
   end
 
   def to_s
-    json = @data.to_json
     msg = ""
     msg << "$" if @private_key
     msg << "!" if @has_binary_payload
-    msg << json
+    msg << @data.to_json
   end
 
   def write_to_io io
     if @private_key
       digest = OpenSSL::Digest::SHA256.new
-      signature = @private_key.sign digest, json
+      signature = @private_key.sign digest, @data.to_json
       signature = Base64.encode64 signature
       signature.gsub! "\n", ""
     end
