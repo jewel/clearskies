@@ -47,6 +47,14 @@ describe Scanner, "finds files" do
     files = create_files @tmpdir
     sleep 3
     @share.map{|f| @share.full_path f.path }.sort.must_equal files.sort
+
+  end
+
+  it "should calculate sha256 of each file" do
+    files = create_files @tmpdir
+    Scanner.start
+    sleep 3
+    @share.map{|f| f.sha256 }.sort.must_equal files.map { |f| Digest::SHA256.file(f).hexdigest }.sort
   end
 
   it "should detect deleted files" do
@@ -62,4 +70,5 @@ describe Scanner, "finds files" do
 
     @share.map{|f| @share.full_path f.path }.sort.must_equal files.sort
   end
+
 end
