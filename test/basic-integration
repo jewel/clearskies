@@ -106,8 +106,6 @@ verify_synced second
 echo "A wild file appears!" > /tmp/2/stuff/third
 echo "with a friend" > /tmp/2/stuff/fourth
 
-CLEARSKIES_DIR=/tmp/2 ./clearskies rescan /tmp/2/stuff
-
 verify_synced third
 verify_synced fourth
 
