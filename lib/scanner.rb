@@ -7,31 +7,30 @@ require 'find'
 require 'securerandom'
 require 'pathname'
 require 'change_monitor'
+require 'set'
 
 module Scanner
   DELAY_MULTIPLIER = 10
   MIN_RESCAN = 60
-  def self.start
-    load_change_monitor
+  def self.start use_change_monitor=true
+    load_change_monitor if use_change_monitor
+    @hasher = Thread.new { work_hashes }
+
+    @scanning = false
+    @hash_queue = Queue.new
+
     @worker = Thread.new { work }
     @worker.abort_on_exception = true
   end
 
-  def self.pause
-    @worker.pause
-  end
-
-  def self.unpause
-    @worker.start
-  end
-
   def self.add_share share
+    # FIXME move this into the proper thread
     register_and_scan share
-    calculate_hashes share
   end
 
   # Thread entry point
   private
+
   def self.work
     # TODO Lower own priority
 
@@ -41,21 +40,15 @@ module Scanner
       register_and_scan share
     end
 
-    Shares.each do |share|
-      calculate_hashes share
-    end
-
     last_scan_time = Time.now - last_scan_start
 
     return if @change_monitor
 
     loop do
       next_scan_time = Time.now + [last_scan_time * DELAY_MULTIPLIER, MIN_RESCAN].max
-      while Time.now < next_scan_time
-        sleep next_scan_time - Time.now
-        Shares.each do |share|
-          calculate_hashes share
-        end
+      now = Time.now
+      while now < next_scan_time
+        sleep next_scan_time - now
       end
 
       last_scan_start = Time.now
@@ -78,19 +71,20 @@ module Scanner
 
   def self.monitor_callback path
     warn "Some change has happened with #{path}"
-    #TODO: grab the global lock
-
-    process_path path
+    Shares.each do |share|
+      next unless path.begin_with? share.path
+      process_path share, path
+    end
   end
 
   # An event was triggered or we scanned this path
   # either way need to decide if it is updated and
   # add it to the database.
-  def self.process_path path
+  def self.process_path share, path
     relpath = share.partial_path path
 
     begin
-      stat = File.stat(path)
+      stat = File.stat path
     rescue Errno::ENOENT
       # File was deleted!
       if share[relpath]
@@ -106,10 +100,11 @@ module Scanner
 
     # Don't want pipes, sockets, devices, directories.. etc
     # FIXME this will also skip symlinks
-    next unless stat.file?
+    return unless stat.file?
 
     unless stat.readable?
       warn 'File #{path} is not readable. It will be skipped...'
+      return
     end
 
     unless share[relpath]
@@ -118,42 +113,66 @@ module Scanner
       # the SHA256 later.
       file = Share::File.new
       file.path = relpath
-      file.mode = stat.mode.to_s(8).to_i
-      file.mtime = stat.mtime.to_i
-      file.size = stat.size
-      file.utime = Time.new.to_i
       file.id = SecureRandom.hex 16
       file.key = SecureRandom.hex 32
-
-      share[relpath] = file
+      @hash_queue.push [share, file]
     else
       # We have seen this file before
       file = share[relpath]
 
       # File has changed
-      if file.mtime < stat.mtime.to_i or file.size != stat.size
+      if file.mtime != stat.mtime.to_i || file.size != stat.size
         file.sha256 = nil
-        file.mode = stat.mode.to_s(8).to_i
-        file.mtime = stat.mtime.to_i
-        file.size = stat.size
-        file.utime = Time.new.to_i
-        share.save relpath
+        @hash_queue.push [share, file]
       end
     end
+    file.mode = stat.mode.to_s(8).to_i
+    file.mtime = stat.mtime.to_i
+    file.size = stat.size
+    file.utime = Time.new.to_i
+    share.save relpath
   end
 
   def self.register_and_scan share
+    @scanning = true
+
+    known_files = Set.new(share.map { |f| share.full_path f.path })
     Find.find( share.path ) do |path|
-      process_path path
+      known_files.delete path
+      process_path share, path
     end
+
+    # What is left over are the deleted files.
+    known_files.each do |path|
+      process_path share, path
+    end
+
+  ensure
+    @scanning = false
+    @hasher.wakeup if @hasher
   end
 
-  def self.calculate_hashes share
-    share.each do |file|
-      unless file.sha256
-        file.sha256 = Digest::SHA256.file(share.full_path(file.path)).hexdigest
-        share.save file.path
+  def self.work_hashes
+    Shares.each do |share|
+      share.each do |file|
+        next if file.sha256
+        @hash_queue.push [share, file]
       end
+    end
+
+    loop do
+      share, file = @hash_queue.shift
+      next if file.sha256
+      digest = Digest::SHA256.new
+      File.open share.full_path(file.path), 'rb' do |f|
+        while data = f.read(1024 * 512)
+          digest << data
+
+          Thread.stop if @scanning
+        end
+      end
+      file.sha256 = digest.hexdigest
+      share.save file.path
     end
   end
 

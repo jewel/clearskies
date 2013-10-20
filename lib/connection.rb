@@ -61,6 +61,7 @@ class Connection
     end
 
     if @send_queue
+      puts "Sending: #{message.inspect}"
       @send_queue.push message
     else
       message.write_to_io @socket
@@ -85,7 +86,7 @@ class Connection
   def receive_messages
     loop do
       msg = recv
-      p msg
+      puts "Received: #{msg.to_s}"
       # begin
         handle msg
       # rescue

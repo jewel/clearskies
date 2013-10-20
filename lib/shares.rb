@@ -37,4 +37,9 @@ module Shares
     @shares[share.id] = share
     Scanner.add_share share
   end
+
+  def self.remove share
+    @db.delete share.path
+    @shares.delete share.id
+  end
 end

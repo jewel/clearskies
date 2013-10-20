@@ -109,23 +109,25 @@ class Message
     end
   end
 
-  def write_to_io io
+  def to_s
     json = @data.to_json
     msg = ""
+    msg << "$" if @private_key
+    msg << "!" if @has_binary_payload
+    msg << json
+  end
+
+  def write_to_io io
     if @private_key
       digest = OpenSSL::Digest::SHA256.new
       signature = @private_key.sign digest, json
       signature = Base64.encode64 signature
       signature.gsub! "\n", ""
-      msg << "$"
     end
 
     binary_data = nil
-    if @has_binary_payload
-      msg << "!"
-    end
 
-    msg << json
+    msg = self.to_s
 
     raise "No newlines allowed in JSON" if msg =~ /\n/
 
