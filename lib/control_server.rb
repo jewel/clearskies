@@ -100,6 +100,7 @@ module ControlServer
 
       code = AccessCode.create
       share.add_code code
+      Network.force_find_peer
 
       {
         access_code: code.to_s
@@ -120,6 +121,8 @@ module ControlServer
       code = PendingCode.parse(command[:code])
       code.path = command[:path]
       PendingCodes.add code
+      Network.force_find_peer
+
       nil
 
     else

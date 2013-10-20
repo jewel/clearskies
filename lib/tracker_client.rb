@@ -8,7 +8,7 @@ module TrackerClient
   def self.start
     @last_run = {}
     Thread.new do
-      run
+      work
     end
   end
 
@@ -16,20 +16,27 @@ module TrackerClient
     @peer_discovered = block
   end
 
+  def self.force_run
+    poll_all_trackers
+  end
+
   private
-  def self.run
-    sleep 2 # FIXME temporary for testing
+  def self.work
     loop do
       # FIXME we really need to wait the exact amount of time requested by
       # each tracker
       wait_time = 120
-      IDMapper.each do |share_id,peer_id|
-        trackers.each do |url|
-          poll_tracker share_id, peer_id, url
-        end
-      end
+      poll_all_trackers
 
       sleep wait_time
+    end
+  end
+
+  def self.poll_all_trackers
+    IDMapper.each do |share_id,peer_id|
+      trackers.each do |url|
+        poll_tracker share_id, peer_id, url
+      end
     end
   end
 

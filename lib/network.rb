@@ -27,6 +27,10 @@ module Network
     TrackerClient.start
   end
 
+  def self.force_find_peer
+    TrackerClient.force_run
+  end
+
   private
   def self.listen
     @server = TCPServer.new Conf.listen_port
