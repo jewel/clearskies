@@ -30,7 +30,6 @@ module ChangeMonitor
       return if @watching[path]
 
       @notifier.watch(path, *ACTIONS) do |event|
-        p event
         @on_change.call event.watcher.path + '/' + event.name
       end
 

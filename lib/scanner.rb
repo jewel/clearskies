@@ -80,43 +80,71 @@ module Scanner
     warn "Some change has happened with #{path}"
     #TODO: grab the global lock
 
-    # Stat the file to check mtime and size
-
-    # Add the file to the sha256 queue
+    process_path path
   end
 
-  def self.register_and_scan share
-    Find.find( share.path ) do |path|
-      p path
+  # An event was triggered or we scanned this path
+  # either way need to decide if it is updated and
+  # add it to the database.
+  def self.process_path path
+    relpath = share.partial_path path
+
+    begin
       stat = File.stat(path)
-      relpath = share.partial_path path
-
-      # Monitor directories and unreadable files
-      send_monitor :monitor, path
-
-      # Don't want pipes, sockets, devices, directories.. etc
-      # FIXME this will also skip symlinks
-      next unless stat.file?
-
-      unless stat.readable?
-        warn 'File #{path} is not readable. It will be skipped...'
+    rescue Errno::ENOENT
+      # File was deleted!
+      if share[relpath]
+        share[relpath].deleted = true
+        share.save relpath
       end
+      # Don't need to do anything if it was never seen.
+      return
+    end
 
-      unless share[relpath]
-        # This is the first time the file has ever been seen
-        # Make note of file metadata now.  We will come back and calculate
-        # the SHA256 later.
-        file = Share::File.new
-        file.path = relpath
+    # Monitor directories and unreadable files
+    send_monitor :monitor, path
+
+    # Don't want pipes, sockets, devices, directories.. etc
+    # FIXME this will also skip symlinks
+    next unless stat.file?
+
+    unless stat.readable?
+      warn 'File #{path} is not readable. It will be skipped...'
+    end
+
+    unless share[relpath]
+      # This is the first time the file has ever been seen
+      # Make note of file metadata now.  We will come back and calculate
+      # the SHA256 later.
+      file = Share::File.new
+      file.path = relpath
+      file.mode = stat.mode.to_s(8).to_i
+      file.mtime = stat.mtime.to_i
+      file.size = stat.size
+      file.utime = Time.new.to_i
+      file.id = SecureRandom.hex 16
+      file.key = SecureRandom.hex 32
+
+      share[relpath] = file
+    else
+      # We have seen this file before
+      file = share[relpath]
+
+      # File has changed
+      if file.mtime < stat.mtime.to_i or file.size != stat.size
+        file.sha256 = nil
         file.mode = stat.mode.to_s(8).to_i
         file.mtime = stat.mtime.to_i
         file.size = stat.size
         file.utime = Time.new.to_i
-        file.id = SecureRandom.hex 16
-        file.key = SecureRandom.hex 32
-
-        share[relpath] = file
+        share.save relpath
       end
+    end
+  end
+
+  def self.register_and_scan share
+    Find.find( share.path ) do |path|
+      process_path path
     end
   end
 
