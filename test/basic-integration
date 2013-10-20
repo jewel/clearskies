@@ -59,6 +59,16 @@ verify_synced()
   fi
 }
 
+wait_gone()
+{
+  echo "Waiting for $1 to be deleted"
+  while test -e "$1"
+  do
+    sleep 1
+  done
+}
+
+
 trap ctrl_c SIGINT
 
 cleanup
@@ -108,6 +118,10 @@ echo "with a friend" > /tmp/2/stuff/fourth
 
 verify_synced third
 verify_synced fourth
+
+rm /tmp/1/stuff/fourth
+
+wait_gone /tmp/2/stuff/fourth
 
 echo "Test successful!"
 
