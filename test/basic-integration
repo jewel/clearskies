@@ -37,6 +37,28 @@ run_program()
   gnome-terminal --title "$1" -e "bash -c '($2; sleep 600) & echo \$! > $tempfile; wait \$!'" &
 }
 
+wait_file()
+{
+  echo "Waiting for '$2' in $1"
+  while ! test -e /tmp/$1/stuff/$2
+  do
+    sleep 1
+  done
+}
+
+verify_synced()
+{
+  wait_file 1 $1
+  wait_file 2 $1
+  if ! cmp /tmp/{1,2}/stuff/first
+  then
+    echo "$1 doesn't match"
+    sleep 2
+    cleanup
+    exit -1
+  fi
+}
+
 trap ctrl_c SIGINT
 
 cleanup
@@ -78,37 +100,18 @@ CLEARSKIES_DIR=/tmp/2 ./clearskies add "$code" /tmp/2/stuff
 
 # ----- Wait for sync -----
 
-echo "Share has been added, waiting for 'first' file to sync"
+verify_synced first
+verify_synced second
 
-while ! test -e /tmp/2/stuff/first
-do
-  sleep 1
-done
+echo "A wild file appears!" > /tmp/2/stuff/third
+echo "with a friend" > /tmp/2/stuff/fourth
 
-echo "'first' file synced, waiting for 'second' file"
+CLEARSKIES_DIR=/tmp/2 ./clearskies rescan /tmp/2/stuff
 
-while ! test -e /tmp/2/stuff/second
-do
-  sleep 1
-done
+verify_synced third
+verify_synced fourth
 
-echo "'second' file synced, comparing files"
-
-if ! cmp /tmp/{1,2}/stuff/first
-then
-  echo "'first' file doesn't match"
-  cleanup
-  exit -1
-fi
-
-if ! cmp /tmp/{1,2}/stuff/second
-then
-  echo "'second' file doesn't match"
-  cleanup
-  exit -1
-fi
-
-echo "Sync successful!"
+echo "Test successful!"
 
 cleanup
 
