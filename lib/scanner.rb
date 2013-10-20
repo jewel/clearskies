@@ -13,10 +13,7 @@ module Scanner
   def self.start
     @worker = Thread.new { work }
     @worker.abort_on_exception = true
-    @change_monitor = load_change_monitor
-    send_monitor :on_change do |path|
-      monitor_callback path
-    end
+    load_change_monitor
   end
 
   def self.pause
@@ -71,13 +68,15 @@ module Scanner
   def self.load_change_monitor
     begin
       require 'rb-inotify'
-
     rescue LoadError
-      return nil
+      return
     end
 
     require 'change_monitor/gem_inotify'
-    ChangeMonitor::GemInotify.new
+    @change_monitor = ChangeMonitor::GemInotify.new
+    @change_monitor.on_change do |path|
+      monitor_callback path
+    end
   end
 
   def self.monitor_callback path
