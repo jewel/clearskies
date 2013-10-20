@@ -28,6 +28,8 @@ class Share
     @db[:version] ||= Time.new.to_f
 
     @db.flush
+
+    @subscribers = []
   end
 
   def check_key_type_and_level type, level
@@ -143,6 +145,8 @@ class Share
 
   def []= path, file
     @db["file/#{path}"] = file
+    notify path
+    file
   end
 
   def full_path partial_path
@@ -159,5 +163,17 @@ class Share
   def save path
     @db.save "file/#{path}"
     @db[:version] = Time.new.to_f
+    notify @db["file/#{path}"]
+  end
+
+  def subscribe &block
+    @subscribers << block
+  end
+
+  private
+  def notify file
+    @subscribers.each do |block|
+      block.call file
+    end
   end
 end

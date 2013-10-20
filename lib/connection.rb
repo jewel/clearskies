@@ -102,6 +102,10 @@ class Connection
         return
       end
       send_manifest
+      @share.subscribe do |file|
+        warn "Connection learned about a change to #{file.path}"
+        send_update file
+      end
     when :manifest_current
       receive_manifest @peer.manifest
       request_file
@@ -157,33 +161,45 @@ class Connection
     end
   end
 
+  def send_update file
+    return unless file.sha256
+    send :update, {
+      file: file_as_manifest(file),
+    }
+  end
+
+  def file_as_manifest file
+    if file[:deleted]
+      obj = {
+        path: file.path,
+        utime: file.utime,
+        deleted: true,
+        id: file.id
+      }
+    else
+      obj = {
+        path: file.path,
+        utime: file.utime,
+        size: file.size,
+        mtime: file.mtime,
+        mode: file.mode,
+        sha256: file.sha256,
+        id: file.id,
+        key: file.key,
+      }
+    end
+  end
+
   def send_manifest
     msg = Message.new :manifest
     msg[:peer] = @share.peer_id
     msg[:version] = @share.version
     msg[:files] = []
     @share.each do |file|
+      puts "Found file: #{file.inspect}"
       next unless file[:sha256]
 
-      if file[:deleted]
-        obj = {
-          path: file.path,
-          utime: file.utime,
-          deleted: true,
-          id: file.id
-        }
-      else
-        obj = {
-          path: file.path,
-          utime: file.utime,
-          size: file.size,
-          mtime: file.mtime,
-          mode: file.mode,
-          sha256: file.sha256,
-          id: file.id,
-          key: file.key,
-        }
-      end
+      obj = file_as_manifest file
 
       msg[:files] << obj
     end

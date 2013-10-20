@@ -27,6 +27,7 @@ module Scanner
 
   def self.add_share share
     register_and_scan share
+    calculate_hashes share
   end
 
   # Thread entry point
