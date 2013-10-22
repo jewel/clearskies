@@ -46,13 +46,26 @@ wait_file()
   done
 }
 
+metadata()
+{
+  stat $1 | grep -v File: | grep -v Device: | grep -v 'Access: 2'
+}
+
 verify_synced()
 {
   wait_file 1 $1
   wait_file 2 $1
-  if ! cmp /tmp/{1,2}/stuff/first
+  if ! cmp /tmp/{1,2}/stuff/$1
   then
     echo "$1 doesn't match"
+    sleep 2
+    cleanup
+    exit -1
+  fi
+
+  if ! diff -u <(metadata /tmp/1/stuff/$1) <(metadata /tmp/2/stuff/$1)
+  then
+    echo "metadata for '$1' doesn't match"
     sleep 2
     cleanup
     exit -1
