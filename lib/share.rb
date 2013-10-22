@@ -146,6 +146,7 @@ class Share
 
   def []= path, file
     @db["file/#{path}"] = file
+    @db[:version] = Time.new.to_f
     notify file
     file
   end
@@ -173,6 +174,7 @@ class Share
 
   private
   def notify file
+    raise "Nil file" unless file
     @subscribers.each do |block|
       block.call file
     end

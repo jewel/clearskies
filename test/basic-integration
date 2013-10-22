@@ -48,7 +48,7 @@ wait_file()
 
 metadata()
 {
-  stat $1 | grep -v File: | grep -v Device: | grep -v 'Access: 2'
+  stat $1 | egrep -v '^(File:|Device:|Access: 2|Change:)'
 }
 
 verify_synced()
@@ -66,7 +66,7 @@ verify_synced()
   if ! diff -u <(metadata /tmp/1/stuff/$1) <(metadata /tmp/2/stuff/$1)
   then
     echo "metadata for '$1' doesn't match"
-    sleep 2
+    sleep 10
     cleanup
     exit -1
   fi

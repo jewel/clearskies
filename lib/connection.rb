@@ -150,11 +150,19 @@ class Connection
       dest = @share.full_path msg[:path]
       temp = "#{File.dirname(dest)}/.#{File.basename(dest)}.#$$.#{Thread.current.object_id}.!sync"
 
+      metadata = nil
+      @remaining.each do |file|
+        metadata = file if msg[:path] == file[:path]
+      end
+
       File.open temp, 'wb' do |f|
         while data = msg.read_binary_payload
           f.write data
         end
       end
+
+      warn "connection creating #{dest}: #{metadata[:mtime].to_f}"
+      File.utime Time.new.to_f, metadata[:mtime].to_f, temp
 
       File.rename temp, dest
 

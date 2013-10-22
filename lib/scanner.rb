@@ -110,6 +110,8 @@ module Scanner
       return
     end
 
+    add_to_queue = false
+
     unless share[relpath]
       # This is the first time the file has ever been seen
       # Make note of file metadata now.  We will come back and calculate
@@ -118,22 +120,25 @@ module Scanner
       file.path = relpath
       file.id = SecureRandom.hex 16
       file.key = SecureRandom.hex 32
-      @hash_queue.push [share, file]
+      add_to_queue = true
     else
       # We have seen this file before
       file = share[relpath]
 
       # File has changed
-      if file.mtime != stat.mtime.to_i || file.size != stat.size
+      if file.mtime != stat.mtime.to_f || file.size != stat.size
         file.sha256 = nil
-        @hash_queue.push [share, file]
+        add_to_queue = true
       end
     end
     file.mode = stat.mode.to_s(8).to_i
-    file.mtime = stat.mtime.to_i
+    puts "scanner found #{relpath}: #{stat.mtime.to_f}"
+    file.mtime = stat.mtime.to_f
     file.size = stat.size
-    file.utime = Time.new.to_i
+    file.utime = Time.new.to_f
     share[relpath] = file
+
+    @hash_queue.push [share, file] if add_to_queue
   end
 
   def self.register_and_scan share
