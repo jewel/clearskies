@@ -64,7 +64,7 @@ module Network
 
     raise "Can't find ID #{id}" unless share || code
 
-    if share.peer_id == peer_id
+    if (share || code).peer_id == peer_id
       warn "Discovered ourself"
       return
     end
