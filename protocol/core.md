@@ -564,8 +564,12 @@ after the deleted field in the list above can be blanked.  The entry for the
 deleted file will persist indefinitely in the database.  An explanation for the
 necessity of this behavior is in the later section called "Deleted Files".
 
-The "mtime" is the integer number of seconds since the unix epoch (normally
-called a unix timestamp) since the file contents were last modified.
+The "mtime" is the number of seconds since the unix epoch (normally called a
+unix timestamp) since the file contents were last modified.  This should
+include the number of nanoseconds, if tracked by the system.  Note that a
+double-precision floating point number is not precise enough to store all nine
+digits after the decimal point, so it may need to be tracked as two separate
+fields internally.
 
 The "update time" is the time that the file was last changed, as a unix
 timestamp.  On first scan, this is the time the scan discovered the file.
@@ -655,9 +659,9 @@ is not shown):
   "files": [
     {
       "path": "photos/img1.jpg",
-      "utime": 1379220476,
+      "utime": 1379220476.4512,
       "size": 2387629
-      "mtime": 1379220393.518242,
+      "mtime": [1379220393, 323518242],
       "mode": "0664",
       "sha256": "cf16aec13a8557cab5e5a5185691ab04f32f1e581cf0f8233be72ddeed7e7fc1",
       "id": "8adbd1cdaa0200747f6f2551ce2e1244",
@@ -665,9 +669,9 @@ is not shown):
     },
     {
       "path": "photos/img2.jpg",
-      "utime": 1379220468,
+      "utime": 1379220468.2303,
       "size": 6293123
-      "mtime": 1379100421.442491,
+      "mtime": [1379100421,421442491],
       "mode": "0600",
       "sha256": "64578d0dc44b088b030ee4b258de316b5cb07fdf42b8d40050fe2635659303ed",
       "id": "ade5f6098c8d99bd6b5472e51c64e09a",
@@ -675,7 +679,7 @@ is not shown):
     },
     {
       "path": "photos/img3.jpg",
-      "utime": 1379489028,
+      "utime": 1379489028.4324,
       "deleted": true,
       "id": "ccccf6098c8d99bd6b5472e51c64e0aa"
     }
@@ -883,7 +887,7 @@ Notification of a new or changed file looks like this:
     "path": "photos/img1.jpg",
     "utime": 1379220476,
     "size": 2387629
-    "mtime": 1379220393.518242,
+    "mtime": [1379220393, 194518242],
     "mode": "0664",
     "sha256": "cf16aec13a8557cab5e5a5185691ab04f32f1e581cf0f8233be72ddeed7e7fc1",
     "id": "8adbd1cdaa0200747f6f2551ce2e1244",
@@ -917,9 +921,9 @@ Notification of a moved file looks like this:
   "source": "photos/img5.jpg",
   "destination": {
     "path": "photos/img1.jpg",
-    "utime": 1379220476,
+    "utime": 1379220476.512824,
     "size": 2387629
-    "mtime": 1379220393.518242,
+    "mtime": [1379220393, 132518242],
     "mode": "0664",
     "sha256": "cf16aec13a8557cab5e5a5185691ab04f32f1e581cf0f8233be72ddeed7e7fc1",
     "id": "8adbd1cdaa0200747f6f2551ce2e1244",
@@ -1048,7 +1052,7 @@ section:
     "path": "photos/img1.jpg",
     "utime": 1379220476,
     "size": 2387629
-    "mtime": 1379220393.518242,
+    "mtime": [1379220393, 123518242],
     "mode": "0664",
     "sha256": "cf16aec13a8557cab5e5a5185691ab04f32f1e581cf0f8233be72ddeed7e7fc1",
     "id": "8adbd1cdaa0200747f6f2551ce2e1244",

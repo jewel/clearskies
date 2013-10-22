@@ -161,8 +161,10 @@ class Connection
         end
       end
 
-      warn "connection creating #{dest}: #{metadata[:mtime].to_f}"
-      File.utime Time.new.to_f, metadata[:mtime].to_f, temp
+      mtime = metadata[:mtime]
+      mtime = Time.at mtime[0], mtime[1] / 1000.0 + 0.0005
+      File.utime Time.new, mtime, temp
+      File.chmod metadata[:mode].to_i(8), temp
 
       File.rename temp, dest
 
@@ -196,7 +198,7 @@ class Connection
         path: file.path,
         utime: file.utime,
         size: file.size,
-        mtime: file.mtime,
+        mtime: [file.mtime.to_i, file.mtime.nsec],
         mode: file.mode,
         sha256: file.sha256,
         id: file.id,

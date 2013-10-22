@@ -106,7 +106,7 @@ module Scanner
     return unless stat.file?
 
     unless stat.readable?
-      warn 'File #{path} is not readable. It will be skipped...'
+      warn "File #{path} is not readable. It will be skipped..."
       return
     end
 
@@ -126,14 +126,13 @@ module Scanner
       file = share[relpath]
 
       # File has changed
-      if file.mtime != stat.mtime.to_f || file.size != stat.size
+      if file.mtime != stat.mtime || file.size != stat.size
         file.sha256 = nil
         add_to_queue = true
       end
     end
-    file.mode = stat.mode.to_s(8).to_i
-    puts "scanner found #{relpath}: #{stat.mtime.to_f}"
-    file.mtime = stat.mtime.to_f
+    file.mode = stat.mode.to_s(8)
+    file.mtime = stat.mtime
     file.size = stat.size
     file.utime = Time.new.to_f
     share[relpath] = file

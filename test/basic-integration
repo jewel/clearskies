@@ -48,7 +48,7 @@ wait_file()
 
 metadata()
 {
-  stat $1 | egrep -v '^(File:|Device:|Access: 2|Change:)'
+  stat $1 | egrep -v '^\ *(File:|Device:|Access: 2|Change:)'
 }
 
 verify_synced()
@@ -92,6 +92,8 @@ run_program "Tracker" "PIDFILE=/tmp/tracker/pid tracker/server"
 mkdir -p /tmp/1/stuff
 echo my first file > /tmp/1/stuff/first
 echo my second file > /tmp/1/stuff/second
+echo my read-only file > /tmp/1/stuff/read-only
+chmod 400 /tmp/1/stuff/read-only
 
 # ----- Server -----
 
@@ -125,6 +127,7 @@ CLEARSKIES_DIR=/tmp/2 ./clearskies add "$code" /tmp/2/stuff
 
 verify_synced first
 verify_synced second
+verify_synced read-only
 
 echo "A wild file appears!" > /tmp/2/stuff/third
 echo "with a friend" > /tmp/2/stuff/fourth
