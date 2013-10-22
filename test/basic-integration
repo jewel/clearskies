@@ -11,16 +11,14 @@ kill_pid()
 
 cleanup()
 {
-  kill_pid /tmp/tracker/pid
   kill_pid /tmp/1/pid
   kill_pid /tmp/2/pid
 
   sleep 0.1
-  kill_pid /tmp/testing/Tracker
-  kill_pid "/tmp/testing/Daemon-Client"
-  kill_pid "/tmp/testing/Daemon-Server"
+  kill_pid "/tmp/testing/Client"
+  kill_pid "/tmp/testing/Server"
 
-  rm -rf /tmp/1 /tmp/2 /tmp/tracker /tmp/testing
+  rm -rf /tmp/1 /tmp/2 /tmp/testing
 }
 
 ctrl_c()
@@ -86,18 +84,17 @@ trap ctrl_c SIGINT
 
 cleanup
 
-mkdir -p /tmp/tracker
-run_program "Tracker" "PIDFILE=/tmp/tracker/pid tracker/server"
-
 mkdir -p /tmp/1/stuff
 echo my first file > /tmp/1/stuff/first
 echo my second file > /tmp/1/stuff/second
 echo my read-only file > /tmp/1/stuff/read-only
 chmod 400 /tmp/1/stuff/read-only
 
+# I call the two Daemons Server and Client just for internal mental reference
+
 # ----- Server -----
 
-run_program "Daemon Server" "CLEARSKIES_DIR=/tmp/1 ./clearskies debug"
+run_program "Server" "CLEARSKIES_DIR=/tmp/1 ./clearskies debug"
 
 echo "Waiting for server to start"
 while ! test -e /tmp/1/control
@@ -112,7 +109,7 @@ echo "Code is '$code'"
 
 # ----- Client -----
 
-run_program "Daemon Client" "CLEARSKIES_DIR=/tmp/2 ./clearskies debug"
+run_program "Client" "CLEARSKIES_DIR=/tmp/2 ./clearskies debug"
 
 echo "Waiting for client to start"
 while ! test -e /tmp/2/control

@@ -63,6 +63,6 @@ module TrackerClient
   end
 
   def self.trackers
-    ["http://localhost:10234/clearskies/track"]
+    ["http://clearskies.tuxng.com/clearskies/track"]
   end
 end
