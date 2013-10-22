@@ -54,6 +54,8 @@ class UPnP
       break if res
     end
 
+    # FIXME we should set an at_exit to attempt to clean up our port mapping
+
     opened
   end
 

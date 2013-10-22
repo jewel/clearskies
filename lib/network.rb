@@ -64,6 +64,11 @@ module Network
 
     raise "Can't find ID #{id}" unless share || code
 
+    if share.peer_id == peer_id
+      warn "Discovered ourself"
+      return
+    end
+
     @connections[id] ||= {}
     return if @connections[id][peer_id]
 
