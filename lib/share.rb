@@ -9,6 +9,7 @@ require 'conf'
 require 'openssl'
 require 'digest'
 require 'peer'
+require 'access_code'
 
 class Share
   include Enumerable

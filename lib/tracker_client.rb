@@ -25,7 +25,7 @@ module TrackerClient
     loop do
       # FIXME we really need to wait the exact amount of time requested by
       # each tracker
-      wait_time = 120
+      wait_time = 30
       poll_all_trackers
 
       sleep wait_time
