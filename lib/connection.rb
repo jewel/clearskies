@@ -115,9 +115,13 @@ class Connection
       @peer.manifest = msg
       @peer.updates = []
       receive_manifest msg
+      msg[:files].each do |file|
+        process_update file
+      end
       request_file
     when :update
       @peer.updates << msg
+      process_update msg[:file]
       @remaining.push msg[:file] if need_file? msg[:file]
       request_file
     when :move
@@ -230,6 +234,12 @@ class Connection
     @files.each do |file|
       @remaining.push file if need_file? file
     end
+  end
+
+  def process_update msg
+    return unless msg[:deleted]
+    path = @share.full_path msg[:path]
+    File.unlink path if File.exists? path
   end
 
   def need_file? file
