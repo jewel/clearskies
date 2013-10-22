@@ -6,10 +6,14 @@ require 'broadcaster'
 require 'tracker_client'
 require 'connection'
 require 'id_mapper'
+require 'upnp'
 
 module Network
   def self.start
     @connections = {}
+
+    @server = TCPServer.new Conf.listen_port
+
     Thread.new do
       listen
     end
@@ -25,6 +29,8 @@ module Network
       peer_discovered share_id, peer_id, addr, port
     end
     TrackerClient.start
+
+    UPnP.start listen_port
   end
 
   def self.force_find_peer
@@ -33,8 +39,6 @@ module Network
 
   private
   def self.listen
-    @server = TCPServer.new Conf.listen_port
-
     loop do
       client = @server.accept
       connection = Connection.new client

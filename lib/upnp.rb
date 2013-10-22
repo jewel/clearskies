@@ -5,7 +5,6 @@
 # necessary to open a port in the firewall.
 
 require 'socket'
-require 'timeout'
 require 'net/http'
 require 'uri'
 require 'rexml/document'
@@ -14,20 +13,51 @@ require 'rexml/xpath'
 class UPnP
   DURATION = 600
 
-  def initialize port
+  def self.start port
     Thread.new do
       loop do
         begin
-          open( 'TCP', port, port )
+          open 'TCP', port, port
         rescue
-          puts "Problem in UPnP: #{$!}"
+          warn "Problem in UPnP: #{$!}"
         end
         sleep DURATION + 1
       end
     end
   end
 
-  def open protocol, external_port, internal_port
+  def self.open protocol, external_port, internal_port
+    urls = discover_root_device
+
+    raise "No UPnP root devices found" if urls.empty?
+
+    opened = false
+
+    internal_ip = nil
+
+    urls.each do |url|
+      control_url = query_control_url url
+      next unless control_url
+
+      internal_ip ||= get_internal_address
+
+      res = request_port({
+        control: control_url,
+        internal_ip: internal_ip,
+        protocol: protocol,
+        external_port: external_port,
+        internal_port: internal_port,
+      })
+
+      opened ||= res
+
+      break if res
+    end
+
+    opened
+  end
+
+  def self.discover_root_device
     udp = UDPSocket.new
     search_str = <<EOF
 M-SEARCH * HTTP/1.1
@@ -38,81 +68,97 @@ MX: 3
 
 EOF
     search_str.gsub! "\n", "\r\n"
-    udp.send search_str, 0, "239.255.255.250", 1900 )
+    udp.send search_str, 0, "239.255.255.250", 1900
     responses = []
+
+    # Wait for multiple responses
+    sleep 0.5
+
     begin
-      # FIXME this timeout might need to be bigger for some routers
-      timeout( 1 ) do
-        loop do
-          responses.push udp.recv( 4096 )
-        end
+      loop do
+        responses.push udp.recv_nonblock(4096)
       end
-    rescue Timeout::Error
+    rescue Errno::EAGAIN
     end
 
-    if responses.size == 0
-      raise "No UPnP root devices found"
+    urls = []
+
+    responses.each do |response|
+      next unless response =~ /^Location: (http:\/\/.*?)\r\n/
+      urls << $1
     end
-    responses.each do |resp|
-      next unless resp =~ /^Location: (http:\/\/.*?)\r\n/
-      url = URI.parse( $1 )
-      res = Net::HTTP.start( url.host, url.port ) { |http|
-        http.get(url.request_uri)
-      }
-      if !res.is_a? Net::HTTPSuccess
-        puts "UPnP warning: Could not fetch description XML at #{url}"
-        next
+
+    urls
+  end
+
+  def self.query_control_url device_url
+    uri = URI.parse device_url
+    res = Net::HTTP.get_response(uri)
+
+    if !res.is_a? Net::HTTPSuccess
+      warn "UPnP warning: Could not fetch description XML at #{url}"
+      return
+    end
+
+    doc = REXML::Document.new res.body
+    doc.elements.each( "//service" ) do |service|
+      wan_config = "urn:schemas-upnp-org:service:WANIPConnection:1"
+
+      next unless service.elements["serviceType"].text == wan_config
+      control = service.elements["controlURL"].text
+      if control !~ /^http:\/\//
+        control = "http://#{uri.host}:#{uri.port}#{control}"
       end
-      doc = REXML::Document.new res.body
-      doc.elements.each( "//service" ) do |service|
-        next unless service.elements["serviceType"].text == "urn:schemas-upnp-org:service:WANCommonInterfaceConfig:1"
-        control = service.elements["controlURL"].text
-        if control !~ /^http:\/\//
-          control = "http://#{url.host}:#{url.port}#{control}"
-        end
 
-        namespace = "device:InternetGatewayDevice:1"
-        data = soap( control, namespace, :GetExternalIPAddress, "" )
-
-        data = REXML::Document.new( data )
-        external_ip = REXML::XPath.first( data, "//NewExternalIPAddress/text()" )
-        external_ip = external_ip.to_s
-        if external_ip =~ /^[\d\.]+$/
-          puts "UPnP: External IP is #{external_ip}"
-        end
-
-        uri = URI.parse control
-
-        # we don't actually connect, but by pretending to do so we see what our
-        # source address would be for connecting out to the host
-        udp.connect uri.host, uri.port
-
-        internal_ip = udp.addr[3]
-        raise "Cannot discover local IP address" unless internal_ip
-
-        namespace = "service:WANIPConnection:1"
-        next unless soap( control, namespace, :AddPortMapping, <<EOF )
-<NewRemoteHost></NewRemoteHost>
-<NewExternalPort>#{external_port}</NewExternalPort>
-<NewProtocol>#{protocol}</NewProtocol>
-<NewInternalPort>#{internal_port}</NewInternalPort>
-<NewInternalClient>#{internal_ip}</NewInternalClient>
-<NewEnabled>1</NewEnabled>
-<NewPortMappingDescription>upnp-ruby (#{internal_ip}:#{internal_port}) #{external_port} #{protocol}</NewPortMappingDescription>
-<NewLeaseDuration>#{DURATION}</NewLeaseDuration>
-EOF
-
-        puts "UPnP router #{url.host} is forwarding #{external_port} to #{internal_ip}:#{internal_port}, expires in #{DURATION} s."
-      end
+      return control
     end
   end
 
-  UPNP_NS = "urn:schemas-upnp-org"
+  def self.get_internal_address
+    udp = UDPSocket.new
 
-  def soap url, ns, method, content
-    ns = UPNP_NS + ":" + ns
+    # we don't actually connect, but by pretending to do so we see what our
+    # source address is
+    udp.connect '8.8.8.8', 53
+
+    internal_ip = udp.addr[3]
+    raise "Cannot discover local IP address" unless internal_ip
+
+    internal_ip
+  end
+
+
+  # Net::HTTP doesn't preserve the case of HTTP headers (it shouldn't need to
+  # since they are supposed to be case insensitive, but tell that to router
+  # manufacturers)
+  class KeepCase < String
+    def downcase
+      self
+    end
+  end
+
+  def self.request_port opts
+    namespace = "service:WANIPConnection:1"
+    return false unless send_soap opts[:control], namespace, :AddPortMapping, <<EOF
+<NewRemoteHost></NewRemoteHost>
+<NewExternalPort>#{opts[:external_port]}</NewExternalPort>
+<NewProtocol>#{opts[:protocol]}</NewProtocol>
+<NewInternalPort>#{opts[:internal_port]}</NewInternalPort>
+<NewInternalClient>#{opts[:internal_ip]}</NewInternalClient>
+<NewEnabled>1</NewEnabled>
+<NewPortMappingDescription>clearskies (#{opts[:internal_ip]}:#{opts[:internal_port]}) #{opts[:external_port]} #{opts[:protocol]}</NewPortMappingDescription>
+<NewLeaseDuration>#{DURATION}</NewLeaseDuration>
+EOF
+
+    warn "UPnP router #{URI.parse(opts[:control]).host} is forwarding #{opts[:external_port]} to #{opts[:internal_ip]}:#{opts[:internal_port]}, expires in #{DURATION} s."
+  end
+
+
+  def self.send_soap url, ns, method, content
+    ns = "urn:schemas-upnp-org:#{ns}"
     uri = URI.parse url
     body = <<EOF
+
 <s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/"
   s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
 <s:Body>
@@ -122,19 +168,20 @@ EOF
 </s:Body>
 </s:Envelope>
 EOF
+
     headers = {
-        "HOST" => "#{uri.host}:#{uri.port}",
-        "CONTENT-LENGTH" => body.length.to_s,
-        "CONTENT-TYPE" => 'text/xml; charset="utf-8"',
-        "SOAPACTION" => %{"#{ns}##{method}"}
+      KeepCase.new("Host") => "#{uri.host}:#{uri.port}",
+      KeepCase.new("Content-Length") => body.length.to_s,
+      KeepCase.new("Content-Type") => 'text/xml; charset="utf-8"',
+      KeepCase.new("SOAPAction") => %{"#{ns}##{method}"},
     }
     response = Net::HTTP.start( uri.host, uri.port ) do |http|
-      http.post( uri.request_uri, body, headers )
+      http.post uri.request_uri, body, headers
     end
     if !response.is_a? Net::HTTPSuccess
       error = REXML::Document.new response.body
       error.elements.each( "//errorDescription" ) do |err|
-        puts "UPnP warning: Failure for #{uri.host}: #{err.text}"
+        warn "UPnP warning: Failure for #{uri.host}: #{err.text}"
       end
       return nil
     end
