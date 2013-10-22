@@ -123,11 +123,17 @@ done
 echo "Adding access code to client"
 CLEARSKIES_DIR=/tmp/2 ./clearskies add "$code" /tmp/2/stuff
 
-# ----- Wait for sync -----
+# ----- Initial Sync ------
 
 verify_synced first
 verify_synced second
 verify_synced read-only
+
+# ----- Change a file -----
+
+echo "This is still the first file" > /tmp/1/stuff/first
+
+# ----- Create files on client -----
 
 echo "A wild file appears!" > /tmp/2/stuff/third
 echo "with a friend" > /tmp/2/stuff/fourth
@@ -135,9 +141,17 @@ echo "with a friend" > /tmp/2/stuff/fourth
 verify_synced third
 verify_synced fourth
 
+# ----- Delete a file -----
+
 rm /tmp/1/stuff/fourth
 
 wait_gone /tmp/2/stuff/fourth
+
+# ----- Create subdirectory -----
+
+mkdir /tmp/1/stuff/subdir
+echo "Five files for me" > /tmp/1/stuff/subdir/five
+verify_synced subdir/five
 
 echo "Test successful!"
 

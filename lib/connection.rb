@@ -154,10 +154,10 @@ class Connection
       dest = @share.full_path msg[:path]
       temp = "#{File.dirname(dest)}/.#{File.basename(dest)}.#$$.#{Thread.current.object_id}.!sync"
 
-      metadata = nil
-      @remaining.each do |file|
-        metadata = file if msg[:path] == file[:path]
-      end
+      metadata = @peer.find_file msg[:path]
+
+      dir = File.dirname temp
+      FileUtils.mkdir_p dir
 
       File.open temp, 'wb' do |f|
         while data = msg.read_binary_payload
