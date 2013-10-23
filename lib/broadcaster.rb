@@ -3,6 +3,7 @@
 require 'json'
 require 'safe_thread'
 require 'socket'
+require 'id_mapper'
 
 module Broadcaster
   BROADCAST_PORT = 60106
@@ -13,14 +14,9 @@ module Broadcaster
 
   def self.start
     @socket = UDPSocket.new
-    begin
-      @socket.bind '', BROADCAST_PORT
-    rescue Errno::EADDRINUSE
-      warn "Cannot broadcast, address already in use"
-      return
-    end
-    @socket.setsockopt Socket::SOL_SOCKET, Socket::SO_BROADCAST, true
     @socket.setsockopt Socket::SOL_SOCKET, Socket::SO_REUSEADDR, true
+    @socket.setsockopt Socket::SOL_SOCKET, Socket::SO_BROADCAST, true
+    @socket.bind '0.0.0.0', BROADCAST_PORT
 
     warn "Broadcaster listening on #{@socket.inspect}"
 
@@ -31,6 +27,10 @@ module Broadcaster
     SafeThread.new do
       run
     end
+  end
+
+  def self.force_run
+    send_all_broadcast
   end
 
   private
@@ -48,10 +48,14 @@ module Broadcaster
 
   def self.run
     loop do
-      Shares.each do |share|
-        send_broadcast share.id, share.peer_id
-      end
+      send_all_broadcast
       gsleep 60
+    end
+  end
+
+  def self.send_all_broadcast
+    IDMapper.each do |id,peer_id|
+      send_broadcast id, peer_id
     end
   end
 
@@ -63,6 +67,9 @@ module Broadcaster
       :peer => peer_id,
       :myport => Network.listen_port,
     }.to_json
-    gunlock { @socket.send message, 0, '<broadcast>', BROADCAST_PORT }
+    socket = UDPSocket.new
+    socket.setsockopt Socket::SOL_SOCKET, Socket::SO_BROADCAST, true
+
+    gunlock { socket.send message, 0, '255.255.255.255', BROADCAST_PORT }
   end
 end

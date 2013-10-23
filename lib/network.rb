@@ -35,6 +35,7 @@ module Network
 
   def self.force_find_peer
     TrackerClient.force_run
+    Broadcaster.force_run
   end
 
   private

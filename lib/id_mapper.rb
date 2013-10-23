@@ -23,6 +23,7 @@ module IDMapper
     end
 
     PendingCodes.each do |code|
+      p code, code.id
       return nil, code if code.id == id
     end
 
