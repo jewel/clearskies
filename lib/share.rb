@@ -152,8 +152,12 @@ class Share
     file
   end
 
-  def full_path partial_path
-    "#{path}/#{partial_path}"
+  def full_path partial
+    full = "#{path}/#{partial}"
+    if partial_path(full) =~ /\A\.\./
+      raise "Security violation, attempt to access #{full.inspect} from share #{self.path}"
+    end
+    full
   end
 
   # Return a relative path to a file in the share from a full path
