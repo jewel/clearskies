@@ -159,6 +159,7 @@ class Connection
       dir = File.dirname temp
       FileUtils.mkdir_p dir
 
+      # FIXME Calculate the SHA256 as we save it to disk
       File.open temp, 'wb' do |f|
         while data = msg.read_binary_payload
           f.write data
@@ -170,6 +171,8 @@ class Connection
       File.utime Time.new, mtime, temp
       File.chmod metadata[:mode].to_i(8), temp
 
+      # FIXME Notify the scanner of the file via the share so that it can be
+      # updated immediately
       File.rename temp, dest
 
       @remaining.delete_if do |file|
@@ -177,8 +180,6 @@ class Connection
       end
 
       request_file
-      # FIXME Notify the scanner of the file via the share so that it can be
-      # updated immediately
     end
   end
 
