@@ -1,5 +1,4 @@
-require 'thread'
-Thread.abort_on_exception = true
+require 'safe_thread'
 
 module Daemon
   def self.daemonize
@@ -40,6 +39,8 @@ module Daemon
     Network.start
 
     require 'control_server'
-    ControlServer.run
+    ControlServer.start
+
+    gunlock { Thread.stop }
   end
 end

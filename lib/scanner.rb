@@ -1,7 +1,7 @@
 # Scans for files.  If operating system support for monitoring files is
 # available, use it to check for future changes, otherwise scan occasionally.
 
-require 'thread'
+require 'safe_thread'
 require 'digest/sha2'
 require 'find'
 require 'securerandom'
@@ -14,13 +14,12 @@ module Scanner
   MIN_RESCAN = 60
   def self.start use_change_monitor=true
     load_change_monitor if use_change_monitor
-    @hasher = Thread.new { work_hashes }
+    @hasher = SafeThread.new { work_hashes }
 
     @scanning = false
     @hash_queue = Queue.new
 
-    @worker = Thread.new { work }
-    @worker.abort_on_exception = true
+    @worker = SafeThread.new { work }
   end
 
   def self.add_share share
@@ -80,7 +79,7 @@ module Scanner
   # An event was triggered or we scanned this path
   # either way need to decide if it is updated and
   # add it to the database.
-  def self.process_path share, path
+  def self.process_path share, path, &block
     relpath = share.partial_path path
     return if relpath =~ /\.!sync\Z/
 
@@ -100,6 +99,14 @@ module Scanner
 
     # Monitor directories and unreadable files
     send_monitor :monitor, path
+
+    if stat.directory?
+      Dir.foreach( path ) do |filename|
+        next if filename == '.' || filename == '..'
+        process_path share, "#{path}/#{filename}", &block
+      end
+      return
+    end
 
     # Don't want pipes, sockets, devices, directories.. etc
     # FIXME this will also skip symlinks
@@ -138,15 +145,16 @@ module Scanner
     share[relpath] = file
 
     @hash_queue.push [share, file] if add_to_queue
+
+    block.call relpath if block
   end
 
   def self.register_and_scan share
     @scanning = true
 
-    known_files = Set.new(share.map { |f| share.full_path f.path })
-    Find.find( share.path ) do |path|
-      known_files.delete path
-      process_path share, path
+    known_files = Set.new(share.map { |f| f.path })
+    process_path share, share.path do |relpath|
+      known_files.delete relpath
     end
 
     # What is left over are the deleted files.
@@ -168,16 +176,18 @@ module Scanner
     end
 
     loop do
-      share, file = @hash_queue.shift
+      share, file = gunlock { @hash_queue.shift }
       next if file.sha256
       digest = Digest::SHA256.new
-      File.open share.full_path(file.path), 'rb' do |f|
-        while data = f.read(1024 * 512)
-          digest << data
+      gunlock {
+        File.open share.full_path(file.path), 'rb' do |f|
+          while data = f.read(1024 * 512)
+            digest << data
 
-          Thread.stop if @scanning
+            Thread.stop if @scanning
+          end
         end
-      end
+      }
       file.sha256 = digest.hexdigest
       share.save file.path
     end

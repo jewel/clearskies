@@ -1,7 +1,7 @@
 # Manage connections with peers.  See "Connection" for more information.
 
 require 'socket'
-require 'thread'
+require 'safe_thread'
 require 'broadcaster'
 require 'tracker_client'
 require 'connection'
@@ -14,7 +14,7 @@ module Network
 
     @server = TCPServer.new Conf.listen_port
 
-    Thread.new do
+    SafeThread.new do
       listen
     end
 
@@ -40,7 +40,7 @@ module Network
   private
   def self.listen
     loop do
-      client = @server.accept
+      client = gunlock { @server.accept }
       connection = Connection.new client
       connection.on_discover_share do |share_id,peer_id|
         @connections[share_id] ||= {}

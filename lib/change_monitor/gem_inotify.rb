@@ -1,5 +1,5 @@
 require 'rb-inotify'
-require 'thread'
+require 'safe_thread'
 
 module ChangeMonitor
 
@@ -13,8 +13,10 @@ module ChangeMonitor
 
       @watching = {}
 
-      Thread.new do
-        @notifier.run
+      SafeThread.new do
+        gunlock {
+          @notifier.run
+        }
       end
     end
 
@@ -30,7 +32,9 @@ module ChangeMonitor
       return if @watching[path]
 
       @notifier.watch(path, *ACTIONS) do |event|
-        @on_change.call event.watcher.path + '/' + event.name
+        glock do
+          @on_change.call event.watcher.path + '/' + event.name
+        end
       end
 
       @watching[path] = true

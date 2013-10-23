@@ -3,7 +3,7 @@
 # The full protocol is documented in ../protocol/core.md
 
 require 'socket'
-require 'thread'
+require 'safe_thread'
 require 'openssl'
 require 'conf'
 require 'message'
@@ -25,7 +25,7 @@ class Connection
   end
 
   def start
-    @receiving_thread = Thread.new do
+    @receiving_thread = SafeThread.new do
       warn "Shaking hands"
       handshake
       warn "Requesting manifest"
@@ -64,18 +64,18 @@ class Connection
       puts "Sending: #{message.inspect}"
       @send_queue.push message
     else
-      message.write_to_io @socket
+      gunlock { message.write_to_io @socket }
     end
   end
 
   def start_send_thread
     @send_queue = Queue.new
-    @sending_thread = Thread.new { send_messages }
+    @sending_thread = SafeThread.new { send_messages }
   end
 
   def recv type=nil
     loop do
-      msg = Message.read_from_io @socket
+      msg = gunlock { Message.read_from_io @socket }
       return msg if !type || msg.type.to_s == type.to_s
       warn "Unexpected message: #{msg[:type]}, expecting #{type}"
     end
@@ -265,9 +265,11 @@ class Connection
   end
 
   def send_messages
-    while msg = @send_queue.shift
-      msg.write_to_io @socket
-    end
+    gunlock {
+      while msg = @send_queue.shift
+        msg.write_to_io @socket
+      end
+    }
   end
 
   def handshake

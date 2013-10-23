@@ -4,6 +4,7 @@
 # This is a pure-ruby implementation of the bare-minimum portions of UPNP
 # necessary to open a port in the firewall.
 
+require 'safe_thread'
 require 'socket'
 require 'net/http'
 require 'uri'
@@ -14,14 +15,14 @@ class UPnP
   DURATION = 600
 
   def self.start port
-    Thread.new do
+    SafeThread.new do
       loop do
         begin
           open 'TCP', port, port
         rescue
           warn "Problem in UPnP: #{$!}"
         end
-        sleep DURATION + 1
+        gsleep DURATION
       end
     end
   end
@@ -70,11 +71,13 @@ MX: 3
 
 EOF
     search_str.gsub! "\n", "\r\n"
-    udp.send search_str, 0, "239.255.255.250", 1900
+    gunlock {
+      udp.send search_str, 0, "239.255.255.250", 1900
+    }
     responses = []
 
     # Wait for multiple responses
-    sleep 0.5
+    gsleep 0.5
 
     begin
       loop do
@@ -95,7 +98,7 @@ EOF
 
   def self.query_control_url device_url
     uri = URI.parse device_url
-    res = Net::HTTP.get_response(uri)
+    res = gunlock { Net::HTTP.get_response(uri) }
 
     if !res.is_a? Net::HTTPSuccess
       warn "UPnP warning: Could not fetch description XML at #{url}"
@@ -177,8 +180,11 @@ EOF
       KeepCase.new("Content-Type") => 'text/xml; charset="utf-8"',
       KeepCase.new("SOAPAction") => %{"#{ns}##{method}"},
     }
-    response = Net::HTTP.start( uri.host, uri.port ) do |http|
-      http.post uri.request_uri, body, headers
+
+    response = gunlock do
+      Net::HTTP.start( uri.host, uri.port ) do |http|
+        http.post uri.request_uri, body, headers
+      end
     end
     if !response.is_a? Net::HTTPSuccess
       error = REXML::Document.new response.body

@@ -71,7 +71,7 @@ end
 
 case command
 when "start"
-  Daemon.start
+  Daemon.daemonize
 
 when "debug"
   # FIXME this is temporary until better argument parsing makes it possible to

@@ -1,7 +1,7 @@
 # Send and listen for LAN broadcasts, as defined in the core protocol
 
 require 'json'
-require 'thread'
+require 'safe_thread'
 require 'socket'
 
 module Broadcaster
@@ -24,11 +24,11 @@ module Broadcaster
 
     warn "Broadcaster listening on #{@socket.inspect}"
 
-    Thread.new do
+    SafeThread.new do
       listen
     end
 
-    Thread.new do
+    SafeThread.new do
       run
     end
   end
@@ -37,7 +37,7 @@ module Broadcaster
 
   def self.listen
     loop do
-      json, sender = @socket.recvfrom 512
+      json, sender = gunlock { @socket.recvfrom 512 }
       msg = JSON.parse json, symbolize_names: true
       warn "Got message: #{json}"
       next if msg[:name] != "ClearSkiesBroadcast"
@@ -51,7 +51,7 @@ module Broadcaster
       Shares.each do |share|
         send_broadcast share.id, share.peer_id
       end
-      sleep 60
+      gsleep 60
     end
   end
 
@@ -63,6 +63,6 @@ module Broadcaster
       :peer => peer_id,
       :myport => Network.listen_port,
     }.to_json
-    @socket.send message, 0, '<broadcast>', BROADCAST_PORT
+    gunlock { @socket.send message, 0, '<broadcast>', BROADCAST_PORT }
   end
 end

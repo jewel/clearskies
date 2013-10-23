@@ -3,11 +3,18 @@
 # See protocol/control.md for protocol documentation.
 
 require 'json'
-require 'thread'
+require 'safe_thread'
 require 'access_code'
 require 'pending_codes'
 
 module ControlServer
+  def self.start
+    SafeThread.new do
+      run
+    end
+  end
+
+  private
   def self.run
     path = Conf.control_path
     if File.exists? path
@@ -28,8 +35,8 @@ module ControlServer
 
     warn "Listening on #{server.path}"
     loop do
-      client = server.accept
-      Thread.new do
+      client = gunlock { server.accept }
+      SafeThread.new do
         serve client
       end
     end
@@ -45,10 +52,14 @@ module ControlServer
 
     loop do
       json = client.gets
+      time_to_exit = false
       break unless json
       command = JSON.parse json, symbolize_names: true
       begin
         res = handle_command command
+      rescue SystemExit
+        time_to_exit = true
+        res = nil
       rescue
         warn "Control error: #$!"
         warn $!.backtrace.join( "\n" )
@@ -56,6 +67,7 @@ module ControlServer
       end
       res ||= {}
       client.puts res.to_json
+      break if time_to_exit
     end
   end
 
@@ -63,10 +75,7 @@ module ControlServer
     case command[:type].to_sym
     when :stop
       warn "Control command to stop daemon, exiting"
-      Thread.new do
-        sleep 0.2
-        exit
-      end
+      raise SystemExit
       nil
 
     when :pause
