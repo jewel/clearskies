@@ -11,19 +11,51 @@ Thread.abort_on_exception = true
 
 $global_lock = Mutex.new
 
+module Kernel
+  def glock
+    $global_lock.lock
+    $global_lock_holder = Thread.current
+    begin
+      return yield
+    ensure
+      $global_lock_holder = nil
+      # If an exception was raised while inside a nested gunlock, then we won't
+      # be able to unlock
+      $global_lock.unlock or nil
+    end
+  end
+
+  def gunlock
+    $global_lock_holder = nil
+    $global_lock.unlock
+    begin
+      return yield
+    ensure
+      $global_lock.lock
+      $global_lock_holder = Thread.current
+    end
+  end
+
+  def gsleep duration
+    gunlock {
+      sleep duration
+    }
+  end
+end
+
 class SafeThread < Thread
   def initialize
     super do
-      $global_lock.lock
-      $global_lock_holder = Thread.current
-      begin
-        yield
-      rescue
-        warn "Thread crash: #$!"
-        $!.backtrace.each do |line|
-          warn line
+      glock {
+        begin
+          yield
+        rescue
+          warn "Thread crash: #$!"
+          $!.backtrace.each do |line|
+            warn line
+          end
         end
-      end
+      }
     end
   end
 end
@@ -65,33 +97,3 @@ end
 Thread.stop
 $global_lock.lock
 $global_lock_holder = Thread.current
-
-module Kernel
-  def glock
-    $global_lock.lock
-    $global_lock_holder = Thread.current
-    begin
-      return yield
-    ensure
-      $global_lock_holder = nil
-      $global_lock.unlock
-    end
-  end
-
-  def gunlock
-    $global_lock_holder = nil
-    $global_lock.unlock
-    begin
-      return yield
-    ensure
-      $global_lock.lock
-      $global_lock_holder = Thread.current
-    end
-  end
-
-  def gsleep duration
-    gunlock {
-      sleep duration
-    }
-  end
-end
