@@ -240,6 +240,8 @@ class Connection
   end
 
   def process_update msg
+    # FIXME check if metadata has changed, by looking at what Share knows about
+    # the path.
     return unless msg[:deleted]
     path = @share.full_path msg[:path]
     @share.check_path path

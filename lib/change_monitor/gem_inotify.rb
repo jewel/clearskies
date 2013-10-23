@@ -4,7 +4,7 @@ require 'safe_thread'
 module ChangeMonitor
 
   class GemInotify
-    ACTIONS = %w{create delete moved_to moved_from close_write modify}
+    ACTIONS = %w{attrib create delete moved_to moved_from close_write modify}
 
     def initialize
       @notifier = INotify::Notifier.new

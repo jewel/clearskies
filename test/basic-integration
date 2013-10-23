@@ -138,6 +138,12 @@ echo "with a friend" > /tmp/2/stuff/fourth
 verify_synced third
 verify_synced fourth
 
+# ----- Detect metadata change -----
+chmod 600 /tmp/2/stuff/first
+touch /tmp/2/stuff/first-helper
+verify_synced first-helper
+verify_synced first
+
 # ----- Delete a file -----
 
 rm /tmp/1/stuff/fourth
@@ -146,9 +152,19 @@ wait_gone /tmp/2/stuff/fourth
 
 # ----- Create subdirectory -----
 
+# Test that directory contents are added even if the monitor
+# is not in place by the time they are created
+kill -STOP `cat /tmp/1/pid`
 mkdir /tmp/1/stuff/subdir
 echo "Five files for me" > /tmp/1/stuff/subdir/five
+kill -CONT `cat /tmp/1/pid`
+
 verify_synced subdir/five
+
+# Also verify that files that appear afterward are detected
+
+echo "Now six, six files" > /tmp/1/stuff/subdir/six
+verify_synced subdir/six
 
 echo "Test successful!"
 
