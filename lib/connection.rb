@@ -127,7 +127,7 @@ class Connection
     when :move
       raise "Move not yet handled"
     when :get
-      fp = File.open @share.full_path(msg[:path]), 'rb'
+      fp = @share.open_file msg[:path], 'rb'
       res = Message.new :file_data, { path: msg[:path] }
       remaining = fp.size
       if msg[:range]
@@ -149,21 +149,23 @@ class Connection
 
       send res
     when :file_data
-      # FIXME Make sure we're not writing outside the share (perhaps this could
-      # be done by Share)
       dest = @share.full_path msg[:path]
       temp = "#{File.dirname(dest)}/.#{File.basename(dest)}.#$$.#{Thread.current.object_id}.!sync"
 
       metadata = @peer.find_file msg[:path]
 
-      dir = File.dirname temp
+      @share.check_path dest
+
+      dir = File.dirname dest
       FileUtils.mkdir_p dir
 
       # FIXME Calculate the SHA256 as we save it to disk
       File.open temp, 'wb' do |f|
-        while data = msg.read_binary_payload
-          f.write data
-        end
+        gunlock {
+          while data = msg.read_binary_payload
+            f.write data
+          end
+        }
       end
 
       mtime = metadata[:mtime]
@@ -172,7 +174,7 @@ class Connection
       File.chmod metadata[:mode].to_i(8), temp
 
       # FIXME Notify the scanner of the file via the share so that it can be
-      # updated immediately
+      # updated immediately and so the SHA256 isn't calculated again
       File.rename temp, dest
 
       @remaining.delete_if do |file|
@@ -240,6 +242,7 @@ class Connection
   def process_update msg
     return unless msg[:deleted]
     path = @share.full_path msg[:path]
+    @share.check_path path
     File.unlink path if File.exists? path
   end
 

@@ -84,6 +84,7 @@ module Scanner
     return if relpath =~ /\.!sync\Z/
 
     warn "Learning about #{relpath}"
+    share.check_path path
 
     begin
       stat = File.stat path

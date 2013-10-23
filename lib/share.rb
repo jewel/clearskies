@@ -10,6 +10,7 @@ require 'openssl'
 require 'digest'
 require 'peer'
 require 'access_code'
+require 'pathname'
 
 class Share
   include Enumerable
@@ -152,11 +153,44 @@ class Share
     file
   end
 
+  def check_path full
+    partial = partial_path full
+    if partial =~ /\A\.\./
+      raise SecurityError.new( "Attempt to access #{full.inspect} from share #{self.path}" )
+    end
+
+    # Verify that we're not following any symlinks
+    #
+    # FIXME we should really support symlinks as long as they point inside of
+    # our share
+    partial_parts = partial.split '/'
+    parts = []
+    partial_parts.each do |part|
+      parts.push part
+      path = full_path parts.join('/')
+      if ::File.symlink? path
+        raise SecurityError.new( "Cannot follow symlink: #{path.inspect}" )
+      end
+    end
+  end
+
+  def open_file partial, mode='rb'
+    full = full_path partial
+    check_path full
+
+    fp = ::File.open full, mode
+    return fp unless block_given?
+
+    begin
+      return yield fp
+    ensure
+      fp.close
+    end
+  end
+
   def full_path partial
     full = "#{path}/#{partial}"
-    if partial_path(full) =~ /\A\.\./
-      raise "Security violation, attempt to access #{full.inspect} from share #{self.path}"
-    end
+
     full
   end
 
