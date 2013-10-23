@@ -1,5 +1,9 @@
 #!/bin/bash
 
+if [ -z "$TMUX" ]
+then
+  exec tmux new-session $0
+fi
 
 kill_pid()
 {
@@ -21,6 +25,13 @@ cleanup()
   rm -rf /tmp/1 /tmp/2 /tmp/testing
 }
 
+error() {
+  echo "$@"
+  read foo
+  cleanup
+  exit -1
+}
+
 ctrl_c()
 {
   cleanup
@@ -32,7 +43,9 @@ run_program()
   mkdir -p /tmp/testing
   tempfile=/tmp/testing/`echo "$1" | tr ' ' '-'`
 
-  gnome-terminal --title "$1" -e "bash -c '($2; sleep 600) & echo \$! > $tempfile; wait \$!'" &
+  tmux split-window -v "($2; read foo) & echo \$! > $tempfile; wait \$!"
+  tmux select-layout even-vertical
+  tmux select-pane -t 0
 }
 
 wait_file()
@@ -40,7 +53,7 @@ wait_file()
   echo "Waiting for '$2' in $1"
   while ! test -e /tmp/$1/stuff/$2
   do
-    sleep 1
+    sleep 0.1
   done
 }
 
@@ -55,18 +68,12 @@ verify_synced()
   wait_file 2 $1
   if ! cmp /tmp/{1,2}/stuff/$1
   then
-    echo "$1 doesn't match"
-    sleep 2
-    cleanup
-    exit -1
+    error "$1 doesn't match"
   fi
 
   if ! diff -u <(metadata /tmp/1/stuff/$1) <(metadata /tmp/2/stuff/$1)
   then
-    echo "metadata for '$1' doesn't match"
-    sleep 10
-    cleanup
-    exit -1
+    error "metadata for '$1' doesn't match"
   fi
 }
 
@@ -75,7 +82,7 @@ wait_gone()
   echo "Waiting for $1 to be deleted"
   while test -e "$1"
   do
-    sleep 1
+    sleep 0.1
   done
 }
 
@@ -116,6 +123,8 @@ while ! test -e /tmp/2/control
 do
   sleep 0.1
 done
+
+tmux select-pane -t 0
 
 echo "Adding access code to client"
 CLEARSKIES_DIR=/tmp/2 ./clearskies add "$code" /tmp/2/stuff
@@ -168,7 +177,7 @@ verify_synced subdir/six
 
 echo "Test successful!"
 
-sleep 2
+read foo
 
 cleanup
 
