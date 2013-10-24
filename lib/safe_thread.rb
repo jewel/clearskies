@@ -10,15 +10,19 @@ require 'thread'
 Thread.abort_on_exception = true
 
 $global_lock = Mutex.new
+$global_lock_holder = nil
+$global_lock_count = 0
 
 module Kernel
   def glock
     $global_lock.lock
     $global_lock_holder = Thread.current
+    $global_lock_count += 1
     begin
       return yield
     ensure
       $global_lock_holder = nil
+      $global_lock_count += 1
       # If an exception was raised while inside a nested gunlock, then we won't
       # be able to unlock
       $global_lock.unlock or nil
@@ -27,11 +31,13 @@ module Kernel
 
   def gunlock
     $global_lock_holder = nil
+    $global_lock_count += 1
     $global_lock.unlock
     begin
       return yield
     ensure
       $global_lock.lock
+      $global_lock_count += 1
       $global_lock_holder = Thread.current
     end
   end
@@ -70,17 +76,21 @@ SafeThread.new do
   $global_lock.unlock
   main_thread.run
 
+  TIMES = 10
+
   loop do
     sleep 5
 
-    $lock_holder = $global_lock_holder
-    next unless $lock_holder
+    lock_holder = $global_lock_holder
+    lock_count = $global_lock_count
+    next unless lock_holder
 
-    10.times do |i|
+    TIMES.times do |i|
       sleep 0.050
-      break if $global_lock_holder != $lock_holder
+      break if $global_lock_holder != lock_holder
+      break if $global_lock_count != lock_count
 
-      if i == 9
+      if i == TIMES - 1
         begin
           warn "Blocking operation:"
           $global_lock_holder.backtrace.each do |line|
