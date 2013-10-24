@@ -1,5 +1,8 @@
 require 'minitest/autorun'
-require './lib/upnp'
+
+$: << 'lib'
+
+require 'upnp'
 require 'socket'
 
 describe UPnP, 'port opener' do

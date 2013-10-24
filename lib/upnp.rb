@@ -107,7 +107,7 @@ EOF
 
     doc = REXML::Document.new res.body
     doc.elements.each( "//service" ) do |service|
-      wan_config = "urn:schemas-upnp-org:service:WANIPConnection:1"
+      wan_config = "urn:schemas-upnp-org:service:WANPPPConnection:1"
 
       next unless service.elements["serviceType"].text == wan_config
       control = service.elements["controlURL"].text
@@ -117,6 +117,8 @@ EOF
 
       return control
     end
+
+    nil
   end
 
   def self.get_internal_address
@@ -152,7 +154,7 @@ EOF
 <NewInternalClient>#{opts[:internal_ip]}</NewInternalClient>
 <NewEnabled>1</NewEnabled>
 <NewPortMappingDescription>clearskies (#{opts[:internal_ip]}:#{opts[:internal_port]}) #{opts[:external_port]} #{opts[:protocol]}</NewPortMappingDescription>
-<NewLeaseDuration>#{DURATION}</NewLeaseDuration>
+<NewLeaseDuration>0</NewLeaseDuration>
 EOF
 
     warn "UPnP router #{URI.parse(opts[:control]).host} is forwarding #{opts[:external_port]} to #{opts[:internal_ip]}:#{opts[:internal_port]}, expires in #{DURATION} s."
