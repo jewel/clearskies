@@ -18,7 +18,7 @@ module Broadcaster
     @socket.setsockopt Socket::SOL_SOCKET, Socket::SO_BROADCAST, true
     @socket.bind '0.0.0.0', BROADCAST_PORT
 
-    warn "Broadcaster listening on #{@socket.inspect}"
+    Log.info "Broadcaster listening on #{@socket.inspect}"
 
     SafeThread.new do
       listen
@@ -39,7 +39,7 @@ module Broadcaster
     loop do
       json, sender = gunlock { @socket.recvfrom 512 }
       msg = JSON.parse json, symbolize_names: true
-      warn "Got message: #{json}"
+      Log.debug "Got message: #{json}"
       next if msg[:name] != "ClearSkiesBroadcast"
       next if msg[:version] != 1
       @discovered.call msg[:id], msg[:peer], sender[2], msg[:myport]

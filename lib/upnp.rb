@@ -19,7 +19,7 @@ class UPnP
         begin
           open 'TCP', port, port
         rescue
-          warn "Problem in UPnP: #{$!}"
+          Log.warn "Problem in UPnP: #{$!}"
         end
         gsleep DURATION
       end
@@ -100,7 +100,7 @@ EOF
     res = gunlock { Net::HTTP.get_response(uri) }
 
     if !res.is_a? Net::HTTPSuccess
-      warn "UPnP warning: Could not fetch description XML at #{url}"
+      Log.warn "UPnP warning: Could not fetch description XML at #{url}"
       return
     end
 
@@ -156,7 +156,7 @@ EOF
 <NewLeaseDuration>#{DURATION}</NewLeaseDuration>
 EOF
 
-    warn "UPnP router #{URI.parse(opts[:control]).host} is forwarding #{opts[:external_port]} to #{opts[:internal_ip]}:#{opts[:internal_port]}, expires in #{DURATION} s."
+    Log.info "UPnP router #{URI.parse(opts[:control]).host} is forwarding #{opts[:external_port]} to #{opts[:internal_ip]}:#{opts[:internal_port]}, expires in #{DURATION} s."
   end
 
 
@@ -190,7 +190,7 @@ EOF
     if !response.is_a? Net::HTTPSuccess
       error = REXML::Document.new response.body
       error.elements.each( "//errorDescription" ) do |err|
-        warn "UPnP warning: Failure for #{uri.host}: #{err.text}"
+        Log.warn "UPnP warning: Failure for #{uri.host}: #{err.text}"
       end
       return nil
     end

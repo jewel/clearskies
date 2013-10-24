@@ -39,8 +39,6 @@ class Tracker < WEBrick::HTTPServlet::AbstractServlet
     now = Time.new.to_i
     @@peers[id][peer] = [ addr, port, now ]
 
-    p @@peers
-
     others = []
     @@peers[id].each do |peer_id,info|
       next if peer_id == peer

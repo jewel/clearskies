@@ -19,13 +19,13 @@ module Network
     end
 
     Broadcaster.on_peer_discovered do |share_id,peer_id,addr,port|
-      warn "Broadcast discovered #{share_id} #{peer_id} #{addr} #{port}"
+      Log.debug "Broadcast discovered #{share_id} #{peer_id} #{addr} #{port}"
       peer_discovered share_id, peer_id, addr, port
     end
     Broadcaster.start
 
     TrackerClient.on_peer_discovered do |share_id,peer_id,addr,port|
-      warn "Tracker discovered #{share_id} #{peer_id} #{addr} #{port}"
+      Log.debug "Tracker discovered #{share_id} #{peer_id} #{addr} #{port}"
       peer_discovered share_id, peer_id, addr, port
     end
     TrackerClient.start
@@ -66,7 +66,7 @@ module Network
     raise "Can't find ID #{id}" unless share || code
 
     if (share || code).peer_id == peer_id
-      warn "Discovered ourself"
+      Log.debug "Discovered ourself"
       return
     end
 

@@ -1,4 +1,5 @@
 require 'safe_thread'
+require 'log'
 
 module Daemon
   def self.daemonize
@@ -25,7 +26,7 @@ module Daemon
   end
 
   def self.run
-    File.open Conf.data_dir("pid"), 'w' do |f|
+    File.open Conf.path("pid"), 'w' do |f|
       f.puts $$
     end
 

@@ -47,12 +47,10 @@ module TrackerClient
       :peer => peer_id,
       :myport => Network.listen_port,
     })
-    warn "Tracking with #{uri}"
+    Log.debug "Tracking with #{uri}"
     res = Net::HTTP.get_response uri
-    warn "Tracker said #{res}"
     return unless res.is_a? Net::HTTPSuccess
     info = JSON.parse res.body, symbolize_names: true
-    p info
 
     info[:others].each do |peerspec|
       id, addr = peerspec.split "@"

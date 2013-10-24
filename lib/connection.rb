@@ -21,21 +21,21 @@ class Connection
     @socket = socket
 
     @incoming = !share && !code
-    warn "New #{@incoming ? 'incoming' : 'outgoing'} connection with #{peeraddr}"
+    Log.info "New #{@incoming ? 'incoming' : 'outgoing'} connection with #{peeraddr}"
   end
 
   def start
     SafeThread.new do
       if @socket.is_a? Array
-        warn "Opening socket to #{@socket[0]} #{@socket[1]}"
+        Log.debug "Opening socket to #{@socket[0]} #{@socket[1]}"
         @socket = TCPSocket.new *@socket
       end
 
-      warn "Shaking hands"
+      Log.debug "Shaking hands"
       handshake
-      warn "Requesting manifest"
+      Log.debug "Requesting manifest"
       request_manifest
-      warn "Receiving messages"
+      Log.debug "Receiving messages"
       receive_messages
     end
   end
@@ -66,7 +66,7 @@ class Connection
     end
 
     if @send_queue
-      puts "Sending: #{message.inspect}"
+      Log.debug "Sending: #{message.inspect}"
       @send_queue.push message
     else
       gunlock { message.write_to_io @socket }
@@ -82,7 +82,7 @@ class Connection
     loop do
       msg = gunlock { Message.read_from_io @socket }
       return msg if !type || msg.type.to_s == type.to_s
-      warn "Unexpected message: #{msg[:type]}, expecting #{type}"
+      Log.warn "Unexpected message: #{msg[:type]}, expecting #{type}"
     end
 
     msg
@@ -91,11 +91,11 @@ class Connection
   def receive_messages
     loop do
       msg = recv
-      puts "Received: #{msg.to_s}"
+      Log.debug "Received: #{msg.to_s}"
       # begin
         handle msg
       # rescue
-      #   warn "Error handling message #{msg[:type].inspect}: #$!"
+      #   Log.warn "Error handling message #{msg[:type].inspect}: #$!"
       # end
     end
   end
@@ -109,7 +109,7 @@ class Connection
       end
       send_manifest
       @share.subscribe do |file|
-        warn "Connection learned about a change to #{file.path}"
+        Log.debug "Connection learned about a change to #{file.path}"
         send_update file
       end
     when :manifest_current
@@ -225,7 +225,6 @@ class Connection
     msg[:version] = @share.version
     msg[:files] = []
     @share.each do |file|
-      puts "Found file: #{file.inspect}"
       next unless file[:sha256]
 
       obj = file_as_manifest file
@@ -423,7 +422,7 @@ class Connection
           rsa: @share.key( :rsa, :read_write ),
         },
       }
-      warn "Sent key exchange"
+      Log.debug "Sent key exchange"
       recv :keys_acknowledgment
     else
       msg = recv :keys
@@ -440,7 +439,7 @@ class Connection
       share.set_key :psk, :untrusted, msg[:untrusted][:psk]
 
       Shares.add share
-      warn "New share created"
+      Log.debug "New share created"
       send :keys_acknowledgment
     end
   end

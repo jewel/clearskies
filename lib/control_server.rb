@@ -22,7 +22,7 @@ module ControlServer
         UNIXSocket.new path
         raise "Daemon already running"
       rescue Errno::ECONNREFUSED
-        warn "Cleaning up old socket at #{path}"
+        Log.info "Cleaning up old socket at #{path}"
         File.unlink path
       end
     end
@@ -33,7 +33,7 @@ module ControlServer
 
     server = UNIXServer.new path
 
-    warn "Listening on #{server.path}"
+    Log.info "Listening on #{server.path}"
     loop do
       client = gunlock { server.accept }
       SafeThread.new do
@@ -61,8 +61,8 @@ module ControlServer
         time_to_exit = true
         res = nil
       rescue
-        warn "Control error: #$!"
-        warn $!.backtrace.join( "\n" )
+        Log.error "Control error: #$!"
+        Log.error $!.backtrace.join( "\n" )
         res = { error: $!.class, message: $!.to_s }
       end
       res ||= {}
@@ -74,7 +74,7 @@ module ControlServer
   def self.handle_command command
     case command[:type].to_sym
     when :stop
-      warn "Control command to stop daemon, exiting"
+      Log.debug "Control command to stop daemon, exiting"
       raise SystemExit
       nil
 

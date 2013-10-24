@@ -142,12 +142,12 @@ class Permahash
   end
 
   def discard_until bytes
-    warn "Incomplete database: #@path, truncating to #{bytes} bytes" if $DEBUG
+    Log.debug "Incomplete database: #@path, truncating to #{bytes} bytes"
     File.truncate @path, bytes
   end
 
   def vacuum
-    warn "Vacuuming #{@path.inspect}, has #@logsize entries, only needs #{@hash.size}" if $DEBUG
+    Log.debug "Vacuuming #{@path.inspect}, has #@logsize entries, only needs #{@hash.size}"
     temp = @path + ".#$$.tmp"
     @logfile = File.open temp, 'wb'
     @logsize = 0

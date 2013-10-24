@@ -8,6 +8,7 @@ require 'securerandom'
 require 'pathname'
 require 'change_monitor'
 require 'set'
+require 'log'
 
 module Scanner
   DELAY_MULTIPLIER = 10
@@ -62,8 +63,8 @@ module Scanner
   def self.load_change_monitor
     @change_monitor = ChangeMonitor.find
     unless @change_monitor
-      warn "No suitable change monitor found."
-      return 
+      Log.warn "No suitable change monitor found"
+      return
     end
 
     @change_monitor.on_change do |path|
@@ -72,7 +73,7 @@ module Scanner
   end
 
   def self.monitor_callback path
-    warn "Some change has happened with #{path}"
+    Log.debug "Some change has happened with #{path}"
     Shares.each do |share|
       next unless path.start_with? share.path
       process_path share, path
@@ -86,7 +87,7 @@ module Scanner
     relpath = share.partial_path path
     return if relpath =~ /\.!sync\Z/
 
-    warn "Learning about #{relpath}"
+    Log.debug "Learning about #{relpath}"
     share.check_path path
 
     begin
@@ -117,7 +118,7 @@ module Scanner
     return unless stat.file?
 
     unless stat.readable?
-      warn "File #{path} is not readable. It will be skipped..."
+      Log.warn "File #{path} is not readable. It will be skipped..."
       return
     end
 

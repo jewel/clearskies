@@ -14,6 +14,10 @@ module Conf
     path
   end
 
+  def self.path filename
+    data_dir filename
+  end
+
   def self.listen_port
     0
   end

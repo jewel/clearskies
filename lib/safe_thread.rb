@@ -61,9 +61,9 @@ class SafeThread < Thread
         begin
           yield
         rescue
-          warn "Thread crash: #$!"
+          Log.error "Thread crash: #$!"
           $!.backtrace.each do |line|
-            warn line
+            Log.error line
           end
         end
       }
@@ -97,9 +97,9 @@ SafeThread.new do
 
       if i == TIMES - 1
         begin
-          warn "Blocking operation:"
+          Log.warn "Blocking operation:"
           $global_lock_holder.backtrace.each do |line|
-            warn "    #{line}"
+            Log.warn "    #{line}"
           end
         rescue
         end
