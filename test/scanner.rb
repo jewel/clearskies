@@ -36,16 +36,16 @@ describe Scanner, "finds files" do
 
     Scanner.start false
 
-    sleep 3
+    gsleep 3
 
     @share.map{|f| @share.full_path f.path }.sort.must_equal files.sort
   end
 
   it "should detect new files" do
     Scanner.start
-    sleep 3
+    gsleep 3
     files = create_files @tmpdir
-    sleep 3
+    gsleep 3
     @share.map{|f| @share.full_path f.path }.sort.must_equal files.sort
 
   end
@@ -53,7 +53,7 @@ describe Scanner, "finds files" do
   it "should calculate sha256 of each file" do
     files = create_files @tmpdir
     Scanner.start
-    sleep 3
+    gsleep 3
     @share.map{|f| f.sha256 }.sort.must_equal files.map { |f| Digest::SHA256.file(f).hexdigest }.sort
   end
 
@@ -62,11 +62,11 @@ describe Scanner, "finds files" do
 
     Scanner.start
 
-    sleep 3
+    gsleep 3
 
     File.delete files.pop
 
-    sleep 1
+    gsleep 1
 
     @share.map{|f| @share.full_path f.path }.sort.must_equal files.sort
   end

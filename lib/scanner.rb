@@ -122,40 +122,25 @@ module Scanner
       return
     end
 
-    add_to_queue = false
     file_touched = false # need to update utime if file is changed
 
-    unless share[relpath]
-      # This is the first time the file has ever been seen
-      # Make note of file metadata now.  We will come back and calculate
-      # the SHA256 later.
-      file = Share::File.new
-      file.path = relpath
-      file.id = SecureRandom.hex 16
-      file.key = SecureRandom.hex 32
-      file.commit stat
-      add_to_queue = true
-      file_touched = true
-    else
-      # We have seen this file before
-      file = share[relpath]
+    file = share[relpath] || Share::File.create(relpath)
 
-      # If mtime or sizes are different need to regenerate hash
-      if file.mtime != stat.mtime || file.size != stat.size
-        file.sha256 = nil
-        file.commit stat
-        add_to_queue = true
-        file_touched = true
-      # If only the mode has changed then just update the record.
-      elsif file.mode != stat.mode.to_s(8)
-        file.commit stat
-        file_touched = true
-      end
+    # If mtime or sizes are different need to regenerate hash
+    if file.mtime != stat.mtime || file.size != stat.size
+      file.sha256 = nil
+      file.commit stat
+      @hash_queue.push [share, file]
+      file_touched = true
+    # If only the mode has changed then just update the record.
+    elsif file.mode != stat.mode.to_s(8)
+      file.commit stat
+      file_touched = true
     end
+
     file.utime = Time.new.to_f if file_touched
     share[relpath] = file
 
-    @hash_queue.push [share, file] if add_to_queue
 
     block.call relpath if block
   end

@@ -30,7 +30,7 @@ class TestGemInotify < MiniTest::Unit::TestCase
   def changed? path
     naptime = 0.0
     until @detected_changes.include? path
-      sleep SLEEP_DURATION
+      gsleep SLEEP_DURATION
       naptime += SLEEP_DURATION
       return false if naptime > TIMEOUT
     end

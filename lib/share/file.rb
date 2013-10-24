@@ -4,6 +4,15 @@ class Share
   File = Struct.new :path, :utime, :size, :mtime, :mode, :sha256, :id, :key, :deleted
 
   class File
+
+    def self.create relpath
+      file = Share::File.new
+      file.path = relpath
+      file.id = SecureRandom.hex 16
+      file.key = SecureRandom.hex 32
+      file
+    end
+
     def <=> other
       self.path <=> other.path
     end
