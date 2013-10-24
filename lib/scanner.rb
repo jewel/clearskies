@@ -47,7 +47,7 @@ module Scanner
       next_scan_time = Time.now + [last_scan_time * DELAY_MULTIPLIER, MIN_RESCAN].max
       now = Time.now
       while now < next_scan_time
-        sleep next_scan_time - now
+        gsleep next_scan_time - now
       end
 
       last_scan_start = Time.now
