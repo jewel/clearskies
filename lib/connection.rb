@@ -21,11 +21,16 @@ class Connection
     @socket = socket
 
     @incoming = !share && !code
-    warn "Starting #{@incoming ? 'incoming' : 'outgoing'} connection with #{@socket.peeraddr[2]}"
+    warn "New #{@incoming ? 'incoming' : 'outgoing'} connection with #{peeraddr}"
   end
 
   def start
-    @receiving_thread = SafeThread.new do
+    SafeThread.new do
+      if @socket.is_a? Array
+        warn "Opening socket to #{@socket[0]} #{@socket[1]}"
+        @socket = TCPSocket.new *@socket
+      end
+
       warn "Shaking hands"
       handshake
       warn "Requesting manifest"
@@ -35,12 +40,12 @@ class Connection
     end
   end
 
-  # Attempt to make an outbound connection with a peer
-  def self.connect share, code, ip, port
-    warn "Opening socket to #{ip} #{port}"
-    socket = TCPSocket.new ip, port
-    warn "Opened socket to #{ip} #{port}"
-    self.new socket, share, code
+  def peeraddr
+    if @socket.respond_to? :peeraddr
+      @socket.peeraddr[2]
+    else
+      @socket[0]
+    end
   end
 
   def on_disconnect &block
@@ -261,6 +266,7 @@ class Connection
     if msg[:mode] != metadata[:mode]
       path = @share.full_path msg[:path]
       @share.check_path path
+      metadata[:mode] = msg[:mode]
       File.chmod metadata[:mode].to_i(8), path
     end
   end

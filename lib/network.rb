@@ -73,7 +73,7 @@ module Network
     @connections[id] ||= {}
     return if @connections[id][peer_id]
 
-    connection = Connection.connect share, code, addr, port
+    connection = Connection.new [addr, port], share, code
     @connections[id][peer_id] = connection
 
     connection.on_disconnect do
