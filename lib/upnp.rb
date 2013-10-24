@@ -1,4 +1,3 @@
-#!/usr/bin/ruby -w
 # Use UPNP to open a port on the firewall
 #
 # This is a pure-ruby implementation of the bare-minimum portions of UPNP

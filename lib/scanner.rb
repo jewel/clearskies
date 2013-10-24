@@ -61,7 +61,10 @@ module Scanner
   # Return appropriate ChangeMonitor for platform
   def self.load_change_monitor
     @change_monitor = ChangeMonitor.find
-    return unless @change_monitor
+    unless @change_monitor
+      warn "No suitable change monitor found."
+      return 
+    end
 
     @change_monitor.on_change do |path|
       monitor_callback path
@@ -119,6 +122,7 @@ module Scanner
     end
 
     add_to_queue = false
+    file_touched = false # need to update utime if file is changed
 
     unless share[relpath]
       # This is the first time the file has ever been seen
@@ -128,21 +132,26 @@ module Scanner
       file.path = relpath
       file.id = SecureRandom.hex 16
       file.key = SecureRandom.hex 32
+      file.commit stat
       add_to_queue = true
+      file_touched = true
     else
       # We have seen this file before
       file = share[relpath]
 
-      # File has changed
+      # If mtime or sizes are different need to regenerate hash
       if file.mtime != stat.mtime || file.size != stat.size
         file.sha256 = nil
+        file.commit stat
         add_to_queue = true
+        file_touched = true
+      # If only the mode has changed then just update the record.
+      elsif file.mode != stat.mode.to_s(8)
+        file.commit stat
+        file_touched = true
       end
     end
-    file.mode = stat.mode.to_s(8)
-    file.mtime = stat.mtime
-    file.size = stat.size
-    file.utime = Time.new.to_f
+    file.utime = Time.new.to_f if file_touched
     share[relpath] = file
 
     @hash_queue.push [share, file] if add_to_queue

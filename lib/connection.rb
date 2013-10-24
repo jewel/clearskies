@@ -266,7 +266,11 @@ class Connection
     if msg[:mode] != metadata[:mode]
       path = @share.full_path msg[:path]
       @share.check_path path
+
+      # Update the metadata to match before doing the chmod
+      # to prevent endless chmod loops between peers
       metadata[:mode] = msg[:mode]
+      @share.save msg[:path]
       File.chmod metadata[:mode].to_i(8), path
     end
   end
