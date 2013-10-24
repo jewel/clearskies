@@ -240,12 +240,29 @@ class Connection
   end
 
   def process_update msg
-    # FIXME check if metadata has changed, by looking at what Share knows about
-    # the path.
-    return unless msg[:deleted]
-    path = @share.full_path msg[:path]
-    @share.check_path path
-    File.unlink path if File.exists? path
+    metadata = @share[msg[:path]]
+
+    return unless metadata
+
+    if msg[:deleted]
+      File.unlink path if File.exists? path
+      return
+    end
+
+    mtime = msg[:mtime]
+    mtime = Time.at mtime[0], mtime[1] / 1000.0 + 0.0005
+
+    if mtime != metadata[:mtime]
+      path = @share.full_path msg[:path]
+      @share.check_path path
+      File.utime Time.new, mtime, path
+    end
+
+    if msg[:mode] != metadata[:mode]
+      path = @share.full_path msg[:path]
+      @share.check_path path
+      File.chmod metadata[:mode].to_i(8), path
+    end
   end
 
   def need_file? file
