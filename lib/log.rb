@@ -12,6 +12,12 @@ module Log
     @file_level = level
   end
 
+  def self.p *objs
+    objs.each do |obj|
+      log :debug, obj.inspect
+    end
+  end
+
   def self.debug msg
     log :debug, msg
   end
