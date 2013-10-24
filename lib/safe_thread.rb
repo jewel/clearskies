@@ -54,8 +54,15 @@ module Kernel
   end
 end
 
+class Thread
+  attr_accessor :title
+end
+
+Thread.current.title = 'main'
+
 class SafeThread < Thread
-  def initialize
+  def initialize title=nil
+    @title = title
     super do
       glock {
         begin
@@ -76,7 +83,7 @@ end
 #
 # This won't detect blocking operations that take less than half a second
 main_thread = Thread.current
-SafeThread.new do
+SafeThread.new('block_detector') do
   $global_lock_holder = nil
   $global_lock.unlock
   main_thread.run

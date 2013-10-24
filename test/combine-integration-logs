@@ -1,0 +1,20 @@
+#!/usr/bin/ruby
+
+data = []
+ARGV.each_slice(2) do |prefix,path|
+  next unless File.exist? path
+  lines = File.readlines(path)
+  lines.each do |line|
+    data.push [prefix, line]
+  end
+end
+
+data = data.sort_by do |row|
+  row[1]
+end
+
+data.each do |row|
+  prefix = row[0]
+  line = row[1]
+  puts "#{line[3..7]} #{prefix} #{line[19..-1]}"
+end

@@ -1,9 +1,22 @@
 #!/bin/bash
 
+logfile=/tmp/basic-integration
+
 if [ -z "$TMUX" ]
 then
-  exec tmux new-session $0
+  tmux new-session $0
+  status=$?
+  test/combine-integration-logs "  test" $logfile "server" /tmp/1/log "client" /tmp/2/log | less -S
+  exit $status
 fi
+
+echo -n > $logfile
+
+function log()
+{
+  echo `date +%H:%M:%S.%N` "$@" >> $logfile
+  echo "$@"
+}
 
 kill_pid()
 {
@@ -21,12 +34,10 @@ cleanup()
   sleep 0.1
   kill_pid "/tmp/testing/Client"
   kill_pid "/tmp/testing/Server"
-
-  rm -rf /tmp/1 /tmp/2 /tmp/testing
 }
 
 error() {
-  echo "$@"
+  log "$@"
   read foo
   cleanup
   exit -1
@@ -43,14 +54,14 @@ run_program()
   mkdir -p /tmp/testing
   tempfile=/tmp/testing/`echo "$1" | tr ' ' '-'`
 
-  tmux split-window -v "($2; read foo) & echo \$! > $tempfile; wait \$!"
+  tmux split-window -v "($2; sleep 100d) & echo \$! > $tempfile; wait \$!"
   tmux select-layout even-vertical
   tmux select-pane -t 0
 }
 
 wait_file()
 {
-  echo "Waiting for '$2' in $1"
+  log "Waiting for '$2' in $1"
   while ! test -e /tmp/$1/stuff/$2
   do
     sleep 0.1
@@ -79,7 +90,7 @@ verify_synced()
 
 wait_gone()
 {
-  echo "Waiting for $1 to be deleted"
+  log "Waiting for $1 to be deleted"
   while test -e "$1"
   do
     sleep 0.1
@@ -91,6 +102,7 @@ trap ctrl_c SIGINT
 
 cleanup
 
+rm -rf /tmp/1 /tmp/2 /tmp/testing
 mkdir -p /tmp/1/stuff
 echo my first file > /tmp/1/stuff/first
 echo my second file > /tmp/1/stuff/second
@@ -103,22 +115,22 @@ chmod 400 /tmp/1/stuff/read-only
 
 run_program "Server" "CLEARSKIES_DIR=/tmp/1 ./clearskies debug"
 
-echo "Waiting for server to start"
+log "Waiting for server to start"
 while ! test -e /tmp/1/control
 do
   sleep 0.1
 done
 
-echo "Creating share on server"
-echo "Requesting access code from server"
+log "Creating share on server"
+log "Requesting access code from server"
 code=$(CLEARSKIES_DIR=/tmp/1 ./clearskies share /tmp/1/stuff read_write)
-echo "Code is '$code'"
+log "Code is '$code'"
 
 # ----- Client -----
 
 run_program "Client" "CLEARSKIES_DIR=/tmp/2 ./clearskies debug"
 
-echo "Waiting for client to start"
+log "Waiting for client to start"
 while ! test -e /tmp/2/control
 do
   sleep 0.1
@@ -126,7 +138,7 @@ done
 
 tmux select-pane -t 0
 
-echo "Adding access code to client"
+log "Adding access code to client"
 CLEARSKIES_DIR=/tmp/2 ./clearskies add "$code" /tmp/2/stuff
 
 # ----- Initial Sync ------
@@ -137,12 +149,12 @@ verify_synced read-only
 
 # ----- Change a file -----
 
-echo "Changing first"
+log "Changing first"
 echo "This is still the first file" > /tmp/1/stuff/first
 
 # ----- Create files on client -----
 
-echo "Creating third and fourth"
+log "Creating third and fourth"
 echo "A wild file appears!" > /tmp/2/stuff/third
 echo "with a friend" > /tmp/2/stuff/fourth
 
@@ -150,16 +162,16 @@ verify_synced third
 verify_synced fourth
 
 # ----- Detect metadata change -----
-echo "Changing mode of first"
+log "Changing mode of first"
 chmod 600 /tmp/2/stuff/first
-echo "Creating first-helper"
+log "Creating first-helper"
 touch /tmp/2/stuff/first-helper
 verify_synced first-helper
 verify_synced first
 
 # ----- Delete a file -----
 
-echo "Removing fourth"
+log "Removing fourth"
 rm /tmp/1/stuff/fourth
 
 wait_gone /tmp/2/stuff/fourth
@@ -169,7 +181,7 @@ wait_gone /tmp/2/stuff/fourth
 # Test that directory contents are added even if the monitor
 # is not in place by the time they are created
 kill -STOP `cat /tmp/1/pid`
-echo "Making subdir/five"
+log "Making subdir/five"
 mkdir /tmp/1/stuff/subdir
 echo "Five files for me" > /tmp/1/stuff/subdir/five
 kill -CONT `cat /tmp/1/pid`
@@ -178,11 +190,11 @@ verify_synced subdir/five
 
 # Also verify that files that appear afterward are detected
 
-echo "Creating subdir/six"
+log "Creating subdir/six"
 echo "Now six, six files" > /tmp/1/stuff/subdir/six
 verify_synced subdir/six
 
-echo "Test successful!"
+log "Test successful!"
 
 read foo
 

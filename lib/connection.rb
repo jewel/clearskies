@@ -25,7 +25,7 @@ class Connection
   end
 
   def start
-    SafeThread.new do
+    SafeThread.new 'connection' do
       if @socket.is_a? Array
         Log.debug "Opening socket to #{@socket[0]} #{@socket[1]}"
         @socket = TCPSocket.new *@socket
@@ -75,7 +75,9 @@ class Connection
 
   def start_send_thread
     @send_queue = Queue.new
-    @sending_thread = SafeThread.new { send_messages }
+    @sending_thread = SafeThread.new 'connection_send' do
+      send_messages
+    end
   end
 
   def recv type=nil

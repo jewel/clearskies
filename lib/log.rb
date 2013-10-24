@@ -36,13 +36,17 @@ module Log
 
   def self.log level, msg
     @screen_level ||= :debug
+    if Thread.current.respond_to?(:title) && Thread.current.title
+      msg = "#{Thread.current.title}> #{msg}"
+    end
+
     if intval(level) >= intval(@screen_level)
       Kernel.warn msg
     end
 
     @file_level ||= :debug
     if intval(level) >= intval(@file_level)
-      @file ||= File.open Conf.path('log'), 'wb'
+      @file ||= File.open Conf.path('log'), 'w'
       timestamp = Time.now.strftime "%H:%M:%S.%N"
       @file.write "#{timestamp} #{msg}\n"
     end

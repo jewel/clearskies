@@ -13,7 +13,7 @@ module ChangeMonitor
 
       @watching = {}
 
-      SafeThread.new do
+      SafeThread.new 'inotify' do
         gunlock {
           @notifier.run
         }

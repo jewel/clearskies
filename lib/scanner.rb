@@ -15,12 +15,16 @@ module Scanner
   MIN_RESCAN = 60
   def self.start use_change_monitor=true
     load_change_monitor if use_change_monitor
-    @hasher = SafeThread.new { work_hashes }
+    @hasher = SafeThread.new 'hasher' do
+      work_hashes
+    end
 
     @scanning = false
     @hash_queue = Queue.new
 
-    @worker = SafeThread.new { work }
+    @worker = SafeThread.new 'scanner' do
+      work
+    end
   end
 
   def self.add_share share

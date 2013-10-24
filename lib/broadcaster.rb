@@ -20,11 +20,11 @@ module Broadcaster
 
     Log.info "Broadcaster listening on #{@socket.inspect}"
 
-    SafeThread.new do
+    SafeThread.new 'broadcast' do
       listen
     end
 
-    SafeThread.new do
+    SafeThread.new 'broadcast_send' do
       run
     end
   end

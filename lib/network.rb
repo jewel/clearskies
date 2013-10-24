@@ -14,7 +14,7 @@ module Network
 
     @server = TCPServer.new Conf.listen_port
 
-    SafeThread.new do
+    SafeThread.new('network') do
       listen
     end
 

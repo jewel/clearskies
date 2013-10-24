@@ -9,7 +9,7 @@ require 'pending_codes'
 
 module ControlServer
   def self.start
-    SafeThread.new do
+    SafeThread.new 'control' do
       run
     end
   end
@@ -36,7 +36,7 @@ module ControlServer
     Log.info "Listening on #{server.path}"
     loop do
       client = gunlock { server.accept }
-      SafeThread.new do
+      SafeThread.new 'control_connection' do
         serve client
       end
     end

@@ -14,7 +14,7 @@ class UPnP
   DURATION = 600
 
   def self.start port
-    SafeThread.new do
+    SafeThread.new 'upnp' do
       loop do
         begin
           open 'TCP', port, port

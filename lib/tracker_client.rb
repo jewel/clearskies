@@ -7,7 +7,7 @@ require 'id_mapper'
 module TrackerClient
   def self.start
     @last_run = {}
-    SafeThread.new do
+    SafeThread.new 'tracker' do
       work
     end
   end
@@ -17,7 +17,9 @@ module TrackerClient
   end
 
   def self.force_run
-    poll_all_trackers
+    SafeThread.new 'force_tracker' do
+      poll_all_trackers
+    end
   end
 
   private
