@@ -250,6 +250,8 @@ class Connection
     return unless metadata
 
     if msg[:deleted]
+      path = @share.full_path msg[:path]
+      @share.check_path path
       File.unlink path if File.exists? path
       return
     end
