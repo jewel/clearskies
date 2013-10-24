@@ -3,6 +3,11 @@
 # safe to run in parallel releases the lock.
 #
 # More specific locking can be added where it will yield a performance increase.
+#
+# Note that we aren't aggressive about unlocking every single local I/O request
+# in clearskies because it's a background daemon and we don't want it to consume
+# too many resources.  If an I/O device is taking a long time to respond then we
+# scale ourselves back appropriately.
 
 require 'thread'
 
