@@ -1,5 +1,7 @@
 #!/usr/bin/ruby
 
+colored = ENV['FORCE_COLOR'] || STDOUT.tty?
+
 data = []
 ARGV.each_slice(2) do |prefix,path|
   next unless File.exist? path
@@ -16,5 +18,34 @@ end
 data.each do |row|
   prefix = row[0]
   line = row[1]
-  puts "#{line[3..7]} #{prefix} #{line[19..-1]}"
+  time = line[3..7]
+  line = line[19..-1].chomp
+
+  if line =~ /^(\w+)\ /
+    level = $1
+    line = $'
+  end
+
+  color = ""
+  reset = ""
+  if colored
+    case level
+    when 'test'
+      code = 32
+    when 'info'
+      code = 34
+    when 'warn'
+      code = 33
+    when 'error'
+      bold = true
+      code = 31
+    end
+    if code
+      reset = "\e[0m"
+      color = "\e[#{code}m"
+      color += "\e[1m" if bold
+    end
+  end
+
+  puts "#{time} #{prefix} #{color}#{line}#{reset}"
 end

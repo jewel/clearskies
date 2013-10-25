@@ -6,7 +6,7 @@ if [ -z "$TMUX" ]
 then
   tmux new-session $0
   status=$?
-  test/combine-integration-logs "  test" $logfile "server" /tmp/1/log "client" /tmp/2/log | less -S
+  FORCE_COLOR=1 test/combine-integration-logs "  test" $logfile "server" /tmp/1/log "client" /tmp/2/log | less -FSRX
   exit $status
 fi
 
@@ -14,7 +14,7 @@ echo -n > $logfile
 
 function log()
 {
-  echo `date +%H:%M:%S.%N` "$@" >> $logfile
+  echo `date +%H:%M:%S.%N` test "$@" >> $logfile
   echo "$@"
 }
 

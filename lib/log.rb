@@ -48,7 +48,7 @@ module Log
     if intval(level) >= intval(@file_level)
       @file ||= File.open Conf.path('log'), 'w'
       timestamp = Time.now.strftime "%H:%M:%S.%N"
-      @file.write "#{timestamp} #{msg}\n"
+      @file.write "#{timestamp} #{level} #{msg}\n"
     end
   end
 
