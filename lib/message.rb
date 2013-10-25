@@ -109,13 +109,6 @@ class Message
     end
   end
 
-  def to_s
-    msg = ""
-    msg << "$" if @private_key
-    msg << "!" if @has_binary_payload
-    msg << @data.to_json
-  end
-
   def write_to_io io
     if @private_key
       digest = OpenSSL::Digest::SHA256.new
@@ -126,7 +119,10 @@ class Message
 
     binary_data = nil
 
-    msg = self.to_s
+    msg = ""
+    msg << "$" if @private_key
+    msg << "!" if @has_binary_payload
+    msg << @data.to_json
 
     raise "No newlines allowed in JSON" if msg =~ /\n/
 
@@ -143,6 +139,38 @@ class Message
       end
 
       io.puts 0.to_s
+    end
+  end
+
+  def to_s
+    str = "#{@data[:type].upcase} "
+
+    obj = @data.dup
+    obj.delete :type
+
+    str << obj_to_str(obj)
+
+    str << " (signed)" if @signed
+    str << " (binary)" if @has_binary_payload
+
+    str
+  end
+
+  private
+  def obj_to_str obj
+    case obj
+    when String
+      if obj =~ /\A[0-9a-f]{16,}\Z/
+        "\"#{obj[0..8]}...\""
+      else
+        obj.inspect
+      end
+    when Hash
+      "{ " + (obj.map { |key,val| "#{key}: #{obj_to_str(val)}" }).join( ", " ) + " }"
+    when Array
+      "[ " + (obj.map { |val| obj_to_str val }).join( ", " ) + " ]"
+    else
+      obj.inspect
     end
   end
 end
