@@ -50,7 +50,7 @@ module TrackerClient
       :myport => Network.listen_port,
     })
     Log.debug "Tracking with #{uri}"
-    res = Net::HTTP.get_response uri
+    res = gunlock { Net::HTTP.get_response uri }
     return unless res.is_a? Net::HTTPSuccess
     info = JSON.parse res.body, symbolize_names: true
 
