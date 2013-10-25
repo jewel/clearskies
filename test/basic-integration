@@ -149,12 +149,12 @@ verify_synced read-only
 
 # ----- Change a file -----
 
-log "Changing first"
+log "Changing first on server"
 echo "This is still the first file" > /tmp/1/stuff/first
 
 # ----- Create files on client -----
 
-log "Creating third and fourth"
+log "Creating third and fourth on client"
 echo "A wild file appears!" > /tmp/2/stuff/third
 echo "with a friend" > /tmp/2/stuff/fourth
 
@@ -162,9 +162,9 @@ verify_synced third
 verify_synced fourth
 
 # ----- Detect metadata change -----
-log "Changing mode of first"
+log "Changing mode of first on client"
 chmod 600 /tmp/2/stuff/first
-log "Creating first-helper"
+log "Creating first-helper on client"
 touch /tmp/2/stuff/first-helper
 verify_synced first-helper
 verify_synced first
@@ -181,16 +181,16 @@ wait_gone /tmp/2/stuff/fourth
 # Test that directory contents are added even if the monitor
 # is not in place by the time they are created
 kill -STOP `cat /tmp/1/pid`
-log "Making subdir/five"
+log "Making subdir/five on server"
 mkdir /tmp/1/stuff/subdir
 echo "Five files for me" > /tmp/1/stuff/subdir/five
 kill -CONT `cat /tmp/1/pid`
 
 verify_synced subdir/five
 
-# Also verify that files that appear afterward are detected
+# Also verify that files that appear afterward are also detected
 
-log "Creating subdir/six"
+log "Creating subdir/six on server"
 echo "Now six, six files" > /tmp/1/stuff/subdir/six
 verify_synced subdir/six
 

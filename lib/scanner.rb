@@ -137,7 +137,11 @@ module Scanner
 
     # If mtime or sizes are different need to regenerate hash
     if file.mtime != stat.mtime || file.size != stat.size
-      Log.debug "#{relpath} has changed, needs new hash"
+      if share[relpath]
+        Log.debug "#{relpath} has changed"
+      else
+        Log.debug "#{relpath} is new"
+      end
       file.sha256 = nil
       file.commit stat
       @hash_queue.push [share, file]
