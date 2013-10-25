@@ -142,8 +142,10 @@ module Scanner
       file_touched = true
     end
 
-    file.utime = Time.new.to_f if file_touched
-    share[relpath] = file
+    if file_touched
+      file.utime = Time.new.to_f 
+      share[relpath] = file
+    end
 
 
     block.call relpath if block
