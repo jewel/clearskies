@@ -41,6 +41,16 @@ module Log
     end
 
     if intval(level) >= intval(@screen_level)
+      if STDERR.tty?
+        case level
+        when :error
+          msg = "\e[31m\e[1m" + msg + "\e[0m"
+        when :warning
+          msg = "\e[33m" + msg + "\e[0m"
+        when :info
+          msg = "\e[34m" + msg + "\e[0m"
+        end
+      end
       Kernel.warn msg
     end
 
