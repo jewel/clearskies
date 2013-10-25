@@ -263,6 +263,10 @@ class Connection
     if mtime != metadata[:mtime]
       path = @share.full_path msg[:path]
       @share.check_path path
+      # Update the metadata to match before changing the mtime
+      metadata[:mtime] = mtime
+      @share.save msg[:path]
+
       File.utime Time.new, mtime, path
     end
 

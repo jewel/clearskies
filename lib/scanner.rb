@@ -77,7 +77,6 @@ module Scanner
   end
 
   def self.monitor_callback path
-    Log.debug "Some change has happened with #{path}"
     Shares.each do |share|
       next unless path.start_with? share.path
       process_path share, path
@@ -91,7 +90,6 @@ module Scanner
     relpath = share.partial_path path
     return if relpath =~ /\.!sync\Z/
 
-    Log.debug "Learning about #{relpath}"
     share.check_path path
 
     begin
@@ -99,10 +97,13 @@ module Scanner
     rescue Errno::ENOENT
       # File was deleted!
       if share[relpath]
+        Log.debug "#{relpath} was deleted"
         share[relpath].deleted = true
         share.save relpath
       end
+
       # Don't need to do anything if it was never seen.
+      Log.debug "#{relpath} is gone, but we never knew it existed"
       return
     end
 
@@ -110,6 +111,7 @@ module Scanner
     send_monitor :monitor, path
 
     if stat.directory?
+      Log.debug "#{relpath} is a directory"
       Dir.foreach( path ) do |filename|
         next if filename == '.' || filename == '..'
         process_path share, "#{path}/#{filename}", &block
@@ -119,7 +121,10 @@ module Scanner
 
     # Don't want pipes, sockets, devices, directories.. etc
     # FIXME this will also skip symlinks
-    return unless stat.file?
+    unless stat.file?
+      Log.warn "#{path} is not a file, skipping"
+      return
+    end
 
     unless stat.readable?
       Log.warn "File #{path} is not readable. It will be skipped..."
@@ -132,27 +137,32 @@ module Scanner
 
     # If mtime or sizes are different need to regenerate hash
     if file.mtime != stat.mtime || file.size != stat.size
+      Log.debug "#{relpath} has changed, needs new hash"
       file.sha256 = nil
       file.commit stat
       @hash_queue.push [share, file]
       file_touched = true
+
     # If only the mode has changed then just update the record.
     elsif file.mode != stat.mode.to_s(8)
+      Log.debug "#{relpath} mode has changed to #{file.mode}"
       file.commit stat
       file_touched = true
     end
 
     if file_touched
-      file.utime = Time.new.to_f 
+      file.utime = Time.new.to_f
       share[relpath] = file
+    else
+      Log.debug "#{relpath} has not changed"
     end
-
 
     block.call relpath if block
   end
 
   def self.register_and_scan share
     @scanning = true
+    Log.info "Doing initial scan of #{share.path}"
 
     known_files = Set.new(share.map { |f| f.path })
     process_path share, share.path do |relpath|
@@ -163,6 +173,7 @@ module Scanner
     known_files.each do |path|
       process_path share, path
     end
+    Log.info "Finished initial scan of #{share.path}"
 
   ensure
     @scanning = false
@@ -177,10 +188,16 @@ module Scanner
       end
     end
 
+    if @hash_queue.size > 0
+      Log.info "Hasher has #{@hash_queue.size} files to hash"
+    end
+
     loop do
       share, file = gunlock { @hash_queue.shift }
       next if file.sha256
       digest = Digest::SHA256.new
+      Log.info "Hashing #{file.path}"
+
       gunlock {
         File.open share.full_path(file.path), 'rb' do |f|
           while data = f.read(1024 * 512)
@@ -190,6 +207,8 @@ module Scanner
           end
         end
       }
+
+      Log.debug "Hashed #{file.path} to #{digest.hexdigest}"
       file.sha256 = digest.hexdigest
       share.save file.path
     end
