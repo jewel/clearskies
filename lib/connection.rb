@@ -196,9 +196,10 @@ class Connection
       file.sha256 = digest.hexdigest
       file.utime = metadata[:utime]
 
-      File.rename temp, dest
-      file.commit File.stat(dest)
+      file.commit File.stat(temp)
+      file.path = msg[:path]
       @share[msg[:path]] = file
+      File.rename temp, dest
 
       @remaining.delete_if do |file|
         file[:path] == msg[:path]
