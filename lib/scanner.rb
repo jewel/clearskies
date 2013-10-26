@@ -38,6 +38,7 @@ module Scanner
   def self.work
     # TODO Lower own priority
 
+    Log.debug "Performing first scan of the shares..."
     last_scan_start = Time.now
 
     Shares.each do |share|
@@ -45,21 +46,25 @@ module Scanner
     end
 
     last_scan_time = Time.now - last_scan_start
+    Log.debug "Finished first scan of the shares..."
 
     return if @change_monitor
 
+    Log.debug "No change monitor.  Setting up recurring scans..."
+
     loop do
       next_scan_time = Time.now + [last_scan_time * DELAY_MULTIPLIER, MIN_RESCAN].max
-      now = Time.now
-      while now < next_scan_time
-        gsleep next_scan_time - now
+      while Time.now < next_scan_time
+        gsleep [next_scan_time - Time.now,0].max
       end
 
+      Log.debug "Performing recurring scan of the shares..."
       last_scan_start = Time.now
       Shares.each do |share|
         register_and_scan share
       end
       last_scan_time = Time.now - last_scan_start
+      Log.debug "Finished recurring scan of the shares..."
     end
   end
 
@@ -110,6 +115,7 @@ module Scanner
     # Monitor directories and unreadable files
     send_monitor :monitor, path
 
+    # Recursively process path
     if stat.directory?
       Log.debug "#{relpath} is a directory"
       Dir.foreach( path ) do |filename|
@@ -176,7 +182,7 @@ module Scanner
 
     # What is left over are the deleted files.
     known_files.each do |path|
-      process_path share, path
+      process_path share, share.full_path(path)
     end
     Log.info "Finished initial scan of #{share.path}"
 
