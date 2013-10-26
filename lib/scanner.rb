@@ -136,9 +136,17 @@ module Scanner
     file = share[relpath] || Share::File.create(relpath)
 
     # If mtime or sizes are different need to regenerate hash
-    if file.mtime != stat.mtime || file.size != stat.size
+    mtime_match = file.mtime.to_i == stat.mtime.to_i && file.mtime.nsec == stat.mtime.nsec
+    if !mtime_match || file.size != stat.size
       if share[relpath]
-        Log.debug "#{relpath} has changed"
+        change = ""
+        if !mtime_match
+          change = " mtime #{file.mtime.nsec} => #{stat.mtime.nsec}"
+        end
+        if file.size != stat.size
+          change << " size #{file.size} => #{stat.size}"
+        end
+        Log.debug "#{relpath} has changed #{change}"
       else
         Log.debug "#{relpath} is new"
       end
@@ -212,7 +220,7 @@ module Scanner
         end
       }
 
-      Log.debug "Hashed #{file.path} to #{digest.hexdigest}"
+      Log.debug "Hashed #{file.path} to #{digest.hexdigest[0..8]}..."
       file.sha256 = digest.hexdigest
       share.save file.path
     end

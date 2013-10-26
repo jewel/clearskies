@@ -160,19 +160,26 @@ class Connection
       temp = "#{File.dirname(dest)}/.#{File.basename(dest)}.#$$.#{Thread.current.object_id}.!sync"
 
       metadata = @peer.find_file msg[:path]
+      return unless metadata
 
       @share.check_path dest
 
       dir = File.dirname dest
       FileUtils.mkdir_p dir
 
-      # FIXME Calculate the SHA256 as we save it to disk
+      digest = Digest::SHA256.new
       File.open temp, 'wb' do |f|
         gunlock {
           while data = msg.read_binary_payload
+            digest << data
             f.write data
           end
         }
+      end
+
+      if digest.hexdigest != metadata[:sha256]
+        Log.warn "Received #{dest}, but the sha256 was wrong"
+        return
       end
 
       mtime = metadata[:mtime]
@@ -180,9 +187,13 @@ class Connection
       File.utime Time.new, mtime, temp
       File.chmod metadata[:mode].to_i(8), temp
 
-      # FIXME Notify the scanner of the file via the share so that it can be
-      # updated immediately and so the SHA256 isn't calculated again
+      file = @share[msg[:path]] || Share::File.create(msg[:path])
+      file.sha256 = digest.hexdigest
+      file.utime = metadata[:utime]
+
       File.rename temp, dest
+      file.commit File.stat(dest)
+      @share[msg[:path]] = file
 
       @remaining.delete_if do |file|
         file[:path] == msg[:path]
@@ -249,6 +260,7 @@ class Connection
     metadata = @share[msg[:path]]
 
     return unless metadata
+    return if msg[:utime] <= metadata[:utime]
 
     if msg[:deleted]
       path = @share.full_path msg[:path]
@@ -257,27 +269,39 @@ class Connection
       return
     end
 
-    mtime = msg[:mtime]
-    mtime = Time.at mtime[0], mtime[1] / 1000.0 + 0.0005
+    time_match = msg[:mtime][0] == metadata[:mtime].to_i && msg[:mtime][1] == metadata[:mtime].nsec
 
-    if mtime != metadata[:mtime]
+    if !time_match
       path = @share.full_path msg[:path]
       @share.check_path path
-      # Update the metadata to match before changing the mtime
-      metadata[:mtime] = mtime
-      @share.save msg[:path]
 
-      File.utime Time.new, mtime, path
+      # Update the metadata to match before changing the mtime
+      mtime = msg[:mtime]
+      mtime = Time.at mtime[0], mtime[1] / 1000.0 + 0.0005
+      metadata[:mtime] = mtime
     end
 
-    if msg[:mode] != metadata[:mode]
+    mode_match = msg[:mode] == metadata[:mode]
+
+    if !mode_match
       path = @share.full_path msg[:path]
       @share.check_path path
 
       # Update the metadata to match before doing the chmod
       # to prevent endless chmod loops between peers
       metadata[:mode] = msg[:mode]
+    end
+
+    if !time_match || !mode_match
+      metadata[:utime] = msg[:utime]
       @share.save msg[:path]
+    end
+
+    if !time_match
+      File.utime Time.new, mtime, path
+    end
+
+    if !mode_match
       File.chmod metadata[:mode].to_i(8), path
     end
   end
@@ -288,7 +312,7 @@ class Connection
 
     ours = @share[ file[:path] ]
 
-    return false if ours && file[:utime] < ours[:utime]
+    return false if ours && file[:utime] <= ours[:utime]
     # FIXME We'd also want to skip it if there is a pending download of this
     # file from another peer with an even newer utime
 

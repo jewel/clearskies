@@ -1,5 +1,9 @@
 #!/usr/bin/ruby
 
+Signal.trap :SIGPIPE do
+  exit
+end
+
 colored = ENV['FORCE_COLOR'] || STDOUT.tty?
 
 data = []

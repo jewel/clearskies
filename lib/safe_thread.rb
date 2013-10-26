@@ -10,6 +10,7 @@
 # scale ourselves back appropriately.
 
 require 'thread'
+require 'log'
 
 # A thread should never abort since we're handling it in safe thread
 Thread.abort_on_exception = true
@@ -30,7 +31,10 @@ module Kernel
       $global_lock_count += 1
       # If an exception was raised while inside a nested gunlock, then we won't
       # be able to unlock
-      $global_lock.unlock or nil
+      begin
+        $global_lock.unlock
+      rescue
+      end
     end
   end
 
