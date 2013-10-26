@@ -194,6 +194,17 @@ log "Creating subdir/six on server"
 echo "Now six, six files" > /tmp/1/stuff/subdir/six
 verify_synced subdir/six
 
+log "Checking all files again"
+verify_synced first
+verify_synced first-helper
+verify_synced second
+verify_synced read-only
+verify_synced third
+wait_gone /tmp/1/stuff/fourth
+wait_gone /tmp/2/stuff/fourth
+verify_synced subdir/five
+verify_synced subdir/six
+
 log "Test successful!"
 
 read foo
