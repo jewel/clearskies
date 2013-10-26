@@ -16,6 +16,10 @@ class Connection
   #
   # Outgoing connections will already know the share it is communicating with.
   def initialize socket, share=nil, code=nil
+    @@counter ||= 0
+    @@counter += 1
+    @connection_number = @@counter
+
     @share = share
     @code = code
     @socket = socket
@@ -25,7 +29,8 @@ class Connection
   end
 
   def start
-    SafeThread.new 'connection' do
+    thread_name = "connection#{@connection_number > 1 ? @connection_number : nil}"
+    SafeThread.new thread_name do
       if @socket.is_a? Array
         Log.debug "Opening socket to #{@socket[0]} #{@socket[1]}"
         @socket = TCPSocket.new *@socket
@@ -65,8 +70,8 @@ class Connection
       message = type
     end
 
+    Log.debug "Sending: #{message.inspect}"
     if @send_queue
-      Log.debug "Sending: #{message.inspect}"
       @send_queue.push message
     else
       gunlock { message.write_to_io @socket }
