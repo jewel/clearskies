@@ -136,17 +136,10 @@ module Scanner
     file = share[relpath] || Share::File.create(relpath)
 
     # If mtime or sizes are different need to regenerate hash
-    mtime_match = file.mtime.to_i == stat.mtime.to_i && file.mtime.nsec == stat.mtime.nsec
-    if !mtime_match || file.size != stat.size
+    stat_mtime = [stat.mtime.to_i, stat.mtime.nsec]
+    if !file.mtime != stat_mtime || file.size != stat.size
       if share[relpath]
-        change = ""
-        if !mtime_match
-          change = " mtime #{file.mtime.nsec} => #{stat.mtime.nsec}"
-        end
-        if file.size != stat.size
-          change << " size #{file.size} => #{stat.size}"
-        end
-        Log.debug "#{relpath} has changed #{change}"
+        Log.debug "#{relpath} has changed"
       else
         Log.debug "#{relpath} is new"
       end

@@ -19,7 +19,7 @@ class Share
 
     def commit stat
       self.mode = stat.mode.to_s(8)
-      self.mtime = stat.mtime
+      self.mtime = [stat.mtime.to_i, stat.mtime.nsec]
       self.size = stat.size
     end
   end

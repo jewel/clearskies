@@ -223,7 +223,7 @@ class Connection
         path: file.path,
         utime: file.utime,
         size: file.size,
-        mtime: [file.mtime.to_i, file.mtime.nsec],
+        mtime: file.mtime,
         mode: file.mode,
         sha256: file.sha256,
         id: file.id,
@@ -269,16 +269,14 @@ class Connection
       return
     end
 
-    time_match = msg[:mtime][0] == metadata[:mtime].to_i && msg[:mtime][1] == metadata[:mtime].nsec
+    time_match = msg[:mtime] == metadata[:mtime]
 
     if !time_match
       path = @share.full_path msg[:path]
       @share.check_path path
 
       # Update the metadata to match before changing the mtime
-      mtime = msg[:mtime]
-      mtime = Time.at mtime[0], mtime[1] / 1000.0 + 0.0005
-      metadata[:mtime] = mtime
+      metadata[:mtime] = msg[:mtime]
     end
 
     mode_match = msg[:mode] == metadata[:mode]
@@ -298,6 +296,8 @@ class Connection
     end
 
     if !time_match
+      mtime = msg[:mtime]
+      mtime = Time.at mtime[0], mtime[1] / 1000.0 + 0.0005
       File.utime Time.new, mtime, path
     end
 

@@ -77,7 +77,7 @@ verify_synced()
 {
   wait_file 1 $1
   wait_file 2 $1
-  if ! cmp /tmp/{1,2}/stuff/$1
+  if ! diff -u /tmp/{1,2}/stuff/$1
   then
     error "$1 doesn't match"
   fi
