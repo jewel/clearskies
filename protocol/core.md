@@ -1473,3 +1473,7 @@ issues will be addressed before the spec is finalized.
   ID, and using the other half to decrypt the key file.
 
 * Access code passphrases have the same issues as master passwords.
+
+* The file metadata should have its own utime, separate from the utime for the
+  file contents.  Otherwise, someone could run something like `chmod a+r -R .`
+  on an out-of-sync share and hose the other end.
