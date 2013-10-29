@@ -1,9 +1,12 @@
 # Write to log file and to screen, as appropriate
 
-require 'conf'
-
 module Log
   LEVELS = [:debug, :info, :warn, :error, :none]
+
+  def self.file_handle= fp
+    @file_handle = fp
+  end
+
   def self.screen_level= level
     @screen_level = level
   end
@@ -35,7 +38,7 @@ module Log
   end
 
   def self.log level, msg
-    @screen_level ||= :debug
+    @screen_level ||= :warn
     if Thread.current.respond_to?(:title) && Thread.current.title
       msg = "#{Thread.current.title}> #{msg}"
     end
@@ -55,10 +58,9 @@ module Log
     end
 
     @file_level ||= :debug
-    if intval(level) >= intval(@file_level)
-      @file ||= File.open Conf.path('log'), 'w'
+    if @file_handle && intval(level) >= intval(@file_level)
       timestamp = Time.now.strftime "%H:%M:%S.%N"
-      @file.write "#{timestamp} #{level} #{msg}\n"
+      @file_handle.write "#{timestamp} #{level} #{msg}\n"
     end
   end
 

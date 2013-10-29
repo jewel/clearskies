@@ -1,5 +1,6 @@
 require 'safe_thread'
 require 'log'
+require 'conf'
 
 module Daemon
   def self.daemonize
@@ -26,6 +27,9 @@ module Daemon
   end
 
   def self.run
+    Log.screen_level = :debug
+    Log.file_handle = File.open Conf.path( 'log' ), 'a'
+
     File.open Conf.path("pid"), 'w' do |f|
       f.puts $$
     end
