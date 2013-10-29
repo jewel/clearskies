@@ -143,7 +143,7 @@ module Scanner
 
     # If mtime or sizes are different need to regenerate hash
     stat_mtime = [stat.mtime.to_i, stat.mtime.nsec]
-    if !file.mtime != stat_mtime || file.size != stat.size
+    if file.mtime != stat_mtime || file.size != stat.size
       if share[relpath]
         Log.debug "#{relpath} has changed"
       else
