@@ -8,7 +8,6 @@ module Shares
   # It contains path => share_id
   db_path = "#{Conf.data_dir}/shares.db"
   @db = Permahash.new db_path
-  @db.sync = true
 
   # Also keep references to the Share objects
   @shares = {}

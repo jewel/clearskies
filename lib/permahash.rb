@@ -1,11 +1,10 @@
 # In-memory hash structure, persisted to disk via log file
-#
-# We usually don't flush to disk, since the data being stored can be
-# regenerated.
+
+require_relative 'log'
 
 class Permahash
-  # Percent storage efficiency should reach before vacuuming
-  DESIRED_EFFICIENCY = 0.25
+  # How inefficient the file should be before vacuuming
+  MINIMUM_BLOAT_FACTOR = 4
 
   # Never vacuum if log has less than this many entries
   MINIMUM_VACUUM_SIZE = 4096
@@ -19,17 +18,11 @@ class Permahash
     @logsize = 0
     exists = File.exists? path
     read_from_file if exists
+
     @logfile = File.open @path, 'ab'
+    @logfile.sync = true
+
     @logfile.puts HEADER unless exists
-    @logfile.flush
-  end
-
-  def sync= bool
-    @logfile.sync = bool
-  end
-
-  def flush
-    @logfile.flush
   end
 
   # Pass some operations through
@@ -71,7 +64,6 @@ class Permahash
   end
 
   def close
-    @logfile.flush
     @logfile.close
     @logfile = nil
   end
@@ -81,14 +73,19 @@ class Permahash
   def append oper, key, val=nil
     keyd = Marshal.dump key
     vald = Marshal.dump val
-    @logfile.puts "#{oper}:#{keyd.size}:#{vald.size}"
-    @logfile.write keyd
-    @logfile.write vald
+
+    entry = String.new
+    entry << "#{oper}:#{keyd.size}:#{vald.size}\n"
+    entry << keyd
+    entry << vald
+    @logfile.write entry
+
     @logsize += 1
 
     # Vacuum if log has gotten too large
     return unless @logsize > MINIMUM_VACUUM_SIZE
-    return unless @logsize > @hash.size * 1.to_f / DESIRED_EFFICIENCY
+    return unless @logsize / @hash.size >= MINIMUM_BLOAT_FACTOR
+
     vacuum
   end
 
@@ -148,15 +145,27 @@ class Permahash
 
   def vacuum
     Log.debug "Vacuuming #{@path.inspect}, has #@logsize entries, only needs #{@hash.size}"
-    temp = @path + ".#$$.tmp"
-    @logfile = File.open temp, 'wb'
-    @logsize = 0
-    @logfile.puts HEADER
-    @hash.each do |key,val|
-      append 'r', key, val
+    old_logfile = @logfile
+    old_logsize = @logsize
+    begin
+      temp = @path + ".#$$.tmp"
+      @logfile = File.open temp, 'wb'
+      @logfile.sync = true
+      @logsize = 0
+      @logfile.puts HEADER
+      @hash.each do |key,val|
+        append 'r', key, val
+      end
+      @logfile.close
+      File.rename temp, @path
+    ensure
+      # Since we're not sure how our caller will handle an exception, make
+      # sure that the database file is in a consistent state.  Consider,
+      # for example, what would happen if the disk filled up during a
+      # vacuum.
+      @logfile = old_logfile
+      @logsize = old_logsize
     end
-    @logfile.close
-    File.rename temp, @path
     @logfile = File.open @path, 'ab'
   end
 end

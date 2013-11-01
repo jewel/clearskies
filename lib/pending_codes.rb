@@ -8,7 +8,6 @@ require 'pending_code'
 class PendingCodes
   path = Conf.data_dir "pending_codes.db"
   @db = Permahash.new path
-  @db.sync = true
 
   def self.add code
     @db[code] = true

@@ -29,8 +29,6 @@ class Share
     @db[:peers] ||= []
     @db[:version] ||= Time.new.to_f
 
-    @db.flush
-
     @subscribers = []
   end
 

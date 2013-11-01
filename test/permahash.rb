@@ -1,7 +1,7 @@
 require 'minitest/autorun'
 require 'tempfile'
 
-require 'permahash'
+require_relative '../lib/permahash'
 
 def new_path
   path = Tempfile.new('clearskies').path
