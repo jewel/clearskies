@@ -56,8 +56,8 @@ Share management:
   list                    List all shares and sync status
   share [path] [mode]     Make access code to be given to someone else
                           mode is one of (rw, ro, untrusted)
-  connect [code] [path]   Add access code from someone else, creating new share at [path]
-  disconnect [path]       Stop syncing path
+  attach [code] [path]   Add access code from someone else, creating new share at [path]
+  detach [path]       Stop syncing path
 "
     exit
   end
@@ -134,7 +134,7 @@ when "share"
 
   puts res[:access_code]
 
-when "add"
+when "attach", "add"
   code = ARGV.shift
   path = ARGV.shift
 
@@ -146,7 +146,7 @@ when "add"
     path: path
   }
 
-when "remove", "rm"
+when "detach", "rm"
   path = ARGV.shift
 
   path = File.realpath(path)

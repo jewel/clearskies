@@ -62,8 +62,10 @@ module Network
 
   def self.peer_discovered id, peer_id, addr, port
     share, code = IDMapper.find id
-
-    raise "Can't find ID #{id}" unless share || code
+    unless share || code
+      Log.debug "Can't find ID #{id}" 
+      return
+    end
 
     if (share || code).peer_id == peer_id
       Log.debug "Discovered ourself"

@@ -9,18 +9,16 @@ require 'pathname'
 require 'change_monitor'
 require 'set'
 require 'log'
+require 'hasher'
 
 module Scanner
   DELAY_MULTIPLIER = 10
-  MIN_RESCAN = 60
+  MIN_RESCAN = 60 # an absolute minimum
   def self.start use_change_monitor=true
     load_change_monitor if use_change_monitor
-    @hasher = SafeThread.new 'hasher' do
-      work_hashes
-    end
 
+    Hasher.start
     @scanning = false
-    @hash_queue = Queue.new
 
     @worker = SafeThread.new 'scanner' do
       work
@@ -38,7 +36,7 @@ module Scanner
   def self.work
     # TODO Lower own priority
 
-    Log.debug "Performing first scan of the shares..."
+    Log.debug "Performing first scan of all shares..."
     last_scan_start = Time.now
 
     Shares.each do |share|
@@ -46,25 +44,25 @@ module Scanner
     end
 
     last_scan_time = Time.now - last_scan_start
-    Log.debug "Finished first scan of the shares..."
+    Log.debug "Finished first scan of all shares..."
 
-    return if @change_monitor
-
-    Log.debug "No change monitor.  Setting up recurring scans..."
+    rescan_min = MIN_RESCAN
+    rescan_min = 60*60 if @change_monitor # only once an hour
 
     loop do
-      next_scan_time = Time.now + [last_scan_time * DELAY_MULTIPLIER, MIN_RESCAN].max
+      next_scan_time = Time.now + [last_scan_time * DELAY_MULTIPLIER, rescan_min].max
+      Log.debug "Next scan of shares in #{next_scan_time - Time.now} seconds..."
       while Time.now < next_scan_time
         gsleep [next_scan_time - Time.now,0].max
       end
 
-      Log.debug "Performing recurring scan of the shares..."
+      Log.debug "Performing recurring scan of all shares..."
       last_scan_start = Time.now
       Shares.each do |share|
         register_and_scan share
       end
       last_scan_time = Time.now - last_scan_start
-      Log.debug "Finished recurring scan of the shares..."
+      Log.debug "Finished recurring scan of all shares..."
     end
   end
 
@@ -151,7 +149,7 @@ module Scanner
       end
       file.sha256 = nil
       file.commit stat
-      @hash_queue.push [share, file]
+      Hasher.push share, file
       file_touched = true
 
     # If only the mode has changed then just update the record.
@@ -172,8 +170,8 @@ module Scanner
   end
 
   def self.register_and_scan share
-    @scanning = true
-    Log.info "Doing initial scan of #{share.path}"
+    Hasher.pause
+    Log.info "Doing scan of share #{share.path}"
 
     known_files = Set.new(share.map { |f| f.path })
     process_path share, share.path do |relpath|
@@ -184,46 +182,12 @@ module Scanner
     known_files.each do |path|
       process_path share, share.full_path(path)
     end
-    Log.info "Finished initial scan of #{share.path}"
+    Log.info "Finished scan of share #{share.path}"
 
   ensure
-    @scanning = false
-    @hasher.wakeup if @hasher
+    Hasher.resume
   end
 
-  def self.work_hashes
-    Shares.each do |share|
-      share.each do |file|
-        next if file.sha256
-        @hash_queue.push [share, file]
-      end
-    end
-
-    if @hash_queue.size > 0
-      Log.info "Hasher has #{@hash_queue.size} files to hash"
-    end
-
-    loop do
-      share, file = gunlock { @hash_queue.shift }
-      next if file.sha256
-      digest = Digest::SHA256.new
-      Log.info "Hashing #{file.path}"
-
-      gunlock {
-        File.open share.full_path(file.path), 'rb' do |f|
-          while data = f.read(1024 * 512)
-            digest << data
-
-            Thread.stop if @scanning
-          end
-        end
-      }
-
-      Log.debug "Hashed #{file.path} to #{digest.hexdigest[0..8]}..."
-      file.sha256 = digest.hexdigest
-      share.save file.path
-    end
-  end
 
   def self.send_monitor method, *args
     return unless @change_monitor
