@@ -9,18 +9,16 @@ require 'pathname'
 require 'change_monitor'
 require 'set'
 require 'log'
+require 'hasher'
 
 module Scanner
   DELAY_MULTIPLIER = 10
   MIN_RESCAN = 60
   def self.start use_change_monitor=true
     load_change_monitor if use_change_monitor
-    @hasher = SafeThread.new 'hasher' do
-      work_hashes
-    end
 
+    Hasher.start
     @scanning = false
-    @hash_queue = Queue.new
 
     @worker = SafeThread.new 'scanner' do
       work
@@ -151,7 +149,7 @@ module Scanner
       end
       file.sha256 = nil
       file.commit stat
-      @hash_queue.push [share, file]
+      Hasher.push share, file
       file_touched = true
 
     # If only the mode has changed then just update the record.
@@ -172,7 +170,7 @@ module Scanner
   end
 
   def self.register_and_scan share
-    @scanning = true
+    Hasher.pause
     Log.info "Doing initial scan of #{share.path}"
 
     known_files = Set.new(share.map { |f| f.path })
@@ -187,43 +185,9 @@ module Scanner
     Log.info "Finished initial scan of #{share.path}"
 
   ensure
-    @scanning = false
-    @hasher.wakeup if @hasher
+    Hasher.resume
   end
 
-  def self.work_hashes
-    Shares.each do |share|
-      share.each do |file|
-        next if file.sha256
-        @hash_queue.push [share, file]
-      end
-    end
-
-    if @hash_queue.size > 0
-      Log.info "Hasher has #{@hash_queue.size} files to hash"
-    end
-
-    loop do
-      share, file = gunlock { @hash_queue.shift }
-      next if file.sha256
-      digest = Digest::SHA256.new
-      Log.info "Hashing #{file.path}"
-
-      gunlock {
-        File.open share.full_path(file.path), 'rb' do |f|
-          while data = f.read(1024 * 512)
-            digest << data
-
-            Thread.stop if @scanning
-          end
-        end
-      }
-
-      Log.debug "Hashed #{file.path} to #{digest.hexdigest[0..8]}..."
-      file.sha256 = digest.hexdigest
-      share.save file.path
-    end
-  end
 
   def self.send_monitor method, *args
     return unless @change_monitor
