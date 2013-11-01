@@ -21,7 +21,12 @@ module Daemon
     STDERR.reopen STDOUT
 
     # Run as low priority
-    Process.setpriority( Process::PRIO_USER, 0, 15 )
+    begin
+      Process.setpriority( Process::PRIO_USER, 0, 15 )
+    rescue Errno::EACCES
+      # FIXME Log.file_handle isn't set yet
+      Log.debug "Permission denied when trying to setpriority"
+    end
 
     run
   end
