@@ -67,7 +67,7 @@ module ControlServer
       end
       res ||= {}
       client.puts res.to_json
-      break if time_to_exit
+      raise SystemExit if time_to_exit
     end
   end
 
