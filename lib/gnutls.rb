@@ -1,6 +1,8 @@
 require 'ffi'
 require 'socket'
 
+# See https://defuse.ca/gnutls-psk-client-server-example.htm
+
 module GnuTLS
   extend FFI::Library
 
@@ -64,15 +66,16 @@ module GnuTLS
   tls_function :transport_set_push_function, [:pointer, :push_function], :void
   tls_function :transport_set_pull_function, [:pointer, :pull_function], :void
   tls_function :handshake, [:pointer], :int
+  tls_function :record_recv, [:pointer, :pointer, :size_t], :int
+  tls_function :record_send, [:pointer, :pointer, :size_t], :int
   # tls_function :handshake_set_timeout, [:pointer, :int], :void
 
-  callback :log_function, [:int, :string], :void
   tls_function :global_set_log_level, [:int], :void
   tls_function :global_set_log_function, [:log_function], :void
   tls_function :strerror, [:int], :string
 
-  CLIENT = 1
-  SERVER = 2
+  SERVER = 1
+  CLIENT = 2
 
   class Error < RuntimeError
     def initialize message, code=nil
@@ -91,7 +94,8 @@ module GnuTLS
     def initialize ptr, direction
       @session = ptr
       @direction = direction
-      self.priority = "+DHE-PSK"
+      # FIXME this isn't quite the right priority string
+      self.priority = "SECURE128:-VERS-SSL3.0:-VERS-TLS1.0:-ARCFOUR-128:+PSK:+DHE-PSK"
       # FIXME create ephemeral DH parameters
     end
 
@@ -120,17 +124,13 @@ module GnuTLS
       @socket = socket
 
       GnuTLS.transport_set_pull_function @session, Proc.new { |_, data, maxlen|
-        warn "Reading from socket in pull"
         d = @socket.readpartial maxlen
-        warn "Got data from socket"
-        p d
         data.write_bytes d
 
         d.size
       }
 
       GnuTLS.transport_set_push_function @session, Proc.new { |_, data, len|
-        warn "Writing to socket in push"
         str = data.read_bytes len
         @socket.write str
 
@@ -143,7 +143,7 @@ module GnuTLS
     def psk= val
       creds = FFI::MemoryPointer.new :pointer
 
-      allocator = "psk_allocate_#{client_or_server}_credentials"
+      allocator = "psk_allocate_#{@direction}_credentials"
 
       res = GnuTLS.send allocator, creds
       raise "Cannot allocate credentials" unless res == 0
@@ -155,7 +155,7 @@ module GnuTLS
       psk[:data] = FFI::MemoryPointer.from_string(@psk)
       psk[:size] = val.size
 
-      setter = "psk_set_#{client_or_server}_credentials"
+      setter = "psk_set_#{@direction}_credentials"
 
       res = GnuTLS.send setter, creds.read_pointer, "Bogus", psk, :PSK_KEY_RAW
       raise "Can't #{setter}" unless res == 0
@@ -164,6 +164,46 @@ module GnuTLS
       raise "Can't credentials_set with PSK" unless res == 0
 
       val
+    end
+
+    # FIXME Can we inherit from IO or something similar and have puts, gets,
+    # etc?
+    #
+    # In other words, is there a module that will do the buffering for us?
+    # What does StringIO do?
+    def write str
+      total = 0
+      pointer = FFI::MemoryPointer.from_string str
+      while total < str.size
+        sent = GnuTLS.record_send @session, pointer + total, str.size - total
+        if sent == 0
+          # FIXME What does this mean?
+          raise "Sent returned zero"
+        elsif sent < 0
+          # FIXME Is this a GNUTLS error or just the error from push?
+          raise "Sent returned error"
+        end
+        remaining += sent
+      end
+    end
+
+    def puts str
+      write str
+      write "\n"
+    end
+
+    def gets
+    end
+
+    def read len
+      total = 0
+      str = String.new
+      while total < len
+        GnuTLS.record_recv @session, etc
+      end
+    end
+
+    def readpartial len
     end
 
     def deinit
@@ -176,6 +216,7 @@ module GnuTLS
     def initialize socket, psk
       ptr = GnuTLS.init CLIENT
       super ptr, :client
+      self.psk = psk
       self.socket = socket
     end
   end
@@ -184,6 +225,7 @@ module GnuTLS
     def initialize socket, psk
       ptr = GnuTLS.init SERVER
       super ptr, :server
+      self.psk = psk
       self.socket = socket
     end
   end
@@ -197,5 +239,6 @@ STDOUT.sync = true
 GnuTLS.global_init
 GnuTLS.global_set_log_level 9
 
-socket = TCPSocket.new "localhost", 4443
-session = GnuTLS::Socket.new socket, "abcd"
+tcp_socket = TCPSocket.new "localhost", 4443
+socket = GnuTLS::Socket.new tcp_socket, "abcd"
+p socket.read 10
