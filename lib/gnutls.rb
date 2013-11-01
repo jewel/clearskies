@@ -38,6 +38,8 @@ module GnuTLS
 
   # callbacks
   callback :log_function, [:int, :string], :void
+  callback :push_function, [:pointer, :pointer, :size_t], :size_t
+  callback :pull_function, [:pointer, :pointer, :size_t], :size_t
 
   def self.tls_function name, *args
     attach_function name, "gnutls_#{name}".to_sym, *args
@@ -58,6 +60,9 @@ module GnuTLS
   tls_function :psk_allocate_client_credentials, [:pointer], :int
   tls_function :psk_allocate_server_credentials, [:pointer], :int
   tls_function :psk_set_client_credentials, [:pointer, :string, Datum, :psk_key_type ], :int
+
+  tls_function :transport_set_push_function, [:pointer, :push_function], :void
+  tls_function :transport_set_pull_function, [:pointer, :pull_function], :void
   tls_function :handshake, [:pointer], :int
   # tls_function :handshake_set_timeout, [:pointer, :int], :void
 
@@ -76,26 +81,18 @@ module GnuTLS
     end
   end
 
-  def self.init(type)
+  def self.init type
     ptr = FFI::MemoryPointer.new :pointer
     gnutls_init(ptr, type)
-    Session.new(ptr.read_pointer, type)
-  end
-
-  def self.init_client
-    init(CLIENT)
-  end
-
-  def self.init_server
-    init(SERVER)
+    ptr.read_pointer
   end
 
   class Session
-    def initialize(ptr, type)
+    def initialize ptr, direction
       @session = ptr
-      @type = type
-
-      self.priority = "+PSK"
+      @direction = direction
+      self.priority = "+DHE-PSK"
+      # FIXME create ephemeral DH parameters
     end
 
     def handshake
@@ -122,20 +119,25 @@ module GnuTLS
     def socket= socket
       @socket = socket
 
-      @recv_data = Proc.new do |_, data, maxlen|
+      GnuTLS.transport_set_pull_function @session, Proc.new { |_, data, maxlen|
+        warn "Reading from socket in pull"
+        d = @socket.readpartial maxlen
+        warn "Got data from socket"
+        p d
+        data.write_bytes d
 
-      end
+        d.size
+      }
 
-      @send_data = Proc.new do |_, data, len|
-        d = @socket.readpartial
-        data.read_buffer(d)
+      GnuTLS.transport_set_push_function @session, Proc.new { |_, data, len|
+        warn "Writing to socket in push"
+        str = data.read_bytes len
+        @socket.write str
 
-        d.len
-      end
-    end
+        str.size
+      }
 
-    def client_or_server
-      @type == SERVER ? "server" : "client"
+      handshake
     end
 
     def psk= val
@@ -165,14 +167,29 @@ module GnuTLS
     end
 
     def deinit
+      # FIXME How do we ensure this is called?
       GnuTLS.deinit(@session)
     end
   end
 
+  class Socket < Session
+    def initialize socket, psk
+      ptr = GnuTLS.init CLIENT
+      super ptr, :client
+      self.socket = socket
+    end
+  end
+
+  class Server < Session
+    def initialize socket, psk
+      ptr = GnuTLS.init SERVER
+      super ptr, :server
+      self.socket = socket
+    end
+  end
 end
 
 GnuTLS.global_set_log_function Proc.new { |lvl,msg| puts "#{lvl} #{msg}" }
-session = GnuTLS.init_client
 GC.disable
 STDERR.sync = true
 STDOUT.sync = true
@@ -180,7 +197,5 @@ STDOUT.sync = true
 GnuTLS.global_init
 GnuTLS.global_set_log_level 9
 
-session = GnuTLS.init_client
-session.psk = "abcd"
-session.socket = TCPSocket.new("localhost", 4443)
-session.handshake
+socket = TCPSocket.new "localhost", 4443
+session = GnuTLS::Socket.new socket, "abcd"
