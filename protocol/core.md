@@ -512,7 +512,7 @@ abbreviated for clarity:
   },
   "read_write": {
     "encrypted_rsa": "KaPwf85p4PUXUImWMEn1MwlRC77TWlEtZjqxI+QhDKTlFxi...",
-    "public_rsa": -----BEGIN RSA PUBLIC KEY-----\nMIIBgjAcBgoqhkiG9w0BDAEDMA4E..."
+    "public_rsa": "-----BEGIN RSA PUBLIC KEY-----\nMIIBgjAcBgoqhkiG9w0BDAEDMA4E..."
   }
 }
 ```
@@ -886,7 +886,7 @@ Notification of a new or changed file looks like this:
   "file": {
     "path": "photos/img1.jpg",
     "utime": 1379220476,
-    "size": 2387629
+    "size": 2387629,
     "mtime": [1379220393, 194518242],
     "mode": "0664",
     "sha256": "cf16aec13a8557cab5e5a5185691ab04f32f1e581cf0f8233be72ddeed7e7fc1",
