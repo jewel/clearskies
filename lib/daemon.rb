@@ -20,14 +20,6 @@ module Daemon
     STDOUT.reopen '/dev/null', 'a'
     STDERR.reopen STDOUT
 
-    # Run as low priority
-    begin
-      Process.setpriority( Process::PRIO_USER, 0, 15 )
-    rescue Errno::EACCES
-      # FIXME Log.file_handle isn't set yet
-      Log.debug "Permission denied when trying to setpriority"
-    end
-
     run
   end
 
@@ -37,6 +29,13 @@ module Daemon
 
     File.open Conf.path("pid"), 'w' do |f|
       f.puts $$
+    end
+
+    # Run as low priority
+    begin
+      Process.setpriority Process::PRIO_PROCESS, $$, 15
+    rescue Errno::EACCES, Errno::EPERM
+      Log.warn "Permission denied when trying to lower priority"
     end
 
     require 'shares'
