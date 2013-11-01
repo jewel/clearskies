@@ -13,7 +13,7 @@ require 'hasher'
 
 module Scanner
   DELAY_MULTIPLIER = 10
-  MIN_RESCAN = 60
+  MIN_RESCAN = 60 # an absolute minimum
   def self.start use_change_monitor=true
     load_change_monitor if use_change_monitor
 
@@ -36,7 +36,7 @@ module Scanner
   def self.work
     # TODO Lower own priority
 
-    Log.debug "Performing first scan of the shares..."
+    Log.debug "Performing first scan of all shares..."
     last_scan_start = Time.now
 
     Shares.each do |share|
@@ -44,25 +44,25 @@ module Scanner
     end
 
     last_scan_time = Time.now - last_scan_start
-    Log.debug "Finished first scan of the shares..."
+    Log.debug "Finished first scan of all shares..."
 
-    return if @change_monitor
-
-    Log.debug "No change monitor.  Setting up recurring scans..."
+    rescan_min = MIN_RESCAN
+    rescan_min = 60*60 if @change_monitor # only once an hour
 
     loop do
-      next_scan_time = Time.now + [last_scan_time * DELAY_MULTIPLIER, MIN_RESCAN].max
+      next_scan_time = Time.now + [last_scan_time * DELAY_MULTIPLIER, rescan_min].max
+      Log.debug "Next scan of shares in #{next_scan_time - Time.now} seconds..."
       while Time.now < next_scan_time
         gsleep [next_scan_time - Time.now,0].max
       end
 
-      Log.debug "Performing recurring scan of the shares..."
+      Log.debug "Performing recurring scan of all shares..."
       last_scan_start = Time.now
       Shares.each do |share|
         register_and_scan share
       end
       last_scan_time = Time.now - last_scan_start
-      Log.debug "Finished recurring scan of the shares..."
+      Log.debug "Finished recurring scan of all shares..."
     end
   end
 
@@ -171,7 +171,7 @@ module Scanner
 
   def self.register_and_scan share
     Hasher.pause
-    Log.info "Doing initial scan of #{share.path}"
+    Log.info "Doing scan of share #{share.path}"
 
     known_files = Set.new(share.map { |f| f.path })
     process_path share, share.path do |relpath|
@@ -182,7 +182,7 @@ module Scanner
     known_files.each do |path|
       process_path share, share.full_path(path)
     end
-    Log.info "Finished initial scan of #{share.path}"
+    Log.info "Finished scan of share #{share.path}"
 
   ensure
     Hasher.resume
