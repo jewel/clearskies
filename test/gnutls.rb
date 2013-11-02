@@ -5,8 +5,6 @@ require 'thread'
 
 Thread.abort_on_exception = true
 
-GnuTLS.enable_logging
-
 STDERR.sync = true
 STDOUT.sync = true
 GC.disable
@@ -21,7 +19,7 @@ def run_test first_tls_class, second_tls_class
         socket = server.accept
         Thread.new do
           tls = first_tls_class.new socket, "abcd"
-          while data = tls.gets
+          while data = tls.readpartial(1024)
             tls.write data
           end
         end
@@ -36,6 +34,8 @@ def run_test first_tls_class, second_tls_class
     tls.gets.must_equal "hehe\n"
     tls.puts "hoheho 1234"
     tls.gets.must_equal "hoheho 1234\n"
+    tls.write "!" * 1024
+    tls.read(1024).must_equal "!" * 1024
   end
 
   it "won't connect with wrong password" do

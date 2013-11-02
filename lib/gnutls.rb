@@ -86,13 +86,15 @@ module GnuTLS
   end
 
   def self.init type
+    GnuTLS.global_init unless @global_initted
+    @global_initted = true
+
     ptr = FFI::MemoryPointer.new :pointer
     gnutls_init(ptr, type)
     ptr.read_pointer
   end
 
   def self.enable_logging
-    GnuTLS.global_init
     GnuTLS.global_set_log_function Proc.new { |lvl,msg| puts "#{lvl} #{msg}" }
     GnuTLS.global_set_log_level 9
   end
@@ -167,14 +169,9 @@ module GnuTLS
 
         res = GnuTLS.send setter, creds, "Bogus", psk, :PSK_KEY_RAW
         raise "Can't #{setter}" unless res == 0
-
-        res = GnuTLS.credentials_set @session, :CRD_PSK, creds
-        raise "Can't credentials_set with PSK" unless res == 0
       else
         GnuTLS.psk_set_server_credentials_function creds, Proc.new { |_,username,key_pointer|
           # ignore username
-          warn "Need PSK named: #{username} #{key_pointer}"
-          warn "=========================================="
 
           psk = Datum.new key_pointer
           psk[:data] = FFI::MemoryPointer.from_string(val)
@@ -183,6 +180,9 @@ module GnuTLS
           0
         }
       end
+
+      res = GnuTLS.credentials_set @session, :CRD_PSK, creds
+      raise "Can't credentials_set with PSK" unless res == 0
 
       val
     end
@@ -199,7 +199,7 @@ module GnuTLS
           # FIXME Is this a GNUTLS error or just the error from push?
           raise "Sent returned error"
         end
-        remaining += sent
+        total += sent
       end
     end
 
@@ -224,8 +224,21 @@ module GnuTLS
           return slice
         end
 
-        @buffer << readpartial(1024 * 32)
+        @buffer << unbuffered_readpartial(100)
       end
+    end
+
+    def unbuffered_readpartial len
+      str = String.new << ("\0" * len)
+      res = GnuTLS.record_recv @session, str, len
+      if res < 0
+        # FIXME Is this a GNUTLS error or just the error from push?
+        raise "recv got error #{res}"
+      elsif res == 0
+        raise "recv got zero"
+      end
+
+      str[0...res]
     end
 
     def readpartial len
@@ -237,16 +250,7 @@ module GnuTLS
         return slice
       end
 
-      str = String.new << ("\0" * len)
-      res = GnuTLS.record_recv @session, str, len
-      if res < 0
-        # FIXME Is this a GNUTLS error or just the error from push?
-        raise "recv got error #{res}"
-      elsif res == 0
-        raise "recv got zero"
-      end
-
-      str[0...res]
+      unbuffered_readpartial len
     end
 
     def deinit
