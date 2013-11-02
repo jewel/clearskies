@@ -42,6 +42,7 @@ module GnuTLS
   callback :log_function, [:int, :string], :void
   callback :push_function, [:pointer, :pointer, :size_t], :size_t
   callback :pull_function, [:pointer, :pointer, :size_t], :size_t
+  callback :psk_creds_function, [:pointer, :string, :pointer], :int
 
   def self.tls_function name, *args
     attach_function name, "gnutls_#{name}".to_sym, *args
@@ -58,10 +59,10 @@ module GnuTLS
   tls_function :error_is_fatal, [:int], :int
   tls_function :priority_set_direct, [:pointer, :string, :pointer], :int
   tls_function :credentials_set, [:pointer, :credentials_type, :pointer], :int
-  tls_function :anon_allocate_client_credentials, [:pointer], :int
   tls_function :psk_allocate_client_credentials, [:pointer], :int
   tls_function :psk_allocate_server_credentials, [:pointer], :int
   tls_function :psk_set_client_credentials, [:pointer, :string, Datum, :psk_key_type ], :int
+  tls_function :psk_set_server_credentials_function, [:pointer, :psk_creds_function], :int
 
   tls_function :transport_set_push_function, [:pointer, :push_function], :void
   tls_function :transport_set_pull_function, [:pointer, :pull_function], :void
@@ -90,19 +91,26 @@ module GnuTLS
     ptr.read_pointer
   end
 
+  def self.enable_logging
+    GnuTLS.global_init
+    GnuTLS.global_set_log_function Proc.new { |lvl,msg| puts "#{lvl} #{msg}" }
+    GnuTLS.global_set_log_level 9
+  end
+
   class Session
     def initialize ptr, direction
       @session = ptr
       @direction = direction
       # FIXME this isn't quite the right priority string
       self.priority = "SECURE128:-VERS-SSL3.0:-VERS-TLS1.0:-ARCFOUR-128:+PSK:+DHE-PSK"
-      # FIXME create ephemeral DH parameters
+      # FIXME create ephemeral DH parameters and force DHE mode
+      @buffer = String.new
     end
 
     def handshake
       loop do
         res = GnuTLS.handshake(@session)
-        break if res == 0
+        return if res == 0
 
         if GnuTLS.error_is_fatal(res)
           raise Error.new("failed handshake", res) unless res.zero?
@@ -148,29 +156,37 @@ module GnuTLS
       res = GnuTLS.send allocator, creds
       raise "Cannot allocate credentials" unless res == 0
 
-      # Make sure that the string data won't be garbage collected
-      # FIXME is this necessary?
-      @psk = val
-      psk = Datum.new
-      psk[:data] = FFI::MemoryPointer.from_string(@psk)
-      psk[:size] = val.size
+      creds = creds.read_pointer
 
-      setter = "psk_set_#{@direction}_credentials"
+      if @direction == :client
+        psk = Datum.new
+        psk[:data] = FFI::MemoryPointer.from_string(val)
+        psk[:size] = val.size
 
-      res = GnuTLS.send setter, creds.read_pointer, "Bogus", psk, :PSK_KEY_RAW
-      raise "Can't #{setter}" unless res == 0
+        setter = "psk_set_#{@direction}_credentials"
 
-      res = GnuTLS.credentials_set @session, :CRD_PSK, creds.read_pointer
-      raise "Can't credentials_set with PSK" unless res == 0
+        res = GnuTLS.send setter, creds, "Bogus", psk, :PSK_KEY_RAW
+        raise "Can't #{setter}" unless res == 0
+
+        res = GnuTLS.credentials_set @session, :CRD_PSK, creds
+        raise "Can't credentials_set with PSK" unless res == 0
+      else
+        GnuTLS.psk_set_server_credentials_function creds, Proc.new { |_,username,key_pointer|
+          # ignore username
+          warn "Need PSK named: #{username} #{key_pointer}"
+          warn "=========================================="
+
+          psk = Datum.new key_pointer
+          psk[:data] = FFI::MemoryPointer.from_string(val)
+          psk[:size] = val.size
+
+          0
+        }
+      end
 
       val
     end
 
-    # FIXME Can we inherit from IO or something similar and have puts, gets,
-    # etc?
-    #
-    # In other words, is there a module that will do the buffering for us?
-    # What does StringIO do?
     def write str
       total = 0
       pointer = FFI::MemoryPointer.from_string str
@@ -192,18 +208,45 @@ module GnuTLS
       write "\n"
     end
 
-    def gets
+    def read len
+      str = String.new
+      while str.size < len
+        str << readpartial( len - str.size )
+      end
+      str
     end
 
-    def read len
-      total = 0
-      str = String.new
-      while total < len
-        GnuTLS.record_recv @session, etc
+    def gets
+      loop do
+        if index = @buffer.index("\n")
+          slice = @buffer[0..index]
+          @buffer = @buffer[(index+1)..-1]
+          return slice
+        end
+
+        @buffer << readpartial(1024 * 32)
       end
     end
 
     def readpartial len
+      # To keep things simple, always drain the buffer first
+      if @buffer.size > 0
+        amount = [len,@buffer.size].min
+        slice = @buffer[0...amount]
+        @buffer = @buffer[amount..-1]
+        return slice
+      end
+
+      str = String.new << ("\0" * len)
+      res = GnuTLS.record_recv @session, str, len
+      if res < 0
+        # FIXME Is this a GNUTLS error or just the error from push?
+        raise "recv got error #{res}"
+      elsif res == 0
+        raise "recv got zero"
+      end
+
+      str[0...res]
     end
 
     def deinit
@@ -230,15 +273,3 @@ module GnuTLS
     end
   end
 end
-
-GnuTLS.global_set_log_function Proc.new { |lvl,msg| puts "#{lvl} #{msg}" }
-GC.disable
-STDERR.sync = true
-STDOUT.sync = true
-
-GnuTLS.global_init
-GnuTLS.global_set_log_level 9
-
-tcp_socket = TCPSocket.new "localhost", 4443
-socket = GnuTLS::Socket.new tcp_socket, "abcd"
-p socket.read 10
