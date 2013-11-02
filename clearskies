@@ -17,6 +17,7 @@ end
 
 require 'daemon'
 require 'control_client'
+require 'conf'
 
 # Parse command-line arguments
 require 'optparse'
@@ -51,6 +52,8 @@ Daemon management:
   stop                    Cause background program to exit
   restart                 Restart background program
   status                  Show program status
+  logcat                  Cats the output of the log and exits
+  logtail                 Follows the log until user intervenes
 
 Share management:
   create [path]           Create new share
@@ -85,6 +88,14 @@ when "stop"
 when "restart"
   ControlClient.issue :stop
   Daemon.start
+
+when "logcat"
+  logfile = Conf.path('log')
+  exec "cat #{logfile}"
+
+when "logtail"
+  logfile = Conf.path('log')
+  exec "tail -f #{logfile}"
 
 when "pause"
   ControlClient.issue "pause"
