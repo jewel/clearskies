@@ -3,13 +3,13 @@
 # See protocol/control.md for protocol documentation.
 
 require 'json'
-require 'safe_thread'
+require 'simple_thread'
 require 'access_code'
 require 'pending_codes'
 
 module ControlServer
   def self.start
-    SafeThread.new 'control' do
+    SimpleThread.new 'control' do
       run
     end
   end
@@ -36,7 +36,7 @@ module ControlServer
     Log.info "Listening on #{server.path}"
     loop do
       client = gunlock { server.accept }
-      SafeThread.new 'control_connection' do
+      SimpleThread.new 'control_connection' do
         serve client
       end
     end

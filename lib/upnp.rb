@@ -3,7 +3,7 @@
 # This is a pure-ruby implementation of the bare-minimum portions of UPNP
 # necessary to open a port in the firewall.
 
-require 'safe_thread'
+require 'simple_thread'
 require 'socket'
 require 'net/http'
 require 'uri'
@@ -14,7 +14,7 @@ class UPnP
   DURATION = 600
 
   def self.start port
-    SafeThread.new 'upnp' do
+    SimpleThread.new 'upnp' do
       loop do
         begin
           open 'TCP', port, port

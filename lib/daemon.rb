@@ -1,4 +1,4 @@
-require 'safe_thread'
+require 'simple_thread'
 require 'log'
 require 'conf'
 

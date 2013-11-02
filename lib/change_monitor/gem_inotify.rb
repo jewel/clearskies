@@ -1,5 +1,5 @@
 require 'rb-inotify'
-require 'safe_thread'
+require 'simple_thread'
 
 module ChangeMonitor
 
@@ -13,7 +13,7 @@ module ChangeMonitor
 
       @watching = {}
 
-      SafeThread.new 'inotify' do
+      SimpleThread.new 'inotify' do
         gunlock {
           @notifier.run
         }

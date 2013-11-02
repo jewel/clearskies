@@ -1,13 +1,13 @@
 # This program uses a simplified locking model called "brain-dead threads".
 # Most code is ran while holding a global lock, and code that is known to be
-# safe to run in parallel releases the lock.
+# safe can release the lock.
 #
 # More specific locking can be added where it will yield a performance increase.
 #
 # Note that we aren't aggressive about unlocking every single local I/O request
-# in clearskies because it's a background daemon and we don't want it to consume
-# too many resources.  If an I/O device is taking a long time to respond then we
-# scale ourselves back appropriately.
+# in clearskies because it's a background daemon and we don't want it to
+# consume too many resources.  If an I/O device is taking a long time to
+# respond then we want to scale ourselves back appropriately.
 
 require 'thread'
 require 'log'
@@ -20,34 +20,33 @@ $global_lock_holder = nil
 $global_lock_count = 0
 
 module Kernel
-  def glock
+  def lock_global_lock
     $global_lock.lock
     $global_lock_holder = Thread.current
     $global_lock_count += 1
+  end
+
+  def unlock_global_lock
+    $global_lock_holder = nil
+    $global_lock_count += 1
+    $global_lock.unlock
+  end
+
+  def glock
+    lock_global_lock
     begin
       return yield
     ensure
-      $global_lock_holder = nil
-      $global_lock_count += 1
-      # If an exception was raised while inside a nested gunlock, then we won't
-      # be able to unlock
-      begin
-        $global_lock.unlock
-      rescue
-      end
+      unlock_global_lock
     end
   end
 
   def gunlock
-    $global_lock_holder = nil
-    $global_lock_count += 1
-    $global_lock.unlock
+    unlock_global_lock
     begin
       return yield
     ensure
-      $global_lock.lock
-      $global_lock_count += 1
-      $global_lock_holder = Thread.current
+      lock_global_lock
     end
   end
 
@@ -64,7 +63,7 @@ end
 
 Thread.current.title = 'main'
 
-class SafeThread < Thread
+class SimpleThread < Thread
   def initialize title=nil
     @title = title
     super do
@@ -87,7 +86,7 @@ end
 #
 # This won't detect blocking operations that take less than half a second
 main_thread = Thread.current
-SafeThread.new('block_detector') do
+SimpleThread.new('block_detector') do
   $global_lock_holder = nil
   $global_lock.unlock
   main_thread.run

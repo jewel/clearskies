@@ -1,13 +1,13 @@
 # Talk with the central tracker
 require 'net/http'
-require 'safe_thread'
+require 'simple_thread'
 require 'pending_codes'
 require 'id_mapper'
 
 module TrackerClient
   def self.start
     @last_run = {}
-    SafeThread.new 'tracker' do
+    SimpleThread.new 'tracker' do
       work
     end
   end
@@ -17,7 +17,7 @@ module TrackerClient
   end
 
   def self.force_run
-    SafeThread.new 'force_tracker' do
+    SimpleThread.new 'force_tracker' do
       poll_all_trackers
     end
   end

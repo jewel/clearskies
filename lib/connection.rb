@@ -3,7 +3,7 @@
 # The full protocol is documented in ../protocol/core.md
 
 require 'socket'
-require 'safe_thread'
+require 'simple_thread'
 require 'openssl'
 require 'conf'
 require 'message'
@@ -30,7 +30,7 @@ class Connection
 
   def start
     thread_name = "connection#{@connection_number > 1 ? @connection_number : nil}"
-    SafeThread.new thread_name do
+    SimpleThread.new thread_name do
       if @socket.is_a? Array
         Log.debug "Opening socket to #{@socket[0]} #{@socket[1]}"
         @socket = TCPSocket.new *@socket
@@ -80,7 +80,7 @@ class Connection
 
   def start_send_thread
     @send_queue = Queue.new
-    @sending_thread = SafeThread.new 'connection_send' do
+    @sending_thread = SimpleThread.new 'connection_send' do
       send_messages
     end
   end

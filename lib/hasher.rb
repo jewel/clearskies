@@ -3,7 +3,7 @@ module Hasher
 
   def self.start
     return if @worker
-    @worker = SafeThread.new 'hasher' do
+    @worker = SimpleThread.new 'hasher' do
       work
     end
     @hash_queue = Queue.new

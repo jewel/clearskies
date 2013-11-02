@@ -1,7 +1,7 @@
 # Manage connections with peers.  See "Connection" for more information.
 
 require 'socket'
-require 'safe_thread'
+require 'simple_thread'
 require 'broadcaster'
 require 'tracker_client'
 require 'connection'
@@ -14,7 +14,7 @@ module Network
 
     @server = TCPServer.new Conf.listen_port
 
-    SafeThread.new('network') do
+    SimpleThread.new('network') do
       listen
     end
 

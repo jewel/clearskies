@@ -1,7 +1,7 @@
 # Send and listen for LAN broadcasts, as defined in the core protocol
 
 require 'json'
-require 'safe_thread'
+require 'simple_thread'
 require 'socket'
 require 'id_mapper'
 
@@ -20,11 +20,11 @@ module Broadcaster
 
     Log.info "Broadcaster listening on #{@socket.inspect}"
 
-    SafeThread.new 'broadcast' do
+    SimpleThread.new 'broadcast' do
       listen
     end
 
-    SafeThread.new 'broadcast_send' do
+    SimpleThread.new 'broadcast_send' do
       run
     end
   end

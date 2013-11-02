@@ -1,7 +1,7 @@
 # Scans for files.  If operating system support for monitoring files is
 # available, use it to check for future changes, otherwise scan occasionally.
 
-require 'safe_thread'
+require 'simple_thread'
 require 'digest/sha2'
 require 'find'
 require 'securerandom'
@@ -20,7 +20,7 @@ module Scanner
     Hasher.start
     @scanning = false
 
-    @worker = SafeThread.new 'scanner' do
+    @worker = SimpleThread.new 'scanner' do
       work
     end
   end
