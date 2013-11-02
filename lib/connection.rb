@@ -4,7 +4,7 @@
 
 require 'socket'
 require 'simple_thread'
-require 'openssl'
+require 'gnutls'
 require 'conf'
 require 'message'
 require 'id_mapper'
@@ -389,13 +389,31 @@ class Connection
     else
       starttls = recv :starttls
       @peer_id = starttls[:peer]
-      @level = starttls[@level]
+      @level = starttls[:access].to_sym
     end
 
     @tcp_socket = @socket
 
-    # @socket = OpenSSL::SSL::SSLSocket.new @tcp_socket, ssl_context
-    # FIXME OpenSSL doesn't support the mode we need, skipping for now.
+    psk = (@code || @share).key @level
+
+    if ENV['USE_GNUTLS']
+      @socket = gunlock {
+        if @incoming
+          GnuTLS::Server.new @socket, psk
+        else
+          GnuTLS::Socket.new @socket, psk
+        end
+      }
+    else
+      @socket = @tcp_socket
+
+      if @incoming
+        send :fake_tls_handshake, key: Base64.encode64(psk)
+      else
+        fake = recv :fake_tls_handshake
+        raise "Invalid PSK: #{fake.inspect}" unless Base64.decode64(fake[:key])== psk
+      end
+    end
 
     key_exchange if @code
 
@@ -496,16 +514,5 @@ class Connection
     else
       @code.peer_id
     end
-  end
-
-  def ssl_context
-    context = OpenSSL::SSL::SSLContext.new :TLSv1
-    context.key = (@code || @share).key @level
-    context.ciphers = ['AES-128-CBC']
-    context.tmp_dh_callback = Proc.new do
-      share.tls_dh_key
-    end
-
-    context
   end
 end
