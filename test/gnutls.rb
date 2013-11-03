@@ -14,8 +14,11 @@ def run_test first_tls_class, second_tls_class
         socket = server.accept
         Thread.new do
           tls = first_tls_class.new socket, "abcd"
-          while data = tls.readpartial(1024)
-            tls.write data
+          begin
+            while data = tls.readpartial(1024)
+              tls.write data
+            end
+          rescue EOFError
           end
         end
       end

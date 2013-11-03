@@ -135,7 +135,12 @@ module GnuTLS
       @socket = socket
 
       @pull_function = Proc.new { |_, data, maxlen|
-        d = @socket.readpartial maxlen
+        d = nil
+        begin
+          d = @socket.readpartial maxlen
+        rescue EOFError
+          d = ""
+        end
         data.write_bytes d
 
         d.size
@@ -203,8 +208,7 @@ module GnuTLS
           # FIXME What does this mean?
           raise "Sent returned zero"
         elsif sent < 0
-          # FIXME Is this a GNUTLS error or just the error from push?
-          raise "Sent returned error"
+          raise GnuTLS::Error.new( "cannot send", sent )
         end
         total += sent
       end
@@ -231,16 +235,19 @@ module GnuTLS
           return slice
         end
 
-        @buffer << unbuffered_readpartial(100)
+        @buffer << unbuffered_readpartial(1024 * 16)
       end
     end
 
     def unbuffered_readpartial len
       str = String.new << ("\0" * len)
       res = GnuTLS.record_recv @session, str, len
-      if res < 0
-        # FIXME Is this a GNUTLS error or just the error from push?
-        raise "recv got error #{res}"
+      if res == -9
+        # A TLS packet with unexpected length was received.
+        # This almost certainly means that the connection was closed.
+        raise EOFError.new
+      elsif res < 0
+        raise Error.new("can't readpartial", res) unless res.zero?
       elsif res == 0
         raise "recv got zero"
       end
