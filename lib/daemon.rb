@@ -1,6 +1,8 @@
 require 'simple_thread'
 require 'log'
 require 'conf'
+require 'change_monitor'
+require 'hasher'
 
 module Daemon
   def self.daemonize

@@ -1,21 +1,17 @@
 # Scans for files.  If operating system support for monitoring files is
 # available, use it to check for future changes, otherwise scan occasionally.
 
-require 'simple_thread'
 require 'digest/sha2'
 require 'find'
 require 'securerandom'
 require 'pathname'
-require 'change_monitor'
 require 'set'
-require 'log'
-require 'hasher'
 
 module Scanner
   DELAY_MULTIPLIER = 10
   MIN_RESCAN = 60 # an absolute minimum
-  def self.start use_change_monitor=true
-    load_change_monitor if use_change_monitor
+  def self.start
+    load_change_monitor
 
     Hasher.start
     @scanning = false
