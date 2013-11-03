@@ -396,15 +396,8 @@ class Connection
 
     psk = (@code || @share).key @level
 
-    if ENV['USE_GNUTLS']
-      @socket = gunlock {
-        if @incoming
-          GnuTLS::Server.new @socket, psk
-        else
-          GnuTLS::Socket.new @socket, psk
-        end
-      }
-    else
+    if ENV['NO_ENCRYPTION']
+      # For testing, perhaps because GnuTLS isn't available
       @socket = @tcp_socket
 
       if @incoming
@@ -413,6 +406,14 @@ class Connection
         fake = recv :fake_tls_handshake
         raise "Invalid PSK: #{fake.inspect}" unless Base64.decode64(fake[:key])== psk
       end
+    else
+      @socket = gunlock {
+        if @incoming
+          GnuTLS::Server.new @socket, psk
+        else
+          GnuTLS::Socket.new @socket, psk
+        end
+      }
     end
 
     key_exchange if @code
