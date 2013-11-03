@@ -95,7 +95,8 @@ module GnuTLS
   end
 
   def self.enable_logging
-    GnuTLS.global_set_log_function Proc.new { |lvl,msg| puts "#{lvl} #{msg}" }
+    @logging_function = Proc.new { |lvl,msg| puts "#{lvl} #{msg}" }
+    GnuTLS.global_set_log_function @logging_function
     GnuTLS.global_set_log_level 9
   end
 
@@ -133,19 +134,23 @@ module GnuTLS
     def socket= socket
       @socket = socket
 
-      GnuTLS.transport_set_pull_function @session, Proc.new { |_, data, maxlen|
+      @pull_function = Proc.new { |_, data, maxlen|
         d = @socket.readpartial maxlen
         data.write_bytes d
 
         d.size
       }
 
-      GnuTLS.transport_set_push_function @session, Proc.new { |_, data, len|
+      @push_function = Proc.new { |_, data, len|
         str = data.read_bytes len
         @socket.write str
 
         str.size
       }
+
+      GnuTLS.transport_set_pull_function @session, @pull_function
+
+      GnuTLS.transport_set_push_function @session, @push_function
 
       handshake
     end
@@ -170,7 +175,7 @@ module GnuTLS
         res = GnuTLS.send setter, creds, "Bogus", psk, :PSK_KEY_RAW
         raise "Can't #{setter}" unless res == 0
       else
-        GnuTLS.psk_set_server_credentials_function creds, Proc.new { |_,username,key_pointer|
+        @server_creds_function = Proc.new { |_,username,key_pointer|
           # ignore username
 
           psk = Datum.new key_pointer
@@ -179,6 +184,8 @@ module GnuTLS
 
           0
         }
+
+        GnuTLS.psk_set_server_credentials_function creds, @server_creds_function
       end
 
       res = GnuTLS.credentials_set @session, :CRD_PSK, creds

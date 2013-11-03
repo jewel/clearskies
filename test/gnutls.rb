@@ -2,12 +2,7 @@ require 'minitest/autorun'
 require_relative '../lib/gnutls'
 
 require 'thread'
-
 Thread.abort_on_exception = true
-
-STDERR.sync = true
-STDOUT.sync = true
-GC.disable
 
 def run_test first_tls_class, second_tls_class
   before do
@@ -34,8 +29,11 @@ def run_test first_tls_class, second_tls_class
     tls.gets.must_equal "hehe\n"
     tls.puts "hoheho 1234"
     tls.gets.must_equal "hoheho 1234\n"
-    tls.write "!" * 1024
-    tls.read(1024).must_equal "!" * 1024
+    1000.times do |i|
+      str = "!" * 1024
+      tls.write str
+      tls.read(1024).must_equal str
+    end
   end
 
   it "won't connect with wrong password" do
