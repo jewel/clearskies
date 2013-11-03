@@ -21,7 +21,7 @@ def run_test first_tls_class, second_tls_class
           end
         rescue EOFError
         rescue
-          warn "Helper process raised exception: #$!"
+          # warn "Helper process raised exception: #$!"
         end
         exit
       end

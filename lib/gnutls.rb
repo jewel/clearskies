@@ -21,6 +21,11 @@ module GnuTLS
     attach_function name, :"gnutls_#{name}", *args
   end
 
+  # typedefs
+  typedef :pointer, :session
+  typedef :pointer, :creds
+  typedef :pointer, :creds
+
   # types
   enum :credentials_type, [:CRD_CERTIFICATE, 1,
                            :CRD_ANON,
@@ -42,7 +47,7 @@ module GnuTLS
   callback :log_function, [:int, :string], :void
   callback :push_function, [:pointer, :pointer, :size_t], :size_t
   callback :pull_function, [:pointer, :pointer, :size_t], :size_t
-  callback :psk_creds_function, [:pointer, :string, :pointer], :int
+  callback :psk_creds_function, [:session, :string, :pointer], :int
 
   def self.tls_function name, *args
     attach_function name, "gnutls_#{name}".to_sym, *args
@@ -55,20 +60,20 @@ module GnuTLS
 
   # functions
   attach_function :gnutls_init, [:pointer, :int], :int
-  tls_function :deinit, [:pointer], :void
+  tls_function :deinit, [:session], :void
   tls_function :error_is_fatal, [:int], :int
-  tls_function :priority_set_direct, [:pointer, :string, :pointer], :int
-  tls_function :credentials_set, [:pointer, :credentials_type, :pointer], :int
+  tls_function :priority_set_direct, [:session, :string, :pointer], :int
+  tls_function :credentials_set, [:session, :credentials_type, :creds], :int
   tls_function :psk_allocate_client_credentials, [:pointer], :int
   tls_function :psk_allocate_server_credentials, [:pointer], :int
-  tls_function :psk_set_client_credentials, [:pointer, :string, Datum, :psk_key_type ], :int
-  tls_function :psk_set_server_credentials_function, [:pointer, :psk_creds_function], :int
+  tls_function :psk_set_client_credentials, [:creds, :string, Datum, :psk_key_type ], :int
+  tls_function :psk_set_server_credentials_function, [:creds, :psk_creds_function], :int
 
-  tls_function :transport_set_push_function, [:pointer, :push_function], :void
-  tls_function :transport_set_pull_function, [:pointer, :pull_function], :void
-  tls_function :handshake, [:pointer], :int
-  tls_function :record_recv, [:pointer, :pointer, :size_t], :int
-  tls_function :record_send, [:pointer, :pointer, :size_t], :int
+  tls_function :transport_set_push_function, [:session, :push_function], :void
+  tls_function :transport_set_pull_function, [:session, :pull_function], :void
+  tls_function :handshake, [:session], :int
+  tls_function :record_recv, [:session, :pointer, :size_t], :int
+  tls_function :record_send, [:session, :pointer, :size_t], :int
   # tls_function :handshake_set_timeout, [:pointer, :int], :void
 
   tls_function :global_set_log_level, [:int], :void
@@ -139,7 +144,7 @@ module GnuTLS
         begin
           d = @socket.readpartial maxlen
         rescue EOFError
-          d = ""
+          d = ""  # signal EOF, we'll catch it again on the other side
         end
         data.write_bytes d
 
@@ -172,7 +177,7 @@ module GnuTLS
 
       if @direction == :client
         psk = Datum.new
-        psk[:data] = FFI::MemoryPointer.from_string(val)
+        @psk_data = psk[:data] = str_to_buffer val
         psk[:size] = val.size
 
         setter = "psk_set_#{@direction}_credentials"
@@ -184,7 +189,7 @@ module GnuTLS
           # ignore username
 
           psk = Datum.new key_pointer
-          psk[:data] = FFI::MemoryPointer.from_string(val)
+          @psk_data = psk[:data] = str_to_buffer val
           psk[:size] = val.size
 
           0
@@ -201,7 +206,9 @@ module GnuTLS
 
     def write str
       total = 0
-      pointer = FFI::MemoryPointer.from_string str
+
+      pointer = str_to_buffer str
+
       while total < str.size
         sent = GnuTLS.record_send @session, pointer + total, str.size - total
         if sent == 0
@@ -212,6 +219,7 @@ module GnuTLS
         end
         total += sent
       end
+      nil
     end
 
     def puts str
@@ -243,7 +251,7 @@ module GnuTLS
       str = String.new << ("\0" * len)
       res = GnuTLS.record_recv @session, str, len
       if res == -9
-        # A TLS packet with unexpected length was received.
+        # This error is "A TLS packet with unexpected length was received."
         # This almost certainly means that the connection was closed.
         raise EOFError.new
       elsif res < 0
@@ -270,6 +278,15 @@ module GnuTLS
     def deinit
       # FIXME How do we ensure this is called?
       GnuTLS.deinit(@session)
+    end
+
+    private
+    def str_to_buffer str
+      # Note that this will get garbage collected, so keep a permanent reference
+      # around if that is undesirable
+      pointer = FFI::MemoryPointer.new(:char, str.size)
+      pointer.write_bytes str
+      pointer
     end
   end
 
