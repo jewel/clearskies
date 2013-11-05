@@ -61,14 +61,12 @@ def run_test first_tls_class, second_tls_class
   end
 end
 
-if ENV['TEST_GNUTLS']
-  describe GnuTLS::Session do
-     describe "acts as a server" do
-       run_test GnuTLS::Socket, GnuTLS::Server
-     end
+describe GnuTLS::Session do
+   describe "acts as a server" do
+     run_test GnuTLS::Socket, GnuTLS::Server
+   end
 
-     describe "acts as a client" do
-       run_test GnuTLS::Server, GnuTLS::Socket
-     end
-  end
+   describe "acts as a client" do
+     run_test GnuTLS::Server, GnuTLS::Socket
+   end
 end
