@@ -9,20 +9,18 @@ ClearSkies is inspired by BitTorrent Sync, but it has an open protocol that can
 be audited for security.
 
 This repository contains the protocol documentation as well as an in-the-works
-reference implementation.  The reference implementation is open source and free
-software.
-
-Status
-------
-
-The draft protocol is written and ready to be implemented.  The reference
-implementation is not yet functional.
-
-I am writing about my progress at [my blog](http://stevenjewel.com).
+proof-of-concept implementation.  The proof-of-concept implementation is open
+source and free software, under the GPLv3 (see the LICENSE file for details.)
 
 
-Core Protocol Features
-----------------------
+The Protocol
+------------
+
+The ClearSkies protocol has been documented and is in a draft state.  It can be
+found in the `protocol/` directory.  `protocol/core.md` is a good starting
+place.
+
+The protocol features:
 
 * Simple-to-share access codes
 * Read-write sync
@@ -32,17 +30,20 @@ Core Protocol Features
 * Shallow copy (do not sync certain files from peer)
 * Subtree copy (only sync certain directories from peer)
 * Streaming support
+* Rsync file transfer (extension)
+* Gzip compression (extension)
+* Media streaming (future extension)
+* Photo thumbnails (future extension)
 
 
-Defined Protocol Extensions
----------------------------
+The Proof-of-Concept
+--------------------
 
-* Rsync file transfer
-* Gzip compression
+The proof-of-concept
 
 
-Future Extensions
------------------
 
-* Media streaming (audio and video)
-* Photo thumbnails
+More information
+----------------
+
+* [jewel's blog](http://stevenjewel.com).

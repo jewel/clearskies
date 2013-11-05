@@ -33,7 +33,9 @@ class Connection
     SimpleThread.new thread_name do
       if @socket.is_a? Array
         Log.debug "Opening socket to #{@socket[0]} #{@socket[1]}"
-        @socket = TCPSocket.new *@socket
+        gunlock {
+          @socket = TCPSocket.new *@socket
+        }
       end
 
       Log.debug "Shaking hands"
