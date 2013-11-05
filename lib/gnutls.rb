@@ -100,9 +100,10 @@ module GnuTLS
     GnuTLS.global_init unless @global_initted
     @global_initted = true
 
-    ptr = FFI::MemoryPointer.new :pointer
-    gnutls_init(ptr, type)
-    ptr.read_pointer
+    FFI::MemoryPointer.new :pointer do |ptr|
+      gnutls_init(ptr, type)
+      return ptr.read_pointer
+    end
   end
 
   def self.enable_logging
@@ -178,14 +179,16 @@ module GnuTLS
     end
 
     def psk= val
-      creds = FFI::MemoryPointer.new :pointer
+      creds = nil
 
-      allocator = "psk_allocate_#{@direction}_credentials"
+      FFI::MemoryPointer.new :pointer do |creds_out|
+        allocator = "psk_allocate_#{@direction}_credentials"
 
-      res = GnuTLS.send allocator, creds
-      raise "Cannot allocate credentials" unless res == 0
+        res = GnuTLS.send allocator, creds_out
+        raise "Cannot allocate credentials" unless res == 0
 
-      creds = creds.read_pointer
+        creds = creds_out.read_pointer
+      end
 
       if @direction == :client
         psk = Datum.new
@@ -231,6 +234,8 @@ module GnuTLS
         end
         total += sent
       end
+
+      pointer.free
       nil
     end
 
@@ -273,6 +278,8 @@ module GnuTLS
       end
 
       buffer.read_bytes res
+    ensure
+      buffer.free
     end
     private :unbuffered_readpartial
 
