@@ -4,6 +4,12 @@ require 'socket'
 # See https://defuse.ca/gnutls-psk-client-server-example.htm
 
 module GnuTLS
+  module LibC
+    extend FFI::Library
+    ffi_lib FFI::Library::LIBC
+    attach_function :malloc, [:size_t], :pointer
+  end
+
   extend FFI::Library
 
   loaded = false
@@ -16,10 +22,6 @@ module GnuTLS
     end
   end
   raise "Cannot load GNUTLS" unless loaded
-
-  def self.tls_function(name, *args)
-    attach_function name, :"gnutls_#{name}", *args
-  end
 
   # typedefs
   typedef :pointer, :session
@@ -50,7 +52,7 @@ module GnuTLS
   callback :psk_creds_function, [:session, :string, :pointer], :int
 
   def self.tls_function name, *args
-    attach_function name, "gnutls_#{name}".to_sym, *args
+    attach_function name, :"gnutls_#{name}", *args
   end
 
   # global functions
@@ -60,6 +62,7 @@ module GnuTLS
 
   # functions
   attach_function :gnutls_init, [:pointer, :int], :int
+
   tls_function :deinit, [:session], :void
   tls_function :error_is_fatal, [:int], :int
   tls_function :priority_set_direct, [:session, :string, :pointer], :int
@@ -204,7 +207,8 @@ module GnuTLS
           # ignore username
 
           psk = Datum.new key_pointer
-          @psk_data = psk[:data] = str_to_buffer val
+          psk[:data] = LibC.malloc val.size
+          psk[:data].write_bytes val, 0, val.size
           psk[:size] = val.size
 
           0
@@ -305,7 +309,7 @@ module GnuTLS
       # Note that this will get garbage collected, so keep a permanent reference
       # around if that is undesirable
       pointer = FFI::MemoryPointer.new(:char, str.size)
-      pointer.write_bytes str, 0, str.size
+      pointer.write_bytes str
       pointer
     end
   end

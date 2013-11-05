@@ -46,9 +46,9 @@ def run_test first_tls_class, second_tls_class
     tls.puts "hoheho 1234"
     tls.gets.must_equal "hoheho 1234\n"
     1000.times do |i|
-      str = "!" * 1
+      str = "!" * 1024
       tls.write str
-      tls.read(1).must_equal str
+      tls.read(1024).must_equal str
     end
     stress_memory
   end
