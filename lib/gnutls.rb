@@ -71,6 +71,12 @@ module GnuTLS
 
   tls_function :transport_set_push_function, [:session, :push_function], :void
   tls_function :transport_set_pull_function, [:session, :pull_function], :void
+
+  begin
+    tls_function :transport_set_int, [:session, :int], :void
+  rescue FFI::NotFoundError
+  end
+
   tls_function :handshake, [:session], :int
   tls_function :record_recv, [:session, :pointer, :size_t], :int
   tls_function :record_send, [:session, :pointer, :size_t], :int
@@ -139,6 +145,12 @@ module GnuTLS
     def socket= socket
       @socket = socket
 
+      if GnuTLS.respond_to? :transport_set_int
+        GnuTLS.transport_set_int(@socket.to_i)
+        handshake
+        return
+      end
+
       @pull_function = Proc.new { |_, data, maxlen|
         d = nil
         begin
@@ -146,7 +158,7 @@ module GnuTLS
         rescue EOFError
           d = ""  # signal EOF, we'll catch it again on the other side
         end
-        data.write_bytes d
+        data.write_bytes d, 0, d.size
 
         d.size
       }
@@ -223,8 +235,7 @@ module GnuTLS
     end
 
     def puts str
-      write str
-      write "\n"
+      write str + "\n"
     end
 
     def read len
@@ -248,8 +259,9 @@ module GnuTLS
     end
 
     def unbuffered_readpartial len
-      str = String.new << ("\0" * len)
-      res = GnuTLS.record_recv @session, str, len
+      buffer = FFI::MemoryPointer.new :char, len
+
+      res = GnuTLS.record_recv @session, buffer, len
       if res == -9
         # This error is "A TLS packet with unexpected length was received."
         # This almost certainly means that the connection was closed.
@@ -260,8 +272,9 @@ module GnuTLS
         raise "recv got zero"
       end
 
-      str[0...res]
+      buffer.read_bytes res
     end
+    private :unbuffered_readpartial
 
     def readpartial len
       # To keep things simple, always drain the buffer first
@@ -285,7 +298,7 @@ module GnuTLS
       # Note that this will get garbage collected, so keep a permanent reference
       # around if that is undesirable
       pointer = FFI::MemoryPointer.new(:char, str.size)
-      pointer.write_bytes str
+      pointer.write_bytes str, 0, str.size
       pointer
     end
   end
