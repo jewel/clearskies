@@ -36,14 +36,74 @@ The protocol features:
 * Photo thumbnails (future extension)
 
 
-The Proof-of-Concept
---------------------
+The Software
+------------
 
-The proof-of-concept
+The software contained in this repository is a proof-of-concept of the
+protocol, written in ruby.  It (currently) consists of a background daemon and
+a command-line interface to control that daemon.
 
 
+Status
+------
 
-More information
+The software is currently barely functional, in read-write mode only.  It is
+not yet ready for production use.  IT MAY EAT YOUR DATA.  Only use it on test
+data or on data that you have backed up someplace safe.
+
+
+Installation
+------------
+
+It is currently only tested on Linux.  (It may also work on OS X and Windows.)
+
+If you already have a working ruby 1.9 or 2.0:
+
+```bash
+gem install rb-inotify ffi
+```
+
+Otherwise, installing dependencies on Ubuntu:
+
+```bash
+apt-get install libgnutls26 ruby1.9.1 libffi-ruby1.9.1 librb-inotify-ruby1.9.1
+```
+
+Clone this repo:
+
+```bash
+git clone https://github.com/jewel/clearskies
+```
+
+
+To start and share a directory:
+
+```bash
+cd clearskies
+./clearskies start # or debug to run in foreground
+./clearskies share ~/important-stuff read-write
+```
+
+
+This will print out a "SYNC" code.  Copy the code to the other computer, and
+then add the share to begin syncing:
+
+```bash
+./clearskies attach $CODE ~/important-stuff
+```
+
+
+Contributing
+------------
+
+If you are a professional cryptographer with interest in this project, any
+feedback on the protocol is welcome.
+
+Other help is also welcome.  You can email jewel at clearskies@stevenjewel.com
+for discussion that doesn't seem to fit well in the context of a github issue.
+
+
+More Information
 ----------------
 
-* [jewel's blog](http://stevenjewel.com).
+* [jewel's blog](http://stevenjewel.com)

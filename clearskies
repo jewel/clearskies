@@ -60,8 +60,9 @@ Share management:
   list                    List all shares and sync status
   share [path] [mode]     Make access code to be given to someone else
                           mode is one of (rw, ro, untrusted)
-  attach [code] [path]   Add access code from someone else, creating new share at [path]
-  detach [path]       Stop syncing path
+  attach [code] [path]    Add access code from someone else, creating new share
+                          at [path]
+  detach [path]           Stop syncing path
 "
     exit
   end
