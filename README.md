@@ -39,9 +39,9 @@ The protocol features:
 The Software
 ------------
 
-The software contained in this repository is a proof-of-concept of the
-protocol, written in ruby.  It (currently) consists of a background daemon and
-a command-line interface to control that daemon.
+The software in this repository is a proof-of-concept of the protocol, written
+in ruby.  It (currently) consists of a background daemon and a command-line
+interface to control that daemon.
 
 
 Status
