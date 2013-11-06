@@ -1231,7 +1231,12 @@ Spreading Access Codes
 Long-lived access codes are shared with other peers so that the originating
 peer does not need to stay online.
 
-Access codes should only be given to peers with the same security level.
+Access codes should only be given to peers with the same or higher security
+level as the level the code grants.  For example, a read-only code created on a
+read-write peer should spread to all read-write peers, and all read-only peers.
+A read-only code created on a read-only peer should also spread to all
+read-only and read-write peers.  A read-write code can only be created on a
+read-write peer and spread to other read-write peers.
 
 Since access codes are short and created rarely, all known access codes are
 sent when the connection is first opened.
