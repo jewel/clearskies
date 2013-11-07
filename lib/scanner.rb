@@ -99,6 +99,7 @@ module Scanner
         Log.debug "#{relpath} was deleted"
         share[relpath].deleted = true
         share.save relpath
+        return
       end
 
       # Don't need to do anything if it was never seen.
