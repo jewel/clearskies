@@ -32,7 +32,7 @@ module Scanner
   def self.work
     # TODO Lower own priority
 
-    Log.debug "Performing first scan of all shares..."
+    Log.debug "Performing first scan of all shares"
     last_scan_start = Time.now
 
     Shares.each do |share|
@@ -40,25 +40,25 @@ module Scanner
     end
 
     last_scan_time = Time.now - last_scan_start
-    Log.debug "Finished first scan of all shares..."
+    Log.debug "Finished first scan of all shares"
 
     rescan_min = MIN_RESCAN
     rescan_min = 60*60 if @change_monitor # only once an hour
 
     loop do
       next_scan_time = Time.now + [last_scan_time * DELAY_MULTIPLIER, rescan_min].max
-      Log.debug "Next scan of shares in #{next_scan_time - Time.now} seconds..."
+      Log.debug "Next scan of shares in #{(next_scan_time - Time.now).round} seconds"
       while Time.now < next_scan_time
         gsleep [next_scan_time - Time.now,0].max
       end
 
-      Log.debug "Performing recurring scan of all shares..."
+      Log.debug "Performing recurring scan of all shares"
       last_scan_start = Time.now
       Shares.each do |share|
         register_and_scan share
       end
       last_scan_time = Time.now - last_scan_start
-      Log.debug "Finished recurring scan of all shares..."
+      Log.debug "Finished recurring scan of all shares"
     end
   end
 
