@@ -118,7 +118,7 @@ class Connection
       end
       send_manifest
       @share.subscribe do |file|
-        Log.debug "Connection learned about a change to #{file.path}"
+        Log.debug "Learned about a change to #{file.path}"
         send_update file
       end
     when :manifest_current
@@ -276,6 +276,8 @@ class Connection
       File.unlink path if File.exists? path
       return
     end
+
+    return if msg[:sha256] != metadata[:sha256]
 
     time_match = msg[:mtime] == metadata[:mtime]
 

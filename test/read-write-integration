@@ -57,14 +57,14 @@ verify_synced third
 verify_synced fourth
 
 # ----- Detect metadata change -----
-log "Changing mode of first on client"
-chmod 600 /tmp/2/stuff/first
+log "Changing mode of second on client"
+chmod 600 /tmp/2/stuff/second
 
 # Force delay by creating another file
 log "Creating foo on client"
 touch /tmp/2/stuff/foo
 verify_synced foo
-verify_synced first
+verify_synced second
 
 # ----- Delete a file -----
 
