@@ -95,9 +95,10 @@ module Scanner
       stat = File.stat path
     rescue Errno::ENOENT
       # File was deleted!
-      if share[relpath]
+      if file = share[relpath]
         Log.debug "#{relpath} was deleted"
-        share[relpath].deleted = true
+        file.deleted = true
+        file.utime = Time.new.to_f
         share.save relpath
         return
       end
