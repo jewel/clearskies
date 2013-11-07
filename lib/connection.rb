@@ -483,7 +483,18 @@ class Connection
       recv :keys_acknowledgment
     else
       msg = recv :keys
-      @share = share = Share.new msg[:share_id]
+      if share = Shares.by_id(msg[:share_id])
+        if share.path != @code.path
+          Log.warn "#{share.path} and #{@code.path} have the same share_id"
+          share = nil
+        else
+          Log.warn "Doing key_exchange again for an existing share #{share.path}"
+        end
+      end
+
+      share ||= Share.new msg[:share_id]
+      @share = share
+
       share.path = @code.path
       share.peer_id = @code.peer_id
 

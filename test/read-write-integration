@@ -41,6 +41,12 @@ verify_synced read-only
 log "Changing first on server"
 echo "This is still the first file" > /tmp/1/stuff/first
 
+# Force delay by creating another file
+log "Creating bar on server"
+touch /tmp/1/stuff/bar
+verify_synced bar
+verify_synced first
+
 # ----- Create files on client -----
 
 log "Creating third and fourth on client"
@@ -53,9 +59,11 @@ verify_synced fourth
 # ----- Detect metadata change -----
 log "Changing mode of first on client"
 chmod 600 /tmp/2/stuff/first
-log "Creating first-helper on client"
-touch /tmp/2/stuff/first-helper
-verify_synced first-helper
+
+# Force delay by creating another file
+log "Creating foo on client"
+touch /tmp/2/stuff/foo
+verify_synced foo
 verify_synced first
 
 # ----- Delete a file -----
@@ -85,7 +93,6 @@ verify_synced subdir/six
 
 log "Checking all files again"
 verify_synced first
-verify_synced first-helper
 verify_synced second
 verify_synced read-only
 verify_synced third
