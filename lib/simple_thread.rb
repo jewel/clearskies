@@ -87,8 +87,7 @@ end
 # This won't detect blocking operations that take less than half a second
 main_thread = Thread.current
 SimpleThread.new('block_detector') do
-  $global_lock_holder = nil
-  $global_lock.unlock
+  unlock_global_lock
   main_thread.run
 
   TIMES = 10
@@ -120,5 +119,4 @@ end
 
 # Wait for diagnostic job to start running
 Thread.stop
-$global_lock.lock
-$global_lock_holder = Thread.current
+lock_global_lock
