@@ -66,7 +66,7 @@ gem install rb-inotify ffi
 Otherwise, installing dependencies on Ubuntu:
 
 ```bash
-apt-get install libgnutls26 ruby1.9.1 libffi-ruby1.9.1 librb-inotify-ruby1.9.1
+apt-get install libgnutls26 ruby1.9.1 librb-inotify-ruby1.9.1
 ```
 
 Clone this repo:
