@@ -62,7 +62,8 @@ class AccessCode
   # Get the key material for the access code.  This asks for the desired
   # access_level so that it behaves in a similar way to the Share class, but
   # the access_level of an AccessCode is always "unknown".
-  def key access_level
+  def key type, access_level
+    raise "Invalid type" unless type == :psk
     raise "Invalid access level" unless access_level == :unknown
     @payload
   end

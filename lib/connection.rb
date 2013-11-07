@@ -398,7 +398,7 @@ class Connection
 
     @tcp_socket = @socket
 
-    psk = (@code || @share).key @level
+    psk = (@code || @share).key :psk, @level
 
     if ENV['NO_ENCRYPTION']
       # For testing, perhaps because GnuTLS isn't available
