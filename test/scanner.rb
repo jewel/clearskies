@@ -10,6 +10,11 @@ require 'scanner'
 require 'log'
 
 module Scanner
+  #module Log
+  #  def self.info msg; puts "INFO: #{msg}"; end
+  #  def self.debug msg; puts "DEBUG: #{msg}"; end
+  #end
+
   class Share
     include Enumerable
     def initialize path
@@ -177,6 +182,19 @@ describe Scanner, "scans shares" do
 
       @share.verify files
     end
+
+    it "should update detected changes for files in share" do
+      files = create_files @tmpdir
+      Scanner.load_change_monitor
+      Scanner.register_and_scan @share
+      old_utimes = files.map { |f| @share[@share.partial_path f].utime }
+      sleep 0.01 # make sure some time goes by
+      files.each do |f|
+        `echo "blah blah" >> #{f}`
+        Scanner::ChangeMonitor.change_file f
+      end
+      old_utimes.wont_equal files.map { |f| @share[@share.partial_path f].utime }
+    end
   end
 
   describe "performs operations on existing files" do
@@ -198,10 +216,12 @@ describe Scanner, "scans shares" do
       files = create_files @tmpdir
       Scanner.register_and_scan @share
       deleted_file = files.pop
+      old_utime = @share[@share.partial_path deleted_file].utime
       File.delete deleted_file
       Scanner::ChangeMonitor.change_file deleted_file
 
       @share.verify_deleted [deleted_file]
+      old_utime.wont_equal @share[@share.partial_path deleted_file].utime
     end
   end
 end
