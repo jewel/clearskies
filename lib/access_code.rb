@@ -2,8 +2,8 @@
 #
 # See protocol/core.md for an explanation of access codes.
 
-require 'base32'
-require 'luhn_check'
+require_relative 'base32'
+require_relative 'luhn_check'
 require 'digest/sha2'
 require 'securerandom'
 
@@ -56,7 +56,7 @@ class AccessCode
   # Get base32 representation of the access code, for sharing with other
   # people.
   def to_s
-    LuhnCheck.generate(Base32.encode("\x96\x1A\x2B" + @payload))
+    LuhnCheck.generate(Base32.encode(["961a2b"].pack('H*') + @payload))
   end
 
   # Get the key material for the access code.  This asks for the desired

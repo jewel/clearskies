@@ -1,8 +1,6 @@
 require 'minitest/autorun'
 
-$: << 'lib'
-
-require 'access_code'
+require_relative '../lib/access_code'
 
 describe AccessCode, "generating" do
   it "should start with SYNC" do
