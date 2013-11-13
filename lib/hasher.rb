@@ -45,24 +45,30 @@ module Hasher
     loop do
       share, file = gunlock { @hash_queue.shift }
       next if file.sha256
-      digest = Digest::SHA256.new
       Log.info "Hashing #{file.path}"
 
-      File.open share.full_path(file.path), 'rb' do |f|
-        loop do
-          gunlock {
-            data = f.read(1024 * 512)
-            break if data.nil?
-            digest << data
-          }
+      hash = hash_file share.full_path(file.path)
 
-          Thread.stop if @paused
-        end
-      end
-
-      Log.debug "Hashed #{file.path} to #{digest.hexdigest[0..8]}..."
-      file.sha256 = digest.hexdigest
+      Log.debug "Hashed #{file.path} to #{hash[0..8]}..."
+      file.sha256 = hash
       share.save file.path
+    end
+  end
+
+  def self.hash_file path
+    digest = Digest::SHA256.new
+    File.open path, 'rb' do |f|
+      loop do
+        gunlock {
+          data = f.read(1024 * 512)
+          if data.nil? # EOF
+            return digest.hexdigest
+          end
+          digest << data
+        }
+
+        Thread.stop if @paused
+      end
     end
   end
 end
