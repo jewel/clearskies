@@ -1,13 +1,13 @@
-# Represents a connection with another peer
+# Represents a connection with another peer.
 #
-# The full protocol is documented in ../protocol/core.md
+# The full protocol is documented in protocol/core.md
 
 require 'socket'
-require 'simple_thread'
-require 'gnutls'
-require 'conf'
-require 'message'
-require 'id_mapper'
+require_relative 'simple_thread'
+require_relative 'gnutls'
+require_relative 'conf'
+require_relative 'message'
+require_relative 'id_mapper'
 
 class Connection
   attr_reader :peer, :access, :software, :friendly_name

@@ -1,9 +1,9 @@
 # Keep track of incoming access codes (codes generated on
-# other nodes for shares we do not yet have)
+# other nodes for shares we do not yet have).
 
-require 'permahash'
 require 'fileutils'
-require 'pending_code'
+require_relative 'permahash'
+require_relative 'pending_code'
 
 class PendingCodes
   path = Conf.data_dir "pending_codes.db"

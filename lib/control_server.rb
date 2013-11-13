@@ -3,9 +3,9 @@
 # See protocol/control.md for protocol documentation.
 
 require 'json'
-require 'simple_thread'
-require 'access_code'
-require 'pending_codes'
+require_relative 'simple_thread'
+require_relative 'access_code'
+require_relative 'pending_codes'
 
 module ControlServer
   def self.start

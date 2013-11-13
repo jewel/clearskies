@@ -1,12 +1,12 @@
 # Manage connections with peers.  See "Connection" for more information.
 
 require 'socket'
-require 'simple_thread'
-require 'broadcaster'
-require 'tracker_client'
-require 'connection'
-require 'id_mapper'
-require 'upnp'
+require_relative 'simple_thread'
+require_relative 'broadcaster'
+require_relative 'tracker_client'
+require_relative 'connection'
+require_relative 'id_mapper'
+require_relative 'upnp'
 
 module Network
   def self.start

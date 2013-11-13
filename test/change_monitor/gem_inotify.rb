@@ -14,7 +14,7 @@ class TestGemInotify < MiniTest::Unit::TestCase
     rescue LoadError
       skip "rb-inotify not present"
     end
-    require 'change_monitor/gem_inotify'
+    require_relative '../../lib/change_monitor/gem_inotify'
     @cm = ChangeMonitor::GemInotify.new
 
     @detected_changes = []

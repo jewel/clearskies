@@ -1,9 +1,9 @@
-# Send and listen for LAN broadcasts, as defined in the core protocol
+# Send and listen for LAN broadcasts, as defined in protocol/core.md
 
 require 'json'
-require 'simple_thread'
 require 'socket'
-require 'id_mapper'
+require_relative 'simple_thread'
+require_relative 'id_mapper'
 
 module Broadcaster
   BROADCAST_PORT = 60106

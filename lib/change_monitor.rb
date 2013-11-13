@@ -1,6 +1,6 @@
+# Module containing different file change monitors
 
 module ChangeMonitor
-
   # Search for the best available method of monitoring changes
   def self.find
     begin
@@ -9,7 +9,7 @@ module ChangeMonitor
       return nil
     end
 
-    require 'change_monitor/gem_inotify'
+    require_relative 'change_monitor/gem_inotify'
     return ChangeMonitor::GemInotify.new
   end
 end

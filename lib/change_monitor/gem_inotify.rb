@@ -1,5 +1,5 @@
 require 'rb-inotify'
-require 'simple_thread'
+require_relative '../simple_thread'
 
 module ChangeMonitor
 

@@ -1,3 +1,6 @@
+# FFI interface for GNUTLS.  At the time of writing, OpenSSL does not implement
+# the DHE-PSK TLS modes, which are necessary for clearskies.
+
 require 'ffi'
 require 'socket'
 

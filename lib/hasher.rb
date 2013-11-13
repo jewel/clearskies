@@ -1,9 +1,14 @@
+# Worker to hash files on the local filesystem.  Clearskies only hashes one
+# file at a time, to reduce system utilization as low as possible.
+#
+# Files are fed to Hasher from Scanner.  Scanner will pause Hasher when it's
+# doing a directory-tree scan, as to not create too much I/O load.
 
 module Hasher
-
   def self.start
     return if @worker
     @worker = SimpleThread.new 'hasher' do
+      # FIXME Reduce thread priority even further than the rest of the daemon
       work
     end
     @hash_queue = Queue.new

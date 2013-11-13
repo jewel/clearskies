@@ -1,4 +1,4 @@
-# In-memory hash structure, persisted to disk via log file
+# In-memory hash structure, persisted to disk via log file.
 
 require_relative 'log'
 

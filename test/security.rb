@@ -1,10 +1,9 @@
 require 'minitest/autorun'
 
-$: << 'lib'
-
-require 'share'
 require 'tmpdir'
 require 'fileutils'
+
+require_relative '../lib/share'
 
 ENV['CLEARSKIES_DIR'] = conf = Dir.mktmpdir
 

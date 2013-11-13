@@ -1,7 +1,6 @@
-# A list of the active shares
-#
-require 'permahash'
-require 'conf'
+# A list of the active shares.
+require_relative 'permahash'
+require_relative 'conf'
 
 module Shares
   # A database to keep track of all the valid shares.

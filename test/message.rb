@@ -1,8 +1,9 @@
 require 'minitest/autorun'
 
 require 'tempfile'
-require 'message'
 require 'openssl'
+
+require_relative '../lib/message'
 
 def new_path
   path = Tempfile.new('clearskies').path

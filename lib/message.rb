@@ -1,7 +1,7 @@
-# A clearskies message, as is defined in the core protocol
+# A clearskies message, as is defined in protocol/core.md
 #
 # This class serializes and unserializes messages, and can sign and verify
-# signatures.
+# messages.
 #
 # Instead of serializing to a string, it serializes to a stream and reads from
 # a stream.  This is because a single message can contain the entire contents

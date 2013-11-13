@@ -6,8 +6,7 @@ require 'fileutils'
 
 ENV['CLEARSKIES_DIR'] = Dir.mktmpdir
 
-require 'scanner'
-require 'log'
+require_relative '../lib/scanner'
 
 module Scanner
   class Share

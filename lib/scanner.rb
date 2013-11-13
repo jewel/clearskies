@@ -2,10 +2,13 @@
 # available, use it to check for future changes, otherwise scan occasionally.
 
 require 'digest/sha2'
+require 'set'
 require 'find'
 require 'securerandom'
 require 'pathname'
-require 'set'
+require_relative 'change_monitor'
+require_relative 'hasher'
+require_relative 'log'
 
 module Scanner
   DELAY_MULTIPLIER = 10

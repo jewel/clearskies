@@ -1,4 +1,4 @@
-# Write to log file and to screen, as appropriate
+# Write to log file and to screen.
 
 module Log
   LEVELS = [:debug, :info, :warn, :error, :none]
@@ -44,6 +44,7 @@ module Log
     end
 
     if intval(level) >= intval(@screen_level)
+      # ANSI color code when possible
       if STDERR.tty?
         case level
         when :error

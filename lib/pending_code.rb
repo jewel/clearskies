@@ -1,5 +1,5 @@
 # A pending code is a representation of an access code for a share we didn't
-# create
+# create.
 
 require 'access_code'
 

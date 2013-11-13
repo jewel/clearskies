@@ -10,7 +10,7 @@
 # respond then we want to scale ourselves back appropriately.
 
 require 'thread'
-require 'log'
+require_relative 'log'
 
 # A thread should never abort since we're handling it in safe thread
 Thread.abort_on_exception = true

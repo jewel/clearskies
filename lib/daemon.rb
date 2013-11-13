@@ -1,8 +1,8 @@
-require 'simple_thread'
-require 'log'
-require 'conf'
-require 'change_monitor'
-require 'hasher'
+# Daemon-control code.  This starts and stops the daemon.
+
+require_relative 'simple_thread'
+require_relative 'log'
+require_relative 'conf'
 
 module Daemon
   def self.daemonize

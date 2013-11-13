@@ -1,8 +1,9 @@
-# Talk with the central tracker
+# Talk with a central tracker.
+
 require 'net/http'
-require 'simple_thread'
-require 'pending_codes'
-require 'id_mapper'
+require_relative 'simple_thread'
+require_relative 'pending_codes'
+require_relative 'id_mapper'
 
 module TrackerClient
   def self.start

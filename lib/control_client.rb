@@ -4,7 +4,7 @@
 
 require 'socket'
 require 'json'
-require 'conf'
+require_relative 'conf'
 
 module ControlClient
 

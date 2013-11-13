@@ -1,5 +1,5 @@
 require 'minitest/autorun'
-require './lib/base32'
+require_relative '../lib/base32'
 
 describe Base32, 'binary to text' do
   it 'encodes' do

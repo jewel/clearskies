@@ -1,16 +1,17 @@
-# Represents a single share, and all its files
+# Represents a single share, and all its files.
 #
 # Data about all the files in the share are stored in a single
 # permahash.
-require 'share/file'
-require 'permahash'
+
 require 'securerandom'
-require 'conf'
 require 'openssl'
-require 'digest'
-require 'peer'
-require 'access_code'
+require 'digest/sha2'
 require 'pathname'
+require_relative 'share/file'
+require_relative 'permahash'
+require_relative 'conf'
+require_relative 'peer'
+require_relative 'access_code'
 
 class Share
   include Enumerable

@@ -1,14 +1,14 @@
-# Use UPNP to open a port on the firewall
+# Use UPNP to open a port on the firewall.
 #
 # This is a pure-ruby implementation of the bare-minimum portions of UPNP
 # necessary to open a port in the firewall.
 
-require 'simple_thread'
 require 'socket'
 require 'net/http'
 require 'uri'
 require 'rexml/document'
 require 'rexml/xpath'
+require_relative 'simple_thread'
 
 class UPnP
   DURATION = 600

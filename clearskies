@@ -6,18 +6,8 @@
 # This is the command-line user-interface to the clearskies daemon.  It
 # launches the daemon and can issue commands to it.
 
-# Find libraries
-dir = File.dirname( $0 ) + "/lib"
-dir = File.realpath dir # make it absolute
-if File.exists?( "#{dir}/permahash.rb" )
-  $: << dir
-else
-  abort "Cannot find lib directory"
-end
-
-require 'daemon'
-require 'control_client'
-require 'conf'
+require_relative 'lib/control_client'
+require_relative 'lib/conf'
 
 # Parse command-line arguments
 require 'optparse'
@@ -76,11 +66,13 @@ end
 
 case command
 when "start"
+  require_relative 'lib/daemon'
   Daemon.daemonize
 
 when "debug"
   # FIXME this is temporary until better argument parsing makes it possible to
   # start it without forking
+  require_relative 'lib/daemon'
   Daemon.run
 
 when "stop"
