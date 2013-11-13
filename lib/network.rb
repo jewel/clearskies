@@ -4,7 +4,7 @@ require 'socket'
 require_relative 'simple_thread'
 require_relative 'broadcaster'
 require_relative 'tracker_client'
-require_relative 'connection'
+require_relative 'unauthenticated_connection'
 require_relative 'id_mapper'
 require_relative 'upnp'
 
@@ -42,14 +42,11 @@ module Network
   def self.listen
     loop do
       client = gunlock { @server.accept }
-      connection = Connection.new client
-      connection.on_discover_share do |share_id,peer_id|
+      connection = UnauthenticatedConnection.new client
+
+      connection.on_authenticated do |share_id,peer_id|
         @connections[share_id] ||= {}
         @connections[share_id][peer_id] = connection
-      end
-
-      connection.on_disconnect do
-        @connections[share_id].delete peer_id
       end
 
       connection.start
@@ -75,11 +72,11 @@ module Network
     @connections[id] ||= {}
     return if @connections[id][peer_id]
 
-    connection = Connection.new [addr, port], share, code
-    @connections[id][peer_id] = connection
+    connection = UnauthenticatedConnection.new [addr, port], share, code
 
-    connection.on_disconnect do
-      @connections[id].delete peer_id
+    connection.on_authenticated do |share_id,peer_id|
+      @connections[share_id] ||= {}
+      @connections[share_id][peer_id] = connection
     end
 
     connection.start
