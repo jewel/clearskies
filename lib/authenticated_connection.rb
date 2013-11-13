@@ -7,6 +7,8 @@
 require_relative 'connection'
 
 class AuthenticatedConnection < Connection
+  MIN_PING_INTERVAL = 60
+
   attr_reader :peer, :share
 
   def initialize share, peer, socket
@@ -17,6 +19,9 @@ class AuthenticatedConnection < Connection
 
   def start
     start_send_thread
+    @ping_timeout = MIN_PING_INTERVAL
+
+    start_ping_thread
 
     Log.debug "Requesting manifest"
     request_manifest
@@ -29,6 +34,7 @@ class AuthenticatedConnection < Connection
   def receive_messages
     loop do
       msg = recv
+      @timeout_at = Time.new + (@ping_timeout * 1.1)
       Log.debug "Received: #{msg.to_s}"
       begin
         handle msg
@@ -43,6 +49,9 @@ class AuthenticatedConnection < Connection
 
   def handle msg
     case msg.type
+    when :ping
+      @ping_timeout = [msg[:timeout], MIN_PING_INTERVAL].max
+
     when :get_manifest
       if msg[:version] && msg[:version] == @share.version
         send :manifest_current
@@ -276,6 +285,16 @@ class AuthenticatedConnection < Connection
       }
     else
       send :get_manifest
+    end
+  end
+
+  def start_ping_thread
+    name = SimpleThread.current.title + "_ping"
+    SimpleThread.new name do
+      loop do
+        gsleep @ping_timeout
+        send :ping, timeout: MIN_PING_INTERVAL
+      end
     end
   end
 end

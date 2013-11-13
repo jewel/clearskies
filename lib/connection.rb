@@ -10,6 +10,7 @@ require_relative 'simple_thread'
 require_relative 'message'
 
 class Connection
+  attr_reader :timeout_at
 
   private
   def send type, opts={}

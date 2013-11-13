@@ -30,6 +30,8 @@ class UnauthenticatedConnection < Connection
 
     @incoming = !share && !code
     Log.info "New #{@incoming ? 'incoming' : 'outgoing'} connection with #{peeraddr}"
+
+    @timeout_at = Time.new + 20
   end
 
   def start
