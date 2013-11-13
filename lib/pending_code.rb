@@ -1,7 +1,7 @@
 # A pending code is a representation of an access code for a share we didn't
 # create.
 
-require 'access_code'
+require_relative 'access_code'
 
 class PendingCode < AccessCode
   attr_reader :peer_id

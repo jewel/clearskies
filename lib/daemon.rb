@@ -3,6 +3,11 @@
 require_relative 'simple_thread'
 require_relative 'log'
 require_relative 'conf'
+require_relative 'shares'
+require_relative 'share'
+require_relative 'scanner'
+require_relative 'network'
+require_relative 'control_server'
 
 module Daemon
   def self.daemonize
@@ -40,16 +45,10 @@ module Daemon
       Log.warn "Permission denied when trying to lower priority"
     end
 
-    require 'shares'
-    require 'share'
-
-    require 'scanner'
     Scanner.start
 
-    require 'network'
     Network.start
 
-    require 'control_server'
     ControlServer.start
 
     gunlock { Thread.stop }
