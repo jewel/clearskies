@@ -48,15 +48,17 @@ module Hasher
       digest = Digest::SHA256.new
       Log.info "Hashing #{file.path}"
 
-      gunlock {
-        File.open share.full_path(file.path), 'rb' do |f|
-          while data = f.read(1024 * 512)
+      File.open share.full_path(file.path), 'rb' do |f|
+        loop do
+          gunlock {
+            data = f.read(1024 * 512)
+            break if data.nil?
             digest << data
+          }
 
-            Thread.stop if @paused
-          end
+          Thread.stop if @paused
         end
-      }
+      end
 
       Log.debug "Hashed #{file.path} to #{digest.hexdigest[0..8]}..."
       file.sha256 = digest.hexdigest
