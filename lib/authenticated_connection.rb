@@ -29,6 +29,14 @@ class AuthenticatedConnection < Connection
     receive_messages
   end
 
+  def share_id
+    share.id
+  end
+
+  def peer_id
+    peer.id
+  end
+
   private
 
   def receive_messages

@@ -34,6 +34,16 @@ class UnauthenticatedConnection < Connection
     @timeout_at = Time.new + 20
   end
 
+  def share_id
+    return nil if !@share && !@code
+    (@share || @code).id
+  end
+
+  def peer_id
+    return nil if !@share && !@code
+    (@share || @code).peer_id
+  end
+
   def start
     thread_name = "connection#{@connection_number > 1 ? @connection_number : nil}"
     SimpleThread.new thread_name do

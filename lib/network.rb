@@ -7,6 +7,7 @@ require_relative 'tracker_client'
 require_relative 'unauthenticated_connection'
 require_relative 'id_mapper'
 require_relative 'upnp'
+require_relative 'connection_manager'
 
 module Network
   def self.start
@@ -42,14 +43,7 @@ module Network
   def self.listen
     loop do
       client = gunlock { @server.accept }
-      connection = UnauthenticatedConnection.new client
-
-      connection.on_authenticated do |share_id,peer_id|
-        @connections[share_id] ||= {}
-        @connections[share_id][peer_id] = connection
-      end
-
-      connection.start
+      start_connection client
     end
   end
 
@@ -60,7 +54,7 @@ module Network
   def self.peer_discovered id, peer_id, addr, port
     share, code = IDMapper.find id
     unless share || code
-      Log.debug "Can't find ID #{id}" 
+      Log.debug "Can't find ID #{id}"
       return
     end
 
@@ -69,16 +63,23 @@ module Network
       return
     end
 
-    @connections[id] ||= {}
-    return if @connections[id][peer_id]
+    return if ConnectionManager.have_connection? id, peer_id
 
-    connection = UnauthenticatedConnection.new [addr, port], share, code
+    start_connection [addr, port], share, code
+  end
 
-    connection.on_authenticated do |share_id,peer_id|
-      @connections[share_id] ||= {}
-      @connections[share_id][peer_id] = connection
+  private
+  def self.start_connection *args
+    connection = UnauthenticatedConnection.new *args
+
+    ConnectionManager.connecting connection
+
+    connection.on_authenticated do |connection|
+      ConnectionManager.connected connection
     end
 
     connection.start
+
+    nil
   end
 end
