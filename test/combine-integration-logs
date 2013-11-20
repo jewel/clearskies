@@ -22,7 +22,7 @@ end
 data.each do |row|
   prefix = row[0]
   line = row[1]
-  time = line[3..7]
+  time = line[3..10]
   line = line[19..-1].chomp
 
   if line =~ /^(\w+)\ /

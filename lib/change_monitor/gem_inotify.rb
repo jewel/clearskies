@@ -1,5 +1,6 @@
 require 'rb-inotify'
 require_relative '../simple_thread'
+require_relative '../debouncer'
 
 module ChangeMonitor
 
@@ -8,6 +9,8 @@ module ChangeMonitor
 
     def initialize
       @notifier = INotify::Notifier.new
+
+      @debouncer = Debouncer.new "debounce-inotify", 0.05
 
       @on_change = nil
 
@@ -33,7 +36,10 @@ module ChangeMonitor
 
       @notifier.watch(path, *ACTIONS) do |event|
         glock do
-          @on_change.call event.watcher.path + '/' + event.name
+          path = event.watcher.path + '/' + event.name
+          @debouncer.call(path) do
+            @on_change.call path
+          end
         end
       end
 
