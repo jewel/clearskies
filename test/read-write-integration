@@ -10,6 +10,8 @@ mkdir -p /tmp/1/stuff
 echo my first file > /tmp/1/stuff/first
 echo my second file > /tmp/1/stuff/second
 echo my read-only file > /tmp/1/stuff/read-only
+touch /tmp/1/stuff/empty
+
 chmod 400 /tmp/1/stuff/read-only
 
 # I call the two Daemons Server and Client just for internal mental reference
@@ -35,6 +37,7 @@ CLEARSKIES_DIR=/tmp/2 ./clearskies add "$code" /tmp/2/stuff
 verify_synced first
 verify_synced second
 verify_synced read-only
+verify_synced empty
 
 # ----- Change a file -----
 
@@ -95,6 +98,7 @@ log "Checking all files again"
 verify_synced first
 verify_synced second
 verify_synced read-only
+verify_synced empty
 verify_synced third
 verify_missing fourth
 verify_synced subdir/five

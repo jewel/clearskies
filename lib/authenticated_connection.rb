@@ -112,48 +112,19 @@ class AuthenticatedConnection < Connection
 
       send res
     when :file_data
-      dest = @share.full_path msg[:path]
-      temp = "#{File.dirname(dest)}/.#{File.basename(dest)}.#$$.#{Thread.current.object_id}.!sync"
-
       metadata = @peer.find_file msg[:path]
       return unless metadata
 
-      @share.check_path dest
-
-      dir = File.dirname dest
-      FileUtils.mkdir_p dir
-
-      digest = Digest::SHA256.new
-      File.open temp, 'wb' do |f|
+      file = write_file metadata do
         gunlock {
-          while data = msg.read_binary_payload
-            digest << data
-            f.write data
-          end
+          msg.read_binary_payload
         }
       end
 
-      if digest.hexdigest != metadata[:sha256]
-        Log.warn "Received #{dest}, but the sha256 was wrong"
-        return
-      end
-
-      mtime = metadata[:mtime]
-      mtime = Time.at mtime[0], mtime[1] / 1000.0 + 0.0005
-      File.utime Time.new, mtime, temp
-      File.chmod metadata[:mode].to_i(8), temp
-
-      file = @share[msg[:path]] || Share::File.create(msg[:path])
-      file.sha256 = digest.hexdigest
-      file.utime = metadata[:utime]
-
-      file.commit File.stat(temp)
-      file.path = msg[:path]
-      @share[msg[:path]] = file
-      File.rename temp, dest
-
-      @remaining.delete_if do |file|
-        file[:path] == msg[:path]
+      if file
+        @remaining.delete_if do |f|
+          f[:path] == msg[:path]
+        end
       end
 
       request_file
@@ -216,6 +187,11 @@ class AuthenticatedConnection < Connection
   def process_update msg
     metadata = @share[msg[:path]]
 
+    if msg[:size] == 0 && !metadata
+      write_file msg, String.new
+      return
+    end
+
     return unless metadata
     return if msg[:utime] <= metadata[:utime]
 
@@ -271,6 +247,8 @@ class AuthenticatedConnection < Connection
 
     ours = @share[ file[:path] ]
 
+    return false if file[:size] == 0
+
     return false if ours && file[:utime] <= ours[:utime]
     # FIXME We'd also want to skip it if there is a pending download of this
     # file from another peer with an even newer utime
@@ -304,5 +282,50 @@ class AuthenticatedConnection < Connection
         send :ping, timeout: MIN_PING_INTERVAL
       end
     end
+  end
+
+  def write_file metadata, file_data=nil
+    path = metadata[:path]
+    dest = @share.full_path path
+    temp = "#{File.dirname(dest)}/.#{File.basename(dest)}.#$$.#{Thread.current.object_id}.!sync"
+    @share.check_path dest
+
+    dir = File.dirname dest
+    FileUtils.mkdir_p dir
+
+    digest = Digest::SHA256.new
+
+    File.open temp, 'wb' do |f|
+      if file_data
+        digest << file_data
+        f.write file_data
+      else
+        while data = yield
+          digest << data
+          f.write data
+        end
+      end
+    end
+
+    if digest.hexdigest != metadata[:sha256]
+      Log.warn "Received #{dest}, but the sha256 was wrong"
+      return nil
+    end
+
+    mtime = metadata[:mtime]
+    mtime = Time.at mtime[0], mtime[1] / 1000.0 + 0.0005
+    File.utime Time.new, mtime, temp
+    File.chmod metadata[:mode].to_i(8), temp
+
+    file = @share[path] || Share::File.create(path)
+    file.sha256 = digest.hexdigest
+    file.utime = metadata[:utime]
+
+    file.commit File.stat(temp)
+    file.path = path
+    @share[path] = file
+    File.rename temp, dest
+
+    file
   end
 end
