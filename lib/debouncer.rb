@@ -11,18 +11,18 @@ class Debouncer
   DEFAULT_THREASHOLD = 0.2
   def initialize name, threshold=nil
     @threshold = threshold || DEFAULT_THREASHOLD
-    @events = {}
-    @oldest = nil
+    @queue = Queue.new
+    @latest = Hash.new
     @halt = false
-    SimpleThread.new name do
+    @worker = SimpleThread.new name do
       drain_queue
     end
   end
 
   def call category=nil, &block
-    time = Time.new
-    @oldest = time + @threshold unless @oldest
-    @events[category] = [block, time + @threshold]
+    run_at = Time.new + @threshold
+    @queue << [category, run_at, block]
+    @latest[category] = run_at
   end
 
   def shutdown
@@ -34,29 +34,21 @@ class Debouncer
     loop do
       break if @halt
 
-      if !@oldest
-        gsleep @threshold
+      category, run_at, block = gunlock { @queue.pop }
+
+      now = Time.new
+      if run_at > now
+        gsleep run_at - now
+      end
+
+      # Check and see if another event has come in like this one while it was
+      # sitting in the queue or waiting to run
+      if @latest[category] > run_at
         next
       end
 
-      now = Time.new
-      if @oldest > now
-        gsleep @oldest - now
-      end
-
-      oldest = nil
-
-      @events.each do |category,info|
-        block, run_at = info
-        if run_at > Time.new
-          oldest = run_at if !oldest || run_at < oldest
-          next
-        end
-        @events.delete category
-        block.call
-      end
-
-      @oldest = oldest
+      @latest.delete category
+      block.call
     end
   end
 end
