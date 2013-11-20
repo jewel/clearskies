@@ -30,15 +30,16 @@ module ChangeMonitor
     def monitor path
       raise "Must specify callback with on_change" unless @on_change
 
+      # We only need to monitor paths
       path = File.dirname path unless File.directory? path
 
       return if @watching[path]
 
       @notifier.watch(path, *ACTIONS) do |event|
         glock do
-          path = event.watcher.path + '/' + event.name
-          @debouncer.call(path) do
-            @on_change.call path
+          fullpath = event.watcher.path + '/' + event.name
+          @debouncer.call(fullpath) do
+            @on_change.call fullpath
           end
         end
       end
