@@ -9,6 +9,7 @@ require 'pathname'
 require_relative 'change_monitor'
 require_relative 'hasher'
 require_relative 'log'
+require_relative 'debouncer'
 
 module Scanner
   DELAY_MULTIPLIER = 10
@@ -73,8 +74,12 @@ module Scanner
       return
     end
 
+    debouncer = Debouncer.new 'inotify-filter', 0.3
+
     @change_monitor.on_change do |path|
-      monitor_callback path
+      debouncer.call(path) do
+        monitor_callback path
+      end
     end
   end
 
