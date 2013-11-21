@@ -85,6 +85,15 @@ module Scanner
     end
   end
 
+  class Debouncer
+    def initialize name, delay=1
+    end
+
+    def call category=nil
+      yield
+    end
+  end
+
   module Hasher
     @files = []
     def self.start; end
