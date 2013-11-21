@@ -22,7 +22,7 @@ launch_daemon "Server" 1
 
 log "Creating share on server"
 log "Requesting access code from server"
-code=$(CLEARSKIES_DIR=/tmp/1 ./clearskies share /tmp/1/stuff read_write)
+code=$(CLEARSKIES_DIR=/tmp/1 ./clearskies share /tmp/1/stuff)
 log "Code is '$code'"
 
 # ----- Client -----

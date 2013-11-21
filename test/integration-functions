@@ -64,7 +64,7 @@ run_program()
 
 launch_daemon()
 {
-  run_program "$1" "CLEARSKIES_DIR=/tmp/$2 ./clearskies debug"
+  run_program "$1" "CLEARSKIES_DIR=/tmp/$2 ./clearskies start --no-fork"
 
   log "Waiting for $1 to start"
   while ! test -e /tmp/$2/control

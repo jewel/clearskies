@@ -80,8 +80,8 @@ To start and share a directory:
 
 ```bash
 cd clearskies
-./clearskies start # or debug to run in foreground
-./clearskies share ~/important-stuff read-write
+./clearskies start # add --no-fork to run in foreground
+./clearskies share ~/important-stuff --mode=read-write
 ```
 
 

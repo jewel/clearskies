@@ -9,51 +9,109 @@
 require_relative 'lib/control_client'
 require_relative 'lib/conf'
 
-# Parse command-line arguments
-require 'optparse'
+# Parse command-line arguments.  We have subcommands, which themselves have
+# their own set of options, as well as a few global options which we'll always
+# interject.
 
+command = ARGV.find { |arg| arg !~ /^-/ }
+
+require 'optparse'
 options = {}
 OptionParser.new do |opts|
-  opts.banner = "Usage: clearskies [command]"
-
-  opts.on( "-v", "--verbose", "Output informational messages" ) do |v|
-    options[:verbose] = v
+  if !command
+    opts.banner = "Usage: clearskies [command] [args...]"
+  else
+    opts.banner = "Usage: clearskies #{command}"
   end
 
-  opts.on( "--config", "Configuration file" ) do |c|
-    options[:config] = c
-  end
+  extra_help = nil
 
-  opts.on( "--local-port", "Local control port" ) do |l|
-    options[:local_port] = l
-  end
+  case command
+  when nil
+  when "start"
+    opts.on( '-F', '--no-fork', 'Do not start in background' ) do |f|
+      options[:no_fork] = !f
+    end
 
-  opts.on( "--version", "Get software version" ) do |v|
-    puts "ClearSkies cli version 0"
-    puts "Daemon is version #{ControlClient.issue(:version)}"
-    exit 0
-  end
-
-  opts.on( "-h", "--help" ) do |h|
-    puts opts
-    puts "
-Daemon management:
-  start                   Start background program
-  stop                    Cause background program to exit
-  restart                 Restart background program
-  status                  Show program status
-  logcat                  Cats the output of the log and exits
-  logtail                 Follows the log until user intervenes
-
-Share management:
-  create [path]           Create new share
-  list                    List all shares and sync status
-  share [path] [mode]     Make access code to be given to someone else
-                          mode is one of (rw, ro, untrusted)
-  attach [code] [path]    Add access code from someone else, creating new share
-                          at [path]
-  detach [path]           Stop syncing path
+    extra_help = "
+Start daemon in the background.  The daemon needs to be running in order for
+files to sync to other devices.
 "
+
+  when "stop"
+    extra_help = "Cause background program to exit."
+
+  when "restart"
+    extra_help = "Restart background program."
+
+  when "status"
+    extra_help = "
+Show detailed program status.
+
+FIXME explain what status details mean here.
+"
+
+  when "logcat"
+    extra_help = "Display the contents of the log and exit."
+
+  when "logtail"
+    extra_help = "Show new log messages until canceled."
+
+  when "create"
+    opts.banner += " [path]"
+    extra_help = "Create share from existing directory."
+
+  when "list"
+    extra_help = "List all shares and sync status."
+
+  when "share"
+    opts.banner += " [path]"
+    opts.on( '-m', '--mode', 'Share mode' )
+    extra_help = "
+Share existing directory with peer.  If the directory is not already a share,
+it will be made one automatically.
+
+--mode should be one of 'read-write', 'read-only', and 'untrusted'.  ('rw, 'ro',
+'un' are also acceptable.)
+"
+
+  when "attach"
+    opts.banner += " [code] [path]"
+    extra_help = "
+Add access code from someone else, creating new share at [path].  The code is a
+string starting with SYNC.  If files already exist at path, they will be
+overwritten.
+"
+
+  when "detach"
+    opts.banner += " [path]"
+    extra_help = "
+Stop syncing path.  This does not delete any of the directory contents.
+"
+  end
+
+  opts.on( "-h", "--help", "View this screen" ) do |h|
+    puts opts
+    puts extra_help if extra_help
+    if !command
+      puts "
+  Daemon management:
+    start                            Start background program
+    stop                             Cause background program to exit
+    restart                          Restart background program
+    status                           Give program status
+    logcat                           Display the contents of the log and exit
+    logtail                          Show new log messages until canceled
+
+  Share management:
+    create [path]                    Create new share
+    list                             List all shares and sync status
+    share [path]                     Make access code to be given to others
+    attach [code] [path]             Add access code from someone else,
+                                     creating new share at [path]
+    detach [path]                    Stop syncing path
+"
+    end
     exit
   end
 end.parse!
@@ -67,13 +125,11 @@ end
 case command
 when "start"
   require_relative 'lib/daemon'
-  Daemon.daemonize
-
-when "debug"
-  # FIXME this is temporary until better argument parsing makes it possible to
-  # start it without forking
-  require_relative 'lib/daemon'
-  Daemon.run
+  if options[:no_fork]
+    Daemon.run
+  else
+    Daemon.daemonize
+  end
 
 when "stop"
   ControlClient.issue :stop
@@ -120,7 +176,9 @@ when "ls", "list"
 
 when "share"
   path = ARGV.shift
-  mode_input = ARGV.shift
+  abort "Path expected, see --help" if !path
+
+  mode_input = options[:mode] || "rw"
 
   modes = {
     "rw" => "read_write",
@@ -129,6 +187,7 @@ when "share"
     "ro" => "read_only",
     "read-only" => "read_only",
     "read_only" => "read_only",
+    "un" => "untrusted",
     "untrusted" => "untrusted",
   }
 
@@ -155,6 +214,7 @@ when "attach", "add"
   code = ARGV.shift
   path = ARGV.shift
 
+  p path
   FileUtils.mkdir_p path
   path = File.realpath(path)
 
@@ -174,5 +234,6 @@ when "detach", "rm"
   ControlClient.issue :remove_share, path
 
 else
-  abort "Invalid command: #{command.inspect}"
+  abort "Invalid command: #{command.inspect}, try --help"
+
 end
