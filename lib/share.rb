@@ -144,6 +144,12 @@ class Share
     end
   end
 
+  # Remove access code
+  def delete_code code
+    @db[:codes].delete code
+    @db.save :codes
+  end
+
   # Add a peer to the share
   def add_peer peer
     @db[:peers] << peer

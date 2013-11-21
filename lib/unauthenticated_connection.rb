@@ -79,7 +79,7 @@ class UnauthenticatedConnection < Connection
     do_start
     do_starttls
     start_encryption
-    key_exchange if @code
+    do_keys if @code
     do_identity
 
     # We now trust that the peer_id was right, since we couldn't have received
@@ -207,6 +207,7 @@ class UnauthenticatedConnection < Connection
       }
       Log.debug "Sent key exchange"
       recv :keys_acknowledgment
+      @share.delete_code @code
     else
       msg = recv :keys
       if share = Shares.find_by_id(msg[:share_id])
@@ -233,6 +234,9 @@ class UnauthenticatedConnection < Connection
       share.set_key :psk, :untrusted, msg[:untrusted][:psk]
 
       Shares.add share
+
+      PendingCodes.delete @code
+
       Log.debug "New share created"
       send :keys_acknowledgment
     end
