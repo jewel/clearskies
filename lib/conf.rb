@@ -23,7 +23,11 @@ module Conf
   # Port to listen on for incoming clearskies connections.  A port of "0" means
   # to pick a random port each time the daemon starts.
   def self.listen_port
-    0
+    @listen_port || 0
+  end
+
+  def self.listen_port= val
+    @listen_port = val
   end
 
   # Path to unix socket used by CLI to control the daemon

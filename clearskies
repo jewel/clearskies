@@ -29,14 +29,20 @@ OptionParser.new do |opts|
   case command
   when nil
   when "start"
-    opts.on( '-F', '--no-fork', 'Do not start in background' ) do |f|
-      options[:no_fork] = !f
-    end
-
     extra_help = "
 Start daemon in the background.  The daemon needs to be running in order for
 files to sync to other devices.
 "
+
+    opts.on( '-F', '--no-fork', 'Do not start in background' ) do |f|
+      options[:no_fork] = !f
+    end
+
+    # FIXME Instead of having to pass this at start time, let the user
+    # reconfigure it dynamically via the CLI
+    opts.on( '-p', '--listen-port NUMBER', 'Port for incoming connections' ) do |p|
+      Conf.listen_port = p.to_i
+    end
 
   when "stop"
     extra_help = "Cause background program to exit."
