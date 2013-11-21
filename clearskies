@@ -83,11 +83,11 @@ when "restart"
   Daemon.start
 
 when "logcat"
-  logfile = Conf.path('log')
+  logfile = Conf.path 'log'
   exec "cat #{logfile}"
 
 when "logtail"
-  logfile = Conf.path('log')
+  logfile = Conf.path 'log'
   exec "tail -f #{logfile}"
 
 when "pause"
@@ -103,7 +103,11 @@ when "status", "st", "stat"
 when "create"
   path = ARGV.shift
 
-  path = File.realpath(path)
+  unless File.exists?(path)
+    abort "No such path: #{path.inspect}"
+  end
+
+  path = File.realpath path
 
   ControlClient.issue :create_share, path
 
@@ -130,6 +134,14 @@ when "share"
 
   mode = modes[mode_input.downcase]
 
+  if mode.nil?
+    abort "No such mode: #{mode_input.inspect}"
+  end
+
+  unless File.exists?(path)
+    abort "No such path: #{path.inspect}"
+  end
+
   path = File.realpath(path)
 
   res = ControlClient.issue :create_access_code, {
@@ -154,6 +166,9 @@ when "attach", "add"
 when "detach", "rm"
   path = ARGV.shift
 
+  unless File.exists?(path)
+    abort "No such path: #{path.inspect}"
+  end
   path = File.realpath(path)
 
   ControlClient.issue :remove_share, path
