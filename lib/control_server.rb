@@ -22,7 +22,7 @@ module ControlServer
     if File.exists? path
       begin
         UNIXSocket.new path
-        raise "Daemon already running"
+        abort "Daemon already running"
       rescue Errno::ECONNREFUSED
         Log.info "Cleaning up old socket at #{path}"
         File.unlink path
