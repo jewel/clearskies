@@ -20,18 +20,21 @@ $global_lock_holder = nil
 $global_lock_count = 0
 
 module Kernel
+  # Have current thread hold the global lock until unlock_global_lock is called.
   def lock_global_lock
     $global_lock.lock
     $global_lock_holder = Thread.current
     $global_lock_count += 1
   end
 
+  # Release the global lock.
   def unlock_global_lock
     $global_lock_holder = nil
     $global_lock_count += 1
     $global_lock.unlock
   end
 
+  # Hold the global lock while block is run.
   def glock
     lock_global_lock
     begin
@@ -41,6 +44,7 @@ module Kernel
     end
   end
 
+  # Release the global lock while the block is run.
   def gunlock
     unlock_global_lock
     begin
@@ -50,6 +54,7 @@ module Kernel
     end
   end
 
+  # Sleep without holding the global lock.
   def gsleep duration
     gunlock {
       sleep duration

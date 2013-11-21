@@ -1,4 +1,4 @@
-# Represents a fully-authenticated connection with another peer.
+# A fully-authenticated connection with another peer.
 #
 # Authentication is done by UnauthenticatedConnection
 #
@@ -11,12 +11,15 @@ class AuthenticatedConnection < Connection
 
   attr_reader :peer, :share
 
+  # Create connection representing.  Given the Share, Peer, and an IO object
   def initialize share, peer, socket
     @share = share
     @peer = peer
     @socket = socket
   end
 
+  # Start sending thread and begin work.  This should be called from a thread
+  # that belongs to the connection.
   def start
     start_send_thread
     @ping_timeout = MIN_PING_INTERVAL
@@ -29,16 +32,19 @@ class AuthenticatedConnection < Connection
     receive_messages
   end
 
+  # Returns id of the share as string
   def share_id
     share.id
   end
 
+  # Returns id of the peer as string
   def peer_id
     peer.id
   end
 
   private
 
+  # Main receive loop
   def receive_messages
     loop do
       msg = recv
@@ -55,6 +61,7 @@ class AuthenticatedConnection < Connection
     end
   end
 
+  # Main switch between each type of message that will come in
   def handle msg
     case msg.type
     when :ping
@@ -138,6 +145,8 @@ class AuthenticatedConnection < Connection
     }
   end
 
+  # Given a Share::File object, turn it into a manifest entry, ready to turn
+  # into JSON
   def file_as_manifest file
     if file[:deleted]
       obj = {
@@ -160,6 +169,7 @@ class AuthenticatedConnection < Connection
     end
   end
 
+  # Send peer our manifest
   def send_manifest
     msg = Message.new :manifest
     msg[:peer] = @share.peer_id
@@ -176,6 +186,7 @@ class AuthenticatedConnection < Connection
     send msg
   end
 
+  # Look at incoming manifest, determine which files are needed
   def receive_manifest msg
     @files = msg[:files]
     @remaining = []
@@ -184,6 +195,12 @@ class AuthenticatedConnection < Connection
     end
   end
 
+  # Process UPDATE message, see if there is action we should take immediately.
+  #
+  # Some care must be taken to make sure that we don't interact with "Scanner"
+  # in a bad way.  Scanner doesn't update the utime unless it looks like the
+  # change happened locally.  As long as we update the Share::File before we
+  # actually make the change, that won't be a problem.
   def process_update msg
     metadata = @share[msg[:path]]
 
@@ -202,6 +219,7 @@ class AuthenticatedConnection < Connection
       return
     end
 
+    # Wait to make changes until the new file arrives if it's different.
     return if msg[:sha256] != metadata[:sha256]
 
     time_match = msg[:mtime] == metadata[:mtime]
@@ -241,6 +259,7 @@ class AuthenticatedConnection < Connection
     end
   end
 
+  # Do we need to download the file?
   def need_file? file
     # FIXME we need to actually delete it if its deleted
     return false if file[:deleted]
@@ -256,6 +275,8 @@ class AuthenticatedConnection < Connection
     !ours || file[:sha256] != ours[:sha256]
   end
 
+  # Ask peer for a file (we keep track of which one is next to request
+  # internally)
   def request_file
     file = @remaining.sample
     return unless file
@@ -264,6 +285,7 @@ class AuthenticatedConnection < Connection
     }
   end
 
+  # Ask peer for its latest manifest
   def request_manifest
     if @peer.manifest && @peer.manifest[:version]
       send :get_manifest, {
@@ -274,6 +296,7 @@ class AuthenticatedConnection < Connection
     end
   end
 
+  # Start a thread that sends a ping every so often
   def start_ping_thread
     name = SimpleThread.current.title + "_ping"
     SimpleThread.new name do
@@ -284,6 +307,14 @@ class AuthenticatedConnection < Connection
     end
   end
 
+  # Write a file to the share.  `metadata` is the JSON file metadata, as
+  # received.  The file contents can be given as a string, or if a block is
+  # given it will be called until it yields nil.
+  #
+  # Care must be given to not write to the file in its real path until it's
+  # ready, or Scanner will pick up on it as a local change.  To avoid this, we
+  # write to a temporary file.  Also we make changes to the Share::File that's
+  # relevant first.
   def write_file metadata, file_data=nil
     path = metadata[:path]
     dest = @share.full_path path

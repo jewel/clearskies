@@ -1,5 +1,7 @@
 # Map share IDs and access code IDs to the proper share
 module IDMapper
+  # Go through each known share and access code.  Block will be given the
+  # share_id (or code_id) and peer_id.
   def self.each
     Shares.each do |share|
       yield share.id, share.peer_id
@@ -13,7 +15,7 @@ module IDMapper
     end
   end
 
-  # returns share, code which can 
+  # returns share, code or nil
   def self.find id
     Shares.each do |share|
       return share, nil if share.id == id

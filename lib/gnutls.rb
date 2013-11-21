@@ -6,6 +6,7 @@
 require 'ffi'
 require 'socket'
 
+# Open the module early so that subclasses can be created
 module GnuTLS; end
 
 require_relative 'gnutls/session'
@@ -14,6 +15,7 @@ require_relative 'gnutls/socket'
 require_relative 'gnutls/error'
 
 module GnuTLS
+  # Connect to malloc.
   module LibC
     extend FFI::Library
     ffi_lib FFI::Library::LIBC
@@ -102,6 +104,7 @@ module GnuTLS
   SERVER = 1
   CLIENT = 2
 
+  # Create a server or client, and return the pointer to the session struct
   def self.init type
     GnuTLS.global_init unless @global_initted
     @global_initted = true
@@ -112,10 +115,10 @@ module GnuTLS
     end
   end
 
+  # Turn on GnuTLS logging
   def self.enable_logging
     @logging_function = Proc.new { |lvl,msg| puts "#{lvl} #{msg}" }
     GnuTLS.global_set_log_function @logging_function
     GnuTLS.global_set_log_level 9
   end
-
 end

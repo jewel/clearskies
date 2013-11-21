@@ -1,7 +1,8 @@
 # Module containing different file change monitors
 
 module ChangeMonitor
-  # Search for the best available method of monitoring changes
+  # Search for the best available method of monitoring changes, and return
+  # it as an object, or return nil if none are available
   def self.find
     begin
       require 'rb-inotify'

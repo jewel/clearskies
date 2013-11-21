@@ -7,7 +7,8 @@ require 'json'
 require_relative 'conf'
 
 module ControlClient
-
+  # Serialize a command to JSON, send it to the daemon, and then parse and
+  # return the result.
   def self.issue type, opts={}
     connect if !@socket
     opts[:type] = type
@@ -28,6 +29,7 @@ module ControlClient
   end
 
   private
+  # Connect to the daemon over a unix domain socket, and do the handshake
   def self.connect
     begin
       @socket = UNIXSocket.open Conf.control_path

@@ -5,6 +5,7 @@
 # doing a directory-tree scan, as to not create too much I/O load.
 
 module Hasher
+  # Start the background thread
   def self.start
     return if @worker
     @worker = SimpleThread.new 'hasher' do
@@ -16,20 +17,24 @@ module Hasher
     @paused = false
   end
 
+  # Push a file onto the queue to be hashed.
   def self.push share, file
     @hash_queue.push [share, file]
   end
 
+  # Pause all hashing activity.
   def self.pause
     @paused = true
   end
 
+  # Resume previously paused activity.
   def self.resume
     @paused = false
     @worker.wakeup if @worker
   end
 
   private
+  # Read everything off the queue, and hash it.
   def self.work
     Shares.each do |share|
       share.each do |file|
@@ -55,6 +60,8 @@ module Hasher
     end
   end
 
+  # Generate the hash for a single file at `path`, and return its hash as a hex
+  # string
   def self.hash_file path
     digest = Digest::SHA256.new
     File.open path, 'rb' do |f|

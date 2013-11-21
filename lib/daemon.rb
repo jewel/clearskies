@@ -10,6 +10,8 @@ require_relative 'network'
 require_relative 'control_server'
 
 module Daemon
+  # fork twice and close stdin, stdout, and stderr to detach from foreground
+  # shell
   def self.daemonize
     pid = fork
     raise 'First fork failed' if pid == -1
@@ -30,6 +32,7 @@ module Daemon
     run
   end
 
+  # Start all the sub-pieces of the daemon.  This never returns
   def self.run
     Log.screen_level = :debug
     Log.file_handle = File.open Conf.path( 'log' ), 'a'

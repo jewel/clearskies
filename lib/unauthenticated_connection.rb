@@ -34,16 +34,20 @@ class UnauthenticatedConnection < Connection
     @timeout_at = Time.new + 20
   end
 
+  # Get the ID of the share associated with this connection
   def share_id
     return nil if !@share && !@code
     (@share || @code).id
   end
 
+  # Get the peer's ID
   def peer_id
     return nil if !@share && !@code
     (@share || @code).peer_id
   end
 
+  # Start the connection by launching a thread for the connection.  For
+  # outgoing connections this will open a socket.
   def start
     thread_name = "connection#{@connection_number > 1 ? @connection_number : nil}"
     SimpleThread.new thread_name do
@@ -61,12 +65,15 @@ class UnauthenticatedConnection < Connection
     end
   end
 
+  # Once authenticated, call the given block with the peer's share_id and
+  # peer_id.
   def on_authenticated &block
     @on_authenticated = block
   end
 
   private
 
+  # Run the handshake, as documented in the protocol.
   def handshake
     do_greeting
     do_start
@@ -90,6 +97,7 @@ class UnauthenticatedConnection < Connection
     @peer.friendly_name = @friendly_name
   end
 
+  # Send or receive the GREETING message
   def do_greeting
     if @incoming
       send :greeting, {
@@ -106,6 +114,7 @@ class UnauthenticatedConnection < Connection
     end
   end
 
+  # Send or receive the START message
   def do_start
     if !@incoming
       send :start, {
@@ -128,6 +137,7 @@ class UnauthenticatedConnection < Connection
     end
   end
 
+  # Send or receive the STARTTLS message
   def do_starttls
     if @incoming
       if @share
@@ -147,6 +157,8 @@ class UnauthenticatedConnection < Connection
     end
   end
 
+  # Start up the encryption layer, replacing the unencrypted socket with an
+  # encrypted one.
   def start_encryption
     @tcp_socket = @socket
 
@@ -173,8 +185,8 @@ class UnauthenticatedConnection < Connection
     end
   end
 
-
-  def key_exchange
+  # Send or receive the KEYS message, or the first-time key exchange.
+  def do_keys
     if @share
       # FIXME This should take the intended access level of the code into account
 
@@ -197,7 +209,7 @@ class UnauthenticatedConnection < Connection
       recv :keys_acknowledgment
     else
       msg = recv :keys
-      if share = Shares.by_id(msg[:share_id])
+      if share = Shares.find_by_id(msg[:share_id])
         if share.path != @code.path
           Log.warn "#{share.path} and #{@code.path} have the same share_id"
           share = nil
@@ -226,6 +238,7 @@ class UnauthenticatedConnection < Connection
     end
   end
 
+  # send and receive the IDENTITY message, as done by both sides simultaneously
   def do_identity
     send :identity, {
       name: Conf.friendly_name,
@@ -238,6 +251,7 @@ class UnauthenticatedConnection < Connection
     check_time identity[:time]
   end
 
+  # Determine most-privileged access level shared by both peers
   def greatest_common_access l1, l2
     levels = [:unknown, :untrusted, :read_only, :read_write]
     i1 = levels.index l1
@@ -248,6 +262,7 @@ class UnauthenticatedConnection < Connection
     levels[common]
   end
 
+  # Get our peer ID instead of peer's ID.
   def my_peer_id
     if @share
       @share.peer_id
@@ -256,6 +271,7 @@ class UnauthenticatedConnection < Connection
     end
   end
 
+  # Get socket address
   def peeraddr
     if @socket.respond_to? :peeraddr
       @socket.peeraddr[2]
@@ -264,6 +280,7 @@ class UnauthenticatedConnection < Connection
     end
   end
 
+  # Make sure that time mismatch between peer and us isn't too far.
   def check_time other_time
     time_diff = other_time - Time.new.to_i
     if time_diff.abs > 60
@@ -271,6 +288,7 @@ class UnauthenticatedConnection < Connection
     end
   end
 
+  # Start up AuthenticatedConnection code once authenticated.
   def authenticated
     connection = AuthenticatedConnection.new @share, @peer, @socket
 

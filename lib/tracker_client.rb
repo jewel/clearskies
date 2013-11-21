@@ -6,6 +6,7 @@ require_relative 'pending_codes'
 require_relative 'id_mapper'
 
 module TrackerClient
+  # Start background thread
   def self.start
     @last_run = {}
     SimpleThread.new 'tracker' do
@@ -13,10 +14,12 @@ module TrackerClient
     end
   end
 
+  # Callback for when peer is discovered
   def self.on_peer_discovered &block
     @peer_discovered = block
   end
 
+  # Force connection to tracker
   def self.force_run
     SimpleThread.new 'force_tracker' do
       poll_all_trackers
@@ -24,6 +27,7 @@ module TrackerClient
   end
 
   private
+  # Main thread entry point
   def self.work
     loop do
       # FIXME we really need to wait the exact amount of time requested by
@@ -35,6 +39,7 @@ module TrackerClient
     end
   end
 
+  # Ask all trackers for information about all of our shares.
   def self.poll_all_trackers
     IDMapper.each do |share_id,peer_id|
       trackers.each do |url|
@@ -43,6 +48,7 @@ module TrackerClient
     end
   end
 
+  # Ask tracker for a list of peers interested in a share.
   def self.poll_tracker share_id, peer_id, url
     uri = URI(url)
     uri.query = URI.encode_www_form({
@@ -63,6 +69,7 @@ module TrackerClient
     end
   end
 
+  # Get a list of trackers.
   def self.trackers
     ["http://clearskies.tuxng.com/clearskies/track"]
   end

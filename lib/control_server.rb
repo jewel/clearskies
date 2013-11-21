@@ -8,6 +8,7 @@ require_relative 'access_code'
 require_relative 'pending_codes'
 
 module ControlServer
+  # Start background thread
   def self.start
     SimpleThread.new 'control' do
       run
@@ -15,6 +16,7 @@ module ControlServer
   end
 
   private
+  # Listen on socket and spawn a new thread for each request
   def self.run
     path = Conf.control_path
     if File.exists? path
@@ -42,7 +44,7 @@ module ControlServer
     end
   end
 
-  private
+  # Service all requests from client
   def self.serve client
     client.puts({
       service: 'ClearSkies Control',
@@ -71,6 +73,7 @@ module ControlServer
     end
   end
 
+  # Switch case for each type of command
   def self.handle_command command
     case command[:type].to_sym
     when :stop
@@ -101,7 +104,7 @@ module ControlServer
       nil
 
     when :create_access_code
-      share = Shares.by_path command[:path]
+      share = Shares.find_by_path command[:path]
       if !share
         share = Share.create command[:path]
         Shares.add share

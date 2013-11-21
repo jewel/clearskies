@@ -7,6 +7,8 @@ class PendingCode < AccessCode
   attr_reader :peer_id
   attr_accessor :path
 
+  # Create a new pending access code.  The payload is the random data
+  # associated with it.
   def initialize payload
     super payload
     @peer_id = SecureRandom.hex 16

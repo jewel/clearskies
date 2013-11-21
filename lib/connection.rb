@@ -13,6 +13,12 @@ class Connection
   attr_reader :timeout_at
 
   private
+  # Send message of `type` to peer.
+  #
+  # First argument can also be a pre-built Message object.
+  #
+  # This will be sent later if the `send_thread` has been started, otherwise it
+  # will be sent immediately
   def send type, opts={}
     if !type.is_a? Message
       message = Message.new type, opts
@@ -28,6 +34,7 @@ class Connection
     end
   end
 
+  # Start a background thread to send messages to the peer
   def start_send_thread
     @send_queue = Queue.new
     @sending_thread = SimpleThread.new 'connection_send' do
@@ -39,6 +46,9 @@ class Connection
     end
   end
 
+  # Receive the next message from peer.  This is a blocking call.  If `type` is
+  # given, keep receiving messages until a message with a matching type is
+  # received.
   def recv type=nil
     loop do
       msg = gunlock { Message.read_from_io @socket }

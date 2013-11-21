@@ -8,11 +8,16 @@ require_relative 'id_mapper'
 module Broadcaster
   BROADCAST_PORT = 60106
 
+  # Callback for whenever a peer is discovered.  The block will be given the
+  # share_id, peer_id, ip address, and port of the peer as arguments
   def self.on_peer_discovered &block
     @discovered = block
   end
 
+  # Start sending broadcasts occasionally
   def self.start
+    # We make sure that we mark the socket as "REUSEADDR" so that multiple
+    # copies of the software can be running at once, for testing
     @socket = UDPSocket.new
     @socket.setsockopt Socket::SOL_SOCKET, Socket::SO_REUSEADDR, true
     @socket.setsockopt Socket::SOL_SOCKET, Socket::SO_BROADCAST, true
@@ -29,12 +34,14 @@ module Broadcaster
     end
   end
 
+  # Force an immediate broadcast
   def self.force_run
     send_all_broadcast
   end
 
   private
 
+  # Listen for broadcasts from other peers
   def self.listen
     loop do
       json, sender = gunlock { @socket.recvfrom 512 }
@@ -46,6 +53,7 @@ module Broadcaster
     end
   end
 
+  # Main loop
   def self.run
     loop do
       send_all_broadcast
@@ -53,12 +61,14 @@ module Broadcaster
     end
   end
 
+  # Send a broadcast for each share
   def self.send_all_broadcast
     IDMapper.each do |id,peer_id|
       send_broadcast id, peer_id
     end
   end
 
+  # Send a broadcast for the given share_id and peer_id
   def self.send_broadcast id, peer_id
     message = {
       :name => "ClearSkiesBroadcast",

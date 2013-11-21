@@ -13,6 +13,8 @@ require_relative 'simple_thread'
 class UPnP
   DURATION = 600
 
+  # Start background thread to interact with the UPNP server.  `port` is the
+  # port that we'd like to have open.
   def self.start port
     SimpleThread.new 'upnp' do
       loop do
@@ -26,6 +28,9 @@ class UPnP
     end
   end
 
+  private
+
+  # Open a port.  Usually this is best done by `start`.
   def self.open protocol, external_port, internal_port
     urls = discover_root_device
 
@@ -59,6 +64,7 @@ class UPnP
     opened
   end
 
+  # Find the root device on the network via UDP broadcast.
   def self.discover_root_device
     udp = UDPSocket.new
     search_str = <<EOF
@@ -95,6 +101,7 @@ EOF
     urls
   end
 
+  # Ask the root device it's control URL
   def self.query_control_url device_url
     uri = URI.parse device_url
     res = gunlock { Net::HTTP.get_response(uri) }
@@ -120,6 +127,7 @@ EOF
     nil
   end
 
+  # Get our internal address
   def self.get_internal_address
     udp = UDPSocket.new
 
@@ -135,14 +143,15 @@ EOF
 
 
   # Net::HTTP doesn't preserve the case of HTTP headers (it shouldn't need to
-  # since they are supposed to be case insensitive, but tell that to router
-  # manufacturers)
+  # since they are supposed to be case insensitive), but tell that to router
+  # manufacturers.  Make a special String class that can't be downcased.
   class KeepCase < String
     def downcase
       self
     end
   end
 
+  # Ask router for port
   def self.request_port opts
     namespace = "service:WANIPConnection:1"
     return false unless send_soap opts[:control], namespace, :AddPortMapping, <<EOF

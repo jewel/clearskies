@@ -8,9 +8,12 @@
 require_relative 'simple_thread'
 
 class Debouncer
-  DEFAULT_THREASHOLD = 0.2
+  DEFAULT_THRESHOLD = 0.2 # seconds
+
+  # Create a new debouncer.  Give `name` for the debouncing thread (for
+  # debugging).  An optional threshold can be given as the second argument.
   def initialize name, threshold=nil
-    @threshold = threshold || DEFAULT_THREASHOLD
+    @threshold = threshold || DEFAULT_THRESHOLD
     @queue = Queue.new
     @latest = Hash.new
     @halt = false
@@ -19,17 +22,22 @@ class Debouncer
     end
   end
 
+  # Call this every time the event happens.  The category is optional.  A block
+  # should be given containing the code of what to do once the event actually
+  # happens.
   def call category=nil, &block
     run_at = Time.new + @threshold
     @queue << [category, run_at, block]
     @latest[category] = run_at
   end
 
+  # Stop the background thread
   def shutdown
     @halt = true
   end
 
   private
+  # Debounce everything in the queue
   def drain_queue
     loop do
       break if @halt

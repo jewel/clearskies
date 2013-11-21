@@ -1,6 +1,7 @@
 # Implementation of the Luhn mod N algorithm for base32, as used by clearskies
 
 module LuhnCheck
+  # Create check digit for string, and return string + check digit
   def self.generate str
     factor = 2
     sum = 0

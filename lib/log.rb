@@ -3,40 +3,49 @@
 module Log
   LEVELS = [:debug, :info, :warn, :error, :none]
 
+  # Give an open file object to send logs
   def self.file_handle= fp
     @file_handle = fp
   end
 
+  # Set the maximum level that will be sent to the screen
   def self.screen_level= level
     @screen_level = level
   end
 
+  # Set the maximum level that will be sent to the file
   def self.file_level= level
     @file_level = level
   end
 
+  # Inspect the objects and write the resulting strings to the debug log
   def self.p *objs
     objs.each do |obj|
       log :debug, obj.inspect
     end
   end
 
+  # Write a message to the log at "debug" level.
   def self.debug msg
     log :debug, msg
   end
 
+  # Write a message to the log at "info" level.
   def self.info msg
     log :info, msg
   end
 
+  # Write a message to the log at "warn" level.
   def self.warn msg
     log :warn, msg
   end
 
+  # Write a message to the log at "error" level.
   def self.error msg
     log :error, msg
   end
 
+  # Write a message to the log, with given level.
   def self.log level, msg
     @screen_level ||= :warn
     if Thread.current.respond_to?(:title) && Thread.current.title
@@ -66,6 +75,7 @@ module Log
   end
 
   private
+  # Get integer value representing the level, for sorting
   def self.intval level
     LEVELS.index level
   end

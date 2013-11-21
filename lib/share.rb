@@ -17,6 +17,8 @@ class Share
   include Enumerable
   attr_reader :id
 
+  # Load a share's information from database, or create a new share if the
+  # database doesn't exist.
   def initialize share_id
     @id = share_id
 
@@ -33,23 +35,28 @@ class Share
     @subscribers = []
   end
 
+  # Validate that the crypto key type and level asked for is valid
   def check_key_type_and_level type, level
     raise "Invalid key type #{type.inspect}" unless [:rsa, :psk].include? type
     raise "Invalid access level" unless [:read_write, :read_only, :untrusted].include? level
   end
 
+  # Get the share's database version, as needed by the protocol.
   def version
     @db[:version]
   end
 
+  # Set our own peer_id for this share
   def peer_id= val
     @db[:peer_id] = val
   end
 
+  # Get our peer_id for this share
   def peer_id
     @db[:peer_id]
   end
 
+  # Set crypto key.  See `check_key_type_and_level` for valid parameter values.
   def set_key type, level, key
     check_key_type_and_level type, level
 
@@ -60,12 +67,14 @@ class Share
     @db[type] = @db[type]
   end
 
+  # Get a crypto key for the share
   def key type, level
     check_key_type_and_level type, level
 
     @db[type][level]
   end
 
+  # Create a new share for `path`
   def self.create path
     psks = {
       :read_write => SecureRandom.hex(16),
@@ -91,22 +100,27 @@ class Share
     share
   end
 
+  # Set the path of the share
   def path= path
     @db[:path] = path
   end
 
+  # Get the path of the share
   def path
     @db[:path]
   end
 
+  # Get our access level to this share
   def access_level
     :read_write
   end
 
+  # Set our access level to this share
   def access_level= val
     # FIXME
   end
 
+  # Loop through each file in the share
   def each
     @db.each do |key,val|
       next unless key =~ /\Afile\//
@@ -115,6 +129,7 @@ class Share
     end
   end
 
+  # Add an access code to the share
   def add_code code
     @db[:codes] << code
 
@@ -122,12 +137,14 @@ class Share
     @db.save :codes
   end
 
+  # Loop through each access code associated with the share.
   def each_code
     @db[:codes].each do |code|
       yield code
     end
   end
 
+  # Add a peer to the share
   def add_peer peer
     @db[:peers] << peer
 
@@ -135,16 +152,19 @@ class Share
     @db.save :peers
   end
 
+  # Loop through each peer
   def each_peer
     @db[:peers].each do |peer|
       yield peer
     end
   end
 
+  # Get information about a file.
   def [] path
     @db["file/#{path}"]
   end
 
+  # Save information about a file.
   def []= path, file
     @db["file/#{path}"] = file
     @db[:version] = Time.new.to_f
@@ -152,6 +172,9 @@ class Share
     file
   end
 
+  # Validate that the given path is safe to write to or read from, and is part
+  # of a path.  This stops a peer from trying to read system files or other
+  # sensitive files outside of the share path.
   def check_path full
     partial = partial_path full
     if partial =~ /\A\.\./
@@ -173,6 +196,7 @@ class Share
     end
   end
 
+  # Shorthand for opening a file belonging to the share.
   def open_file partial, mode='rb'
     full = full_path partial
     check_path full
@@ -187,6 +211,7 @@ class Share
     end
   end
 
+  # Get the full path to a file in the share.
   def full_path partial
     full = "#{path}/#{partial}"
 
@@ -206,11 +231,13 @@ class Share
     notify @db["file/#{path}"]
   end
 
+  # Ask to be notified about changes to any files in this share.
   def subscribe &block
     @subscribers << block
   end
 
   private
+  # Notify subscribers about changes to a file
   def notify file
     raise "Nil file" unless file
     @subscribers.each do |block|

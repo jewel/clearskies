@@ -9,14 +9,17 @@ class PendingCodes
   path = Conf.data_dir "pending_codes.db"
   @db = Permahash.new path
 
+  # Add a new code to be tracked
   def self.add code
     @db[code] = true
   end
 
+  # Remove a code
   def self.delete code
     @db.delete code
   end
 
+  # Loop through each code, yielding it
   def self.each
     @db.each do |code,val|
       yield code

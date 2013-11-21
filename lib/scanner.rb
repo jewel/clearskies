@@ -14,6 +14,7 @@ require_relative 'debouncer'
 module Scanner
   DELAY_MULTIPLIER = 10
   MIN_RESCAN = 60 # an absolute minimum
+  # Start the background scanning thread
   def self.start
     load_change_monitor
 
@@ -25,14 +26,15 @@ module Scanner
     end
   end
 
+  # Add a new share to be scanned
   def self.add_share share
     # FIXME move this into the proper thread
     register_and_scan share
   end
 
-  # Thread entry point
   private
 
+  # Thread entry point
   def self.work
     # TODO Lower own priority
 
@@ -83,6 +85,7 @@ module Scanner
     end
   end
 
+  # Callback called by the change monitor
   def self.monitor_callback path
     Shares.each do |share|
       next unless path.start_with? share.path
@@ -90,9 +93,8 @@ module Scanner
     end
   end
 
-  # An event was triggered or we scanned this path
-  # either way need to decide if it is updated and
-  # add it to the database.
+  # An event was triggered or we scanned this path either way need to decide if
+  # it is updated and add it to the database.
   def self.process_path share, path, &block
     relpath = share.partial_path path
     return if relpath =~ /\.!sync\Z/
@@ -117,7 +119,9 @@ module Scanner
     end
 
     # Monitor directories and unreadable files
-    send_monitor :monitor, path
+    if @change_monitor
+      @change_monitor.monitor path
+    end
 
     # Recursively process path
     if stat.directory?
@@ -175,6 +179,7 @@ module Scanner
     block.call relpath if block
   end
 
+  # Go through each file in a share and make sure it is being monitored.
   def self.register_and_scan share
     Hasher.pause
     Log.info "Doing scan of share #{share.path}"
@@ -192,11 +197,5 @@ module Scanner
 
   ensure
     Hasher.resume
-  end
-
-
-  def self.send_monitor method, *args
-    return unless @change_monitor
-    @change_monitor.send method, *args
   end
 end
