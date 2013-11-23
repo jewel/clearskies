@@ -17,8 +17,9 @@ The Protocol
 ------------
 
 The ClearSkies protocol has been documented and is in a draft state.  It can be
-found in the `protocol/` directory.  `protocol/core.md` is a good starting
-place.
+found in the `protocol/` directory.
+`[protocol/core.md](https://github.com/jewel/clearskies/blob/master/protocol/core.md)`
+is a good starting place.
 
 The protocol features:
 
