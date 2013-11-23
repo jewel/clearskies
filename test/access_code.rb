@@ -14,7 +14,6 @@ describe AccessCode, "generating" do
   it "should parse back to itself" do
     16.times do
       str = AccessCode.create.to_s
-      p str
       code = AccessCode.parse str
       code.to_s.must_equal str
     end
