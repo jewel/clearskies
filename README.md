@@ -53,6 +53,25 @@ not yet ready for production use.  IT MAY EAT YOUR DATA.  Only use it on test
 data or on data that you have backed up someplace safe.
 
 
+Security
+--------
+
+The software does not attempt to provide anonymity.  Access code sharing is
+designed to reduce the impact of surveillance by using one-time codes by
+default, and using perfect forward secrecy on the wire.
+
+Setup of a share is vulnerable to an active man-in-the-middle attack if the
+channel used to send the access code is insecure.
+
+For example, if Bob sends Alice an access code over SMS, Eve can try to connect
+to Bob before Alice does.  Alice will not be able to connect to the share.  Eve
+can even create another share and issue the same access code to fool Alice into
+thinking she has connected to Bob.
+
+It is believed that security-conscious users will automatically avoid this
+problem by sharing the access codes over secure channels.
+
+
 Installation
 ------------
 

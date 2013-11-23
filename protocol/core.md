@@ -27,23 +27,23 @@ directory for licensing information about the protocol.
 Access Levels
 -------------
 
-The protocol supports peers of three types:
+The core protocol supports peers of two types:
 
 1. Read-write.  These peers can change or delete any file, and create new
    files.
 
 2. Read-only.  These peers can read all files, but cannot change them.
 
-3. Untrusted.  These peers receive the files encrypted.  This is intended for
-   backups, but could also be used by a service provider to provide cloud
-   services.
-
-A share can have any number of all three peer types.
+A share can have any number of all the peer types.
 
 All peers can spread data to any other peers.  Said another way, a read-only
 peer does not need to get the data directly from a read-write peer, but can
-receive it from another read-only peer or even an untrusted peer.  Digital
-signatures are used to ensure that there is no foul play.
+receive it from another read-only peer.  Digital signatures are used to ensure
+that there is no foul play.
+
+Note: The "untrusted" extension adds supports for a third type of peer, an
+untrusted peer.  This is a peer that only receives encrypted copies of the
+files.
 
 
 Cryptographic Keys
@@ -69,26 +69,12 @@ A 2048-bit RSA key should be generated for the share.  It will be used to
 digitally sign messages to stop read-only shares from pretending to be
 read-write shares.
 
-More keys should be generated for the other access levels:
+More keys should be generated for the read-only access level:
 
 * A 128-bit read-only PSK
 * A 2048-bit read-only RSA key
-* A 128-bit untrusted PSK
 
 Once generated, all keys are saved to disk.
-
-
-Passphrase
-----------
-
-Instead of generating the master key, the user may enter a custom passphrase.
-The SHA256 algorithm is applied twenty million times to generate the 256-bit
-encryption key, meaning SHA256(SHA256(...(SHA256(SHA256("secret")))...)).  Due
-to the nature of the secret sharing mechanism, it is not possible to use a salt
-as is done with with PBKDF2, but someone possessing the key would already have
-access to the files themselves, making the passphrase less valuable.
-
-The purpose of this passphrase is backup recovery.
 
 
 Access Codes
@@ -132,7 +118,7 @@ This section contains a suggested user interface for sharing access codes.
 When the user activates the "share" button, a dialog is shown with the
 following:
 
-* A radio input for one of "read-write", "read-only", and "untrusted"
+* A radio input for one of "read-write" and "read-only"
 * The new access code, as a text field that can be edited
 * A status area
 * A "Cancel Access Code" button
@@ -158,7 +144,7 @@ Various sources of peers are supported:
  * A central tracker
  * Manual entry by the user
  * LAN broadcast
- * A distributed hash table (DHT) amongst all participants
+ * A distributed hash table (DHT) amongst all participants (via extension)
 
 Each of these methods can be disabled by the user on a per-share basis and
 implementations can elect not to implement them at their discretion.
@@ -414,8 +400,8 @@ encryption section for an explanation of public IDs.)  Here is an example
 
 The ID is the share ID or access ID.
 
-The "access" level is one of "read_write", "read_only", "untrusted", or
-"unknown".  When a peer only has an access code, its access level is "unknown".
+The "access" level is one of "read_write", "read_only", or "unknown".  When a
+peer only has an access code, its access level is "unknown".
 
 The "peer" field is the ID explained in the tracker section.  This is used
 to avoid accidental loopback.
@@ -480,20 +466,13 @@ may attempt to account for the difference in conflict resolution algorithm.
 Key Exchange
 ------------
 
-If the access level negotiated in the handshake is "unknown", then the keys
-will now be given to the new peer.
+If the access level negotiated in the handshake is "unknown", then immediately
+after the "identity" message is sent the keys will be sent.
 
 The appropriate set of keys will be chosen according to the access level that
 was chosen when the access code was created.
 
 RSA keys should be encoded as PEM files, and the PSKs should be encoded as hex.
-
-Keys that the peer should not have are also sent, encrypted with the read-write
-PSK.  This is necessary so that the master passphrase can be used to create a
-read-write peer when there are no longer any read-write peers.
-
-The "File Encryption" section explains how to encrypt files.  After encrypting
-each key, it should be base64 encoded.
 
 Here is an example key exchange for a read-only node.  RSA keys have been
 abbreviated for clarity:
@@ -503,26 +482,18 @@ abbreviated for clarity:
   "type": "keys",
   "access": "read_only",
   "share_id": "2bd01bbb634ec221f916e176cd2c7c6c2fa04e641c494979613d3485defd7d18",
-  "untrusted": {
-    "psk": "1f5d969cdbfe090bf740974d27e7d8ee",
-  },
   "read_only": {
     "psk": "b699049ce1f453628117e8ba6ee75f42",
     "rsa": "-----BEGIN RSA PRIVATE KEY-----\nMIIJKAIBAAKCAgEA4Zu1XDLoHf...TE KEY-----\n"
   },
   "read_write": {
-    "encrypted_rsa": "KaPwf85p4PUXUImWMEn1MwlRC77TWlEtZjqxI+QhDKTlFxi...",
     "public_rsa": "-----BEGIN RSA PUBLIC KEY-----\nMIIBgjAcBgoqhkiG9w0BDAEDMA4E..."
   }
 }
 ```
 
-If the keys given are encrypted, the key name should be prefixed with
-"encrypted_".  The "public_rsa" key is not required, since it can be derived
-from the private key.
-
-Note that the read-write PSK is never included in this exchange in its
-encrypted form, since it would be encrypted with itself.
+The "public_rsa" key is not unusally required, since it can be derived from the
+private key.
 
 Once the keys are received, the peer should respond with a
 "keys_acknowledgment" message:
@@ -551,13 +522,11 @@ The following fields are tracked for each file:
 
  * "path" - relative path (without a leading slash)
  * "utime" - update time
- * "id" - a 128-bit file ID, chosen at random, stored as hex
  * "deleted" - deleted boolean
  * "size" - file size in bytes
  * "mtime" - last modified time as a unix timestamp
  * "mode" - unix mode bits
  * "sha256" - SHA256 of file contents
- * "key" - a 256-bit encryption key, stored as hex
 
 If a file is deleted, the deleted boolean is set to true.  Any fields listed
 after the deleted field in the list above can be blanked.  The entry for the
@@ -579,14 +548,6 @@ file.  This is represented as an octal number, for example "0755".
 
 The SHA256 of the file contents should be cached in a local database for
 performance reasons, and should be updated with the file size or mtime changes.
-
-The file ID is used for untrusted peers.  It is created when the file entry
-is first created and does not change again.
-
-The key field holds an 128-bit encryption key and a 128-bit Initialization
-Vector (IV), in that order.  The key is used to encrypt files when being sent
-to untrusted peers.  They are predetermined so that all peers agree on how to
-encrypt the file.
 
 
 Windows Compatibility
@@ -663,9 +624,7 @@ is not shown):
       "size": 2387629
       "mtime": [1379220393, 323518242],
       "mode": "0664",
-      "sha256": "cf16aec13a8557cab5e5a5185691ab04f32f1e581cf0f8233be72ddeed7e7fc1",
-      "id": "8adbd1cdaa0200747f6f2551ce2e1244",
-      "key": "5121f93b5b2fe518fd2b1d33136ddc33d8fba39749d57c763bf30380a387a1fa"
+      "sha256": "cf16aec13a8557cab5e5a5185691ab04f32f1e581cf0f8233be72ddeed7e7fc1"
     },
     {
       "path": "photos/img2.jpg",
@@ -673,15 +632,12 @@ is not shown):
       "size": 6293123
       "mtime": [1379100421,421442491],
       "mode": "0600",
-      "sha256": "64578d0dc44b088b030ee4b258de316b5cb07fdf42b8d40050fe2635659303ed",
-      "id": "ade5f6098c8d99bd6b5472e51c64e09a",
-      "key": "2304bde0b070a0d3ca65c78127f2f1895121f93b5b2fe518fd2b1d33136ddc33"
+      "sha256": "64578d0dc44b088b030ee4b258de316b5cb07fdf42b8d40050fe2635659303ed"
     },
     {
       "path": "photos/img3.jpg",
       "utime": 1379489028.4324,
-      "deleted": true,
-      "id": "ccccf6098c8d99bd6b5472e51c64e0aa"
+      "deleted": true
     }
   ]
 }
@@ -719,6 +675,11 @@ message, as explained above.
 A peer may elect not to request a manifest, and may also elect to ignore the
 "get_manifest" message.
 
+Note: By default, read-only peers should cache read-write peers they receive,
+so that they can retrieve files from other read-only peers even when no
+read-write peers are present.  The "read_only_manifest" extension adds a more
+robust way to get metadata from a read-only peer.
+
 
 Tree Merge Algorithm
 --------------------
@@ -732,60 +693,7 @@ wins.
 
 This merged tree is kept in memory and is used to decide which files need to be
 retrieved from the peer.  Information about the new files shouldn't be applied
-to the database until after the files have been retrieved. 
-
-
-Read-Only Manifests
--------------------
-
-A read-only peer cannot change files, but needs to prove to other read-only
-peers that the files it has are genuine.  To do this, it saves the read-write
-manifest and signature to disk whenever it receives it.  The manifest and
-signature should be combined, with a newline separating them, and a newline
-after the signature.
-
-The read-only peer builds its own manifest from the read-write manifest, called
-a read-only manifest.  When it does not have all the files mentioned in the
-manifest, it includes a bitmask of the files it has, encoded as base64.
-
-If there are two diverged read-write peers and a single read-only peer, there
-will be multiple read-write manifests to choose from.  The read-only peer will
-add both read-write manifests, with associated bitmasks, to its read-only
-manifest.
-
-Similar to the "version" of the read-write database, read-only clients should
-keep a "version" number that changes only when its files change.  (Since it is
-a read-only, a change would be due to something being downloaded.)
-
-The read-only manifests do not need to be signed.  Here is an example, with the
-read-write manifest abbreviated with an ellipsis for clarity:
-
-```json
-{
-   "type": "manifest",
-   "peer": "a41f814f0ee8ef695585245621babc69",
-   "version": 1379997032,
-   "sources": [
-     {
-       "manifest": "{\"type\":\"manifest\",\"peer\":\"489d80...}\nMC4CFQCEvTIi0bTukg9fz++hel4+wTXMdAIVALoBMcgmqHVB7lYpiJIcPGoX9ukC\n",
-       "bitmask": "Lg=="
-     }
-   ]
-```
-
-
-Manifest Merging
-----------------
-
-When building the read-only manifest from two or more read-write manifests, the
-read-write manifests from each peer should be examined in "version" order,
-newest to oldest.  A manifest should only be included if it contains files that
-the read-only peer actually has on disk.  Once all the files the read-only peer
-has have been represented, it includes no more manifests.
-
-In normal operation where the read-write peers have not diverged, this merging
-strategy means that the read-only manifest will only contain one read-write
-manifest.
+to the database until after the files have been retrieved.
 
 
 Retrieving Files
@@ -889,9 +797,7 @@ Notification of a new or changed file looks like this:
     "size": 2387629,
     "mtime": [1379220393, 194518242],
     "mode": "0664",
-    "sha256": "cf16aec13a8557cab5e5a5185691ab04f32f1e581cf0f8233be72ddeed7e7fc1",
-    "id": "8adbd1cdaa0200747f6f2551ce2e1244",
-    "key": "5121f93b5b2fe518fd2b1d33136ddc3361fd9c18cb94086d9a676a9166f9ac52"
+    "sha256": "cf16aec13a8557cab5e5a5185691ab04f32f1e581cf0f8233be72ddeed7e7fc1"
   }
 }
 ```
@@ -907,8 +813,7 @@ Notification of a deleted file looks like this:
   "file": {
     "path": "photos/img3.jpg",
     "utime": 1379224548,
-    "deleted": true,
-    "id": "8adbd1cdaa0200747f6f2551ce2e1244"
+    "deleted": true
   }
 }
 ```
@@ -925,9 +830,7 @@ Notification of a moved file looks like this:
     "size": 2387629
     "mtime": [1379220393, 132518242],
     "mode": "0664",
-    "sha256": "cf16aec13a8557cab5e5a5185691ab04f32f1e581cf0f8233be72ddeed7e7fc1",
-    "id": "8adbd1cdaa0200747f6f2551ce2e1244",
-    "key": "5121f93b5b2fe518fd2b1d33136ddc3371ea246f902804fb64e7cf822eb8453c"
+    "sha256": "cf16aec13a8557cab5e5a5185691ab04f32f1e581cf0f8233be72ddeed7e7fc1"
   }
 }
 ```
@@ -944,248 +847,6 @@ to ensure that a delete wasn't really a move.
 File changes notifications should be relayed to other peers once the file has
 been successfully retrieved, assuming the other peers haven't already sent
 notification that they have the file.
-
-
-Untrusted Peers
----------------
-
-Absent from the sections above is how to communicate with an untrusted peer.
-Untrusted peers are given encrypted files, which they will then send to peers
-of all other types, including other untrusted peers.  Its behavior is similar
-to how read-write and read-only peers interact.
-
-What follows is a high-level overview of the entire operation of an untrusted
-peer.  Detailed descriptions of each process are in later sections.
-
-The peer's encrypted manifest is combined with a list of all relevant file IDs,
-this is known as the untrusted manifest.  The result is then signed with the
-read-only RSA key.
-
-This manifest is sent to untrusted peers.  The untrusted peer stores the
-manifest and then asks the read-only peer for each file, which is then saved to
-disk.
-
-When an untrusted peer connects to another untrusted peer, it sends an
-untrusted manifest, which is built using one or more encrypted manifests, each
-with a bitmask.
-
-The SHA256 of the file isn't known until the file is encrypted, which doesn't
-happen until the file is requested by an untrusted node.  Once calculated,
-peers should store the hash value and include it in future file listings.
-
-Untrusted peers can be given a cryptographic challenge by read-only and
-read-write peers to see if they are actually storing files they claim to be
-storing.
-
-
-Untrusted Manifests
--------------------
-
-Manifests are negotiated with the "get_manifest" and "manifest_current" messages
-as usual.
-
-A read-only or read-write peer will encrypt its manifest with the read-only
-PSK, as described in the "File Encryption" section below, and the result is
-base64 encoded.  This is encrypted with the read-only manifest is encrypted
-with the read-only PSK and base64 encoded.  This is combined with the peer ID
-and "version", as well as a list of all the file IDs and their sizes.  If the
-SHA256 of the encrypted file is known, it should be added to the file.  Note
-that the file list should only include files actually present on the peer, and
-all deleted files.
-
-The message is signed with the read-write or read-only RSA key (as appropriate
-for the peer).
-
-```json
-{
-  "type": "manifest",
-  "peer": "989a2afee79ec367c561e3857c438d56",
-  "version": 1380082110,
-  "manifest": "VGhpcyBpcyBzdXBwb3NlZCB0byBiZSB0aGUgZW5jcn...",
-  "files": [
-    {
-      "id": "8adbd1cdaa0200747f6f2551ce2e1244",
-      "utime": 1379220476,
-      "size": 2387629
-    },
-    {
-      "id": "eefacb80ad05fe664d6f0222060607c0",
-      "utime": 1379318976,
-      "size": 3932,
-      "sha256": "220a60ecd4a3c32c282622a625a54db9ba0ff55b5ba9c29c7064a2bc358b6a3e"
-    }
-  ]
-}
-```
-
-The manifest sent from an untrusted peer includes any manifests necessary to
-prove that the files it has are legitimate and a bitmask:
-
-```json
-{
-  "type": "manifest",
-  "peer": "7494ab07987ba112bd5c4f9857ccfb3f",
-  "version": 1380084843,
-  "sources": [
-    {
-      "manifest": "{\"type\":\"manifest\",\"peer\":\"989fac...}\nMC4CFQCEvTIi0bTukg9fz++hel4+wTXMdAIVALoBMcgmqHVB7lYpiJIcPGoX9ukC\n",
-      "bitmask": "Lg=="
-    }
-  ]
-}
-```
-
-This should follow the same manifest merging algorithm explained in an earlier
-section.
-
-The list of files is merged using the tree merging algorithm also as explained
-earlier.
-
-File change updates work in a similar manner to how they work between
-read-write and read-only peers.  Here is a regular update from the earlier
-section:
-
-```json
-{
-  "type": "update",
-  "file": {
-    "path": "photos/img1.jpg",
-    "utime": 1379220476,
-    "size": 2387629
-    "mtime": [1379220393, 123518242],
-    "mode": "0664",
-    "sha256": "cf16aec13a8557cab5e5a5185691ab04f32f1e581cf0f8233be72ddeed7e7fc1",
-    "id": "8adbd1cdaa0200747f6f2551ce2e1244",
-    "key": "5121f93b5b2fe518fd2b1d33136ddc3361fd9c18cb94086d9a676a9166f9ac52"
-  }
-}
-```
-
-The entire message and its signature (separated by a newline), are encrypted
-with the read-only PSK and put into a similar message containing the ID, size,
-and sha256 of the encrypted contents (if known).  This message should be signed.
-
-```json
-{
-  "type": "update",
-  "proof": "Z29vZCBncmllZiwgbW9yZSBmYWtlIGRhdGEuI...",
-  "file": {
-    "id": "8adbd1cdaa0200747f6f2551ce2e1244",
-    "utime": 1379220476,
-    "size": 2387629
-  }
-}
-```
-
-File moves do not require special handling (they are just sent with type
-"update"), since the file ID is unique and only the encrypted metadata changed.
-
-File deletes are handled as an "update" where the "deleted" member is set to
-true.
-
-Just like with read-write and read-only file changes, the change messages
-should be appended to the copy of the manifest including their signatures.
-
-
-Deduplicating on Untrusted Peers
---------------------------------
-
-Since untrusted peers do not have access to the unencrypted SHA256, the
-read-only and read-write peers need to help the untrusted peers know which file
-IDs match, and when those file IDs stop matching.  A "matches" member is added
-to the untrusted manifest on all but the first duplicate file (where "first" is
-considered to be the file ID that is lowest when the hex value is sorted with
-strcmp).
-
-```json
-{
-  "type": "manifest",
-  "peer": "989a2afee79ec367c561e3857c438d56",
-  "version": 1380082110,
-  "manifest": "VGhpcyBpcyBzdXBwb3NlZCB0byBiZSB0aGUgZW5jcn...",
-  "files": [
-    {
-      "id": "8adbd1cdaa0200747f6f2551ce2e1244",
-      "utime": 1379220476,
-      "size": 2387629
-    },
-    {
-      "id": "eefacb80ad05fe664d6f0222060607c0",
-      "utime": 1379318976,
-      "size": 3932,
-      "sha256": "220a60ecd4a3c32c282622a625a54db9ba0ff55b5ba9c29c7064a2bc358b6a3e"
-    },
-    {
-      "id": "dd711c53e77e793bb77555a53a5feb84",
-      "utime": 1379221088,
-      "matches": "8adbd1cdaa0200747f6f2551ce2e1244"
-    }
-  ]
-}
-```
-
-
-File Encryption
----------------
-
-Encryption should be done with AES128 in CTR mode (CTR mode is seekable).  The
-first sixteen bytes of the file are "ClearSkiesCrypt1".  A random encryption
-key is chosen.  This is XOR'd with the encryption key and written as the next
-16 bytes of the file.  The following 16 bytes in the file should be the
-initialization vector (IV).  Then the encrypted data is written.  The last 32
-bytes in the file should be the SHA256 of the file.
-
-
-Untrusted Proof of Storage
---------------------------
-
-Untrusted peers can be asked to prove that they are storing a file.  This is
-I/O intensive for both peers, so some steps should be taken to reduce
-unnecessary verification.  If there are read-write peers present on the
-network, read-only peers should not perform any verification.  By default, the
-rate of verification should be extremely low, perhaps a single file per day.
-
-Software may support user-initiated full verifications.
-
-A random file is chosen and a 32-byte random sequence is generated.  This is
-sent to the untrusted peer.
-
-The read-write peer then asks for file verification with a *signed* message:
-
-```json
-{
-  "type": "verify",
-  "file_id": "a0929405c4ff5a96ffeb8cbe672c82d4",
-  "prefix": "3d820dcc0ecad651e87fc84bb688bf7e6c7ee019ba47d9bdaaf6bc4bed2b9620"
-}
-```
-
-The untrusted peer concatenates the 32-bytes and the entire contents of the
-file and sends back the result:
-
-```json
-{
-  "type": "verify_result",
-  "file_id": "a0929405c4ff5a96ffeb8cbe672c82d4",
-  "result": "fff8acd78f7528c143cb5a6971f911d3869368cbc177f3f4404d945c6accc08d"
-}
-```
-
-The read-write peer then uses the prefix and IV to recreate the experiment and
-validate that resulting hash is correct.  If the hash is not correct, software
-may notify the user, or it could change the file_id and encryption key for that
-file so that the untrusted node re-downloads an undamaged version.
-
-If an untrusted peer is overloaded, it may choose to ignore the proof-of-storage
-request.  It may also send back a busy message:
-
-```json
-{
-  "type": "verify_busy",
-  "file_id": "a0929405c4ff5a96ffeb8cbe672c82d4",
-  "retry_in": 600
-}
-```
 
 
 Deleted Files
@@ -1224,87 +885,6 @@ its own timeout to be same as the timeout of its peer if the peer's timeout is
 greater, that way software on mobile devices can adjust for battery life and
 network conditions.
 
-
-Spreading Access Codes
-----------------------
-
-Long-lived access codes are shared with other peers so that the originating
-peer does not need to stay online.
-
-Access codes should only be given to peers with the same or higher security
-level as the level the code grants.  For example, a read-only code created on a
-read-write peer should spread to all read-write peers, and all read-only peers.
-A read-only code created on a read-only peer should also spread to all
-read-only and read-write peers.  A read-write code can only be created on a
-read-write peer and spread to other read-write peers.
-
-Since access codes are short and created rarely, all known access codes are
-sent when the connection is first opened.
-
-Access codes should be kept locally in a database.  Each record has a "utime"
-timestamp and should only be replaced with a record with a newer timestamp.  To
-stop read-only peers from being able to fill up the hard drive of other peers,
-software may rate-limit access code updates.
-
-Access codes can be revoked and single-use access codes are marked as used.
-They should not be removed from the database until they expire, if time limited,
-otherwise they should be kept indefinitely.
-
-Passphrases are not stored verbatim but instead the SHA256(SHA256(...)) is
-stored.  Note that this is a 256-bit access code instead of the usual 128-bit
-codes.
-
-When first connected to a peer, all known access codes should be sent.
-Thereafter, only database updates need to be sent.  Updates do not need to be
-relayed.
-
-The "access_code_list" message is used for the initial list, and subsequent
-updates send an "access_code_update".  Here is an example message, which shows
-an access code of each type:
-
-
-```json
-{
-  "type": "access_code_update",
-  "codes": [
-    {
-      "code": "a0929405c4ff5a96ffeb8cbe672c82d4",
-      "one_time": true,
-      "created": 1379735175,
-      "expiration": 1379744200,
-      "utime": 1379735175
-    },
-    {
-      "code": "e47c0685fe4bad29cdc0a7bdbd5335cb",
-      "created": 1379744627,
-      "expiration": false,
-      "utime": 1379744627
-    },
-    {
-      "code": "ed384f58875d01e242293142eed75a7a",
-      "created": 1379741016,
-      "expiration": false,
-      "revoked": true,
-      "utime": 1379744623
-    },
-    {
-      "code": "61a08703a6a4c774cad650afaedd9c10",
-      "created": 1379744460,
-      "one_time": true,
-      "used": true,
-      "expiration": false,
-      "utime": 1379744616
-    },
-    {
-      "code": "19ababf69f21cf018e846bb90ecac80cddfa532c5aae97acc99172b5be529fb7",
-      "created": 1379744616,
-      "one_time": true,
-      "expiration": 1379744611
-      "utime": 1379744616
-    }
-  ]
-}
-```
 
 
 Checking for Missing Shares
@@ -1482,3 +1062,6 @@ issues will be addressed before the spec is finalized.
 * The file metadata should have its own utime, separate from the utime for the
   file contents.  Otherwise, someone could run something like `chmod a+r -R .`
   on an out-of-sync share and hose the other end.
+
+* Only a single connection to the tracker should be necessary, regardless of
+  the number of access codes created.
