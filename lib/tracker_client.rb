@@ -41,19 +41,21 @@ module TrackerClient
 
   # Ask all trackers for information about all of our shares.
   def self.poll_all_trackers
-    IDMapper.each do |share_id,peer_id|
-      trackers.each do |url|
-        poll_tracker share_id, peer_id, url
+    Conf.trackers.each do |url|
+      ids = []
+      IDMapper.each do |share_id,peer_id|
+        ids << "#{share_id}@#{peer_id}"
       end
+      next if ids.empty?
+      poll_tracker ids, url
     end
   end
 
   # Ask tracker for a list of peers interested in a share.
-  def self.poll_tracker share_id, peer_id, url
+  def self.poll_tracker ids, url
     uri = URI(url)
     uri.query = URI.encode_www_form({
-      :id => share_id,
-      :peer => peer_id,
+      :id => ids,
       :myport => Network.listen_port,
     })
     Log.debug "Tracking with #{uri}"
@@ -61,16 +63,13 @@ module TrackerClient
     return unless res.is_a? Net::HTTPSuccess
     info = JSON.parse res.body, symbolize_names: true
 
-    info[:others].each do |peerspec|
-      id, addr = peerspec.split "@"
-      # FIXME IPv6 needs better parsing
-      ip, port = addr.split ":"
-      @peer_discovered.call share_id, id, ip, port.to_i
+    info[:others].each do |share_id,peers|
+      peers.each do |peerspec|
+        id, addr = peerspec.split "@"
+        # FIXME Support IPv6
+        ip, port = addr.split ":"
+        @peer_discovered.call share_id, id, ip, port.to_i
+      end
     end
-  end
-
-  # Get a list of trackers.
-  def self.trackers
-    ["http://clearskies.tuxng.com/clearskies/track"]
   end
 end

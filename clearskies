@@ -38,6 +38,10 @@ files to sync to other devices.
       options[:no_fork] = !f
     end
 
+    opts.on( '--trackers TRACKER', 'HTTP addresses of trackers' ) do |t|
+      Conf.trackers = t.split ','
+    end
+
     # FIXME Instead of having to pass this at start time, let the user
     # reconfigure it dynamically via the CLI
     opts.on( '-p', '--listen-port NUMBER', 'Port for incoming connections' ) do |p|

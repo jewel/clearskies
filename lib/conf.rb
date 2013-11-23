@@ -44,4 +44,13 @@ module Conf
   def self.friendly_name
     "ClearSkies Client"
   end
+
+  # Get the list of trackers
+  def self.trackers
+    @trackers || ["http://clearskies.tuxng.com/clearskies/track"]
+  end
+
+  def self.trackers= val
+    @trackers = val
+  end
 end

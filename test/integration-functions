@@ -37,6 +37,7 @@ cleanup()
   sleep 0.1
   kill_pid "/tmp/testing/Client"
   kill_pid "/tmp/testing/Server"
+  kill_pid "/tmp/testing/Tracker"
 }
 
 error() {
@@ -64,7 +65,7 @@ run_program()
 
 launch_daemon()
 {
-  run_program "$1" "CLEARSKIES_DIR=/tmp/$2 ./clearskies start --no-fork"
+  run_program "$1" "CLEARSKIES_DIR=/tmp/$2 ./clearskies start --no-fork $3"
 
   log "Waiting for $1 to start"
   while ! test -e /tmp/$2/control

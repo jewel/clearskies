@@ -1,0 +1,50 @@
+#!/bin/bash
+
+. test/integration-functions
+
+start_session
+
+cleanup
+rm -rf /tmp/1 /tmp/2 /tmp/tracker /tmp/testing
+
+# ----- Tracker -----
+run_program "Tracker" "tracker/server"
+
+sleep 1
+
+# Create file to verify sync has happened
+
+mkdir -p /tmp/1/stuff
+echo my only file > /tmp/1/stuff/file
+
+# I call the two Daemons Server and Client just for internal mental reference
+
+# ----- Server -----
+
+launch_daemon "Server" 1 --trackers=http://localhost:10234/clearskies/track
+
+log "Creating share on server"
+log "Requesting access code from server"
+code=$(CLEARSKIES_DIR=/tmp/1 ./clearskies share /tmp/1/stuff)
+log "Requesting another access code from server"
+code=$(CLEARSKIES_DIR=/tmp/1 ./clearskies share /tmp/1/stuff)
+log "Code is '$code'"
+
+# ----- Client -----
+
+launch_daemon "Client" 2 --trackers=http://localhost:10234/clearskies/track
+
+log "Adding access code to client"
+CLEARSKIES_DIR=/tmp/2 ./clearskies add "$code" /tmp/2/stuff
+
+# ----- Initial Sync ------
+
+verify_synced file
+
+log "Test successful!"
+
+read foo
+
+cleanup
+
+exit 0

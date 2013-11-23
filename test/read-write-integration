@@ -27,7 +27,7 @@ log "Code is '$code'"
 
 # ----- Client -----
 
-launch_daemon "Server" 2
+launch_daemon "Client" 2
 
 log "Adding access code to client"
 CLEARSKIES_DIR=/tmp/2 ./clearskies add "$code" /tmp/2/stuff

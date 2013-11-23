@@ -179,7 +179,7 @@ has been abbreviated using "..." for clarity, and whitespace has also been
 added):
 
     http://tracker.example.com/clearskies/track?myport=30020
-         &id=00dfbe94...0aba44c5@e1392fc1...5110d9a1
+         &id=1bff33a2...b08d1075@e1392fc1...5110d9a1
          &id=55ebe824...722c894c@133584bc...10453167
 
 The response must have the content-type of application/json and will have a
@@ -188,14 +188,19 @@ JSON body like the following (whitespace has been added for clarity):
 ```json
 {
    "your_ip": "32.169.0.1",
-   "others": ["be8b773c227f44c5110945e8254e722c@128.1.2.3:40321"],
+   "others": {
+     "1bff33a239ae76ab89f94b3e582bcf7dde5549c141db6d3bf8f37b49b08d1075":
+       ["be8b773c227f44c5110945e8254e722c@128.1.2.3:40321"]
+     }
+   },
    "ttl": 300
 }
 ```
 
 The TTL is the number of seconds until the client should register again.
 
-The "others" key contains a list of all other peers that have registered for
+The "others" object has a key for each share that was requested (if it has any
+peers).  The value contains a list of all other peers that have registered for
 this ID, with the client's "peer ID", followed by an @ sign, and then
 peer's IP address.  The IP address can be an IPV4 address, or an IPV6 address
 surrounded in square brackets.
@@ -225,10 +230,10 @@ alive.
 A complete response might look like:
 
 ```json
-{"success":true,"your_ip":"192.169.0.1","others":["a958e1b202a3a432caeeb66616b1305f@128.1.2.3:40321"],"ttl":3600,"timeout":120}
+{"success":true,"your_ip":"192.169.0.1","others":{"13b41af0af37eb8a6153499116bf018c3a11dae6120c80af807cdedace54fc5b":["a958e1b202a3a432caeeb66616b1305f@128.1.2.3:40321"]},"ttl":3600,"timeout":120}
 {}
 {}
-{"others":["a958e1b202a3a432caeeb66616b1305f@128.1.2.3:40321","2a3728dca353324de4d6bfbebf2128d9@99.1.2.4:41234"]}
+{"others":{"13b41af0af37eb8a6153499116bf018c3a11dae6120c80af807cdedace54fc5b":["a958e1b202a3a432caeeb66616b1305f@128.1.2.3:40321","2a3728dca353324de4d6bfbebf2128d9@99.1.2.4:41234"]}}
 {}
 {}
 ```

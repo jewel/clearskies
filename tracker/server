@@ -27,23 +27,34 @@ class Tracker < WEBrick::HTTPServlet::AbstractServlet
   def do_GET req, res
     q = req.query
 
-    id = q["id"]
-    peer = q["peer"]
+    # FIXME support IPv6
     addr = req.remote_ip.to_s
     port = q["myport"]
 
+    ids = q["id"].list
+
     # FIXME Validate incoming parameters
 
-    @@peers[id] ||= {}
+    others = {}
 
-    now = Time.new.to_i
-    @@peers[id][peer] = [ addr, port, now ]
+    ids.each do |foo|
+      id, peer = foo.split "@"
 
-    others = []
-    @@peers[id].each do |peer_id,info|
-      next if peer_id == peer
-      next if info[2] + TIMEOUT < now
-      others.push "#{peer_id}@#{info[0]}:#{info[1]}"
+      @@peers[id] ||= {}
+
+      now = Time.new.to_i
+      @@peers[id][peer] = [ addr, port, now ]
+
+      peers = []
+
+      @@peers[id].each do |peer_id,info|
+        next if peer_id == peer
+        next if info[2] + TIMEOUT < now
+        peers.push "#{peer_id}@#{info[0]}:#{info[1]}"
+      end
+
+      next if peers.empty?
+      others[id] = peers
     end
 
     res.content_type = 'application/json'
