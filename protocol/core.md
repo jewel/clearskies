@@ -168,12 +168,19 @@ Note that both peers should register themselves immediately with the tracker,
 and re-registration should happen if the local IP address changes, or after the
 TTL period has expired of the registration.
 
-The ID and listening port are used to make a GET request to the tracker
-(whitespace has been added for clarity):
+The ID and peer ID are combined into a single string separated by an "@"
+character, and sent as the "id" parameter.
+
+If a peer has multiple shares (or access codes), they should be combined into a
+single request to the tracker, by sending the "id" parameter multiple times.
+
+The ID and listening port are used to make a GET request to the tracker (hex
+has been abbreviated using "..." for clarity, and whitespace has also been
+added):
 
     http://tracker.example.com/clearskies/track?myport=30020
-         &peer=e139d99b48e6d6ca033195a39eb8d9a1
-         &id=00df70a2ec5a8bfe4e68d00aba75792b839ea84aa70aa1dd4dfe0e7116e253cc
+         &id=00dfbe94...0aba44c5@e1392fc1...5110d9a1
+         &id=55ebe824...722c894c@133584bc...10453167
 
 The response must have the content-type of application/json and will have a
 JSON body like the following (whitespace has been added for clarity):
@@ -237,7 +244,7 @@ broadcast contains the following JSON payload:
 {
   "name": "ClearSkiesBroadcast",
   "version": 1,
-  "id": "22596363b3de40b06f981fb85d82312e8c0ed511",
+  "id": "adf6447b553841835aaa712219e01f10486fd1003b1324e94de59f5646b060f3",
   "peer": "2a3728dca353324de4d6bfbebf2128d9",
   "myport": 40121
 }
@@ -1042,6 +1049,3 @@ issues will be addressed before the spec is finalized.
 * The file metadata should have its own utime, separate from the utime for the
   file contents.  Otherwise, someone could run something like `chmod a+r -R .`
   on an out-of-sync share and hose the other end.
-
-* Only a single connection to the tracker should be necessary, regardless of
-  the number of access codes created.
