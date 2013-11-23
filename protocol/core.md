@@ -59,8 +59,7 @@ it, but they do not give it to read-only peers.  It will be referred to as the
 read-write pre-shared-key (PSK).  (Details of communication encryption are found
 in the "Handshake" section.
 
-The SHA256 of the read-write PSK is called the share ID.  This is used to
-locate other share peers.
+A 256-bit random number is chosen called the share ID.  This is shared publicly.
 
 A 128-bit random number called the peer ID is also generated.  Each peer has
 its own peer ID, and the peer should use a different peer ID for each share.
@@ -81,8 +80,7 @@ Access Codes
 ------------
 
 To grant access to a new peer, an access code is generated.  Access codes are
-random 56-bit numbers.  While 56 bits seems weak, the access code is not used
-directly as an encryption key, but is instead used as a proof-of-identity.
+random 128-bit numbers.
 
 The default method of granting access sharing uses codes that are short-lived,
 single-use code.  This is to reduce the risk of sharing the code over
@@ -93,21 +91,24 @@ multi-use and persist for a longer time (even indefinitely).
 
 The human-sharable version of the access code is represented as base32, as
 defined in [RFC 4648](http://tools.ietf.org/html/rfc4648).  Since the access
-code is 7 bytes, and base32 requires lengths that are divisible by 5, a special
-prefix is added to the access code.  The prefix bytes are 0x96, 0x1A, 0x2B.
-Finally, a LUN check digit is added, using the [LUN mod N
+code is 16 bytes, and base32 requires lengths that are divisible by 5, a
+special prefix is added to the access code.  The prefix bytes are 0x96, 0x1A,
+0x2F, 0xF3.  Finally, a LUN check digit is added, using the [LUN mod N
 algorithm](http://en.wikipedia.org/wiki/Luhn_mod_N_algorithm), where N is 32.
+The final result is a 33 character string which (due to the magic prefix) will
+start with "SYNC".
 
-The 56-bit number is run through SHA256 to get an access ID.  This is used
+The 128-bit number is run through SHA256 to get an access ID.  This is used
 to locate other peers.
 
 The user may opt to replace the provided access code with a passphrase before
-sending it.  If this is done, the SHA256 of the passphrase should be taken
-one million times.  This 256-bit hash is considered the access code, and its
-SHA256 is the access ID.
+sending it.  If this is done, the SHA256 of the passphrase should be taken ten
+million times.  This 256-bit hash is considered the access code, and its SHA256
+is the access ID.
 
-Long-lived access codes are spread to other nodes with the same (or higher)
-level of access so that the sharing node does not have to stay online.
+The core protocol has no mechanism for spreading access codes to other peers,
+so the original node needs to be online for a new peer to join.  The
+"code_spread" extension adds access code spreading.
 
 
 Access Code UI
@@ -1028,25 +1029,6 @@ Known Issues
 This is a list of known issues or problems with the protocol.  The serious
 issues will be addressed before the spec is finalized.
 
-* The access code method is vulnerable to man-in-the-middle attacks.  We could
-  recommend that users break the access code into two or more pieces and send
-  them over multiple mediums to reduce the attack surface.
-
-* 56-bit access codes can be large enough for transport protection, since we're
-  using DHE to generate the actual keys, but only if the software rate limits
-  connection attempts.
-
-* 56-bit access codes are insufficient since the tracker will learn the
-  share ID, from which it could derive the access code.  This will take on
-  average 40 years on a current generation i7, but on a hypothetical ASIC
-  similar to those made for bitcoin (a 5 billion hash-per-second chip sells for
-  $40 at the time of writing), it could be cracked in 83 days on average.
-
-* Taking the SHA256 of the read-write key to generate the share id is
-  unnecessarily exposing the read-write key, however small of an exposure it
-  may be.  (We're currently doing this so that we can have shares with a master
-  password.)
-
 * Master passwords have to be created at the time the share is created, they
   can't be added later.  Master passwords should act more like access codes,
   i.e. be advertised separately.  This would mean we'd need to encrypt the
@@ -1056,8 +1038,6 @@ issues will be addressed before the spec is finalized.
   SHA256 rounds.  Since a cheap bitcoin ASIC can do 5 billion hashes per second.
   This could be mitigated by only using half of the bits to generate the share
   ID, and using the other half to decrypt the key file.
-
-* Access code passphrases have the same issues as master passwords.
 
 * The file metadata should have its own utime, separate from the utime for the
   file contents.  Otherwise, someone could run something like `chmod a+r -R .`

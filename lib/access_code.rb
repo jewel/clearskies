@@ -20,14 +20,14 @@ class AccessCode
 
   # Create a new Access Code object
   def self.create
-    payload = SecureRandom.random_bytes 7
+    payload = SecureRandom.random_bytes 16
     self.new payload
   end
 
   # Parse an access code in ASCII format.
   # These are BASE32 encoded.
   def self.parse str
-    raise "Wrong length, should be 17 characters, not #{str.size} characters" unless str.size == 17
+    raise "Wrong length, should be 33 characters, not #{str.size} characters" unless str.size == 33
 
     str.upcase!
 
@@ -40,9 +40,9 @@ class AccessCode
 
     binary = Base32.decode str
 
-    # Remove "\x96\x1A\x2B"
+    # Remove "\x96\x1A\x2F\xF3"
 
-    payload = binary[3..-1]
+    payload = binary[4..-1]
 
     self.new payload
   end
@@ -56,7 +56,7 @@ class AccessCode
   # Get base32 representation of the access code, for sharing with other
   # people.
   def to_s
-    LuhnCheck.generate(Base32.encode(["961a2b"].pack('H*') + @payload))
+    LuhnCheck.generate(Base32.encode(["961a2ff3"].pack('H*') + @payload))
   end
 
   # Get the key material for the access code.  This asks for the desired

@@ -7,13 +7,14 @@ describe AccessCode, "generating" do
     AccessCode.create.to_s.must_match /\ASYNC/
   end
 
-  it "should be 17 characters" do
-    AccessCode.create.to_s.size.must_equal 17
+  it "should be 33 characters" do
+    AccessCode.create.to_s.size.must_equal 33
   end
 
   it "should parse back to itself" do
     16.times do
       str = AccessCode.create.to_s
+      p str
       code = AccessCode.parse str
       code.to_s.must_equal str
     end
