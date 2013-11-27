@@ -29,7 +29,7 @@ class Tracker < WEBrick::HTTPServlet::AbstractServlet
 
     # FIXME support IPv6
     addr = req.remote_ip.to_s
-    port = q["myport"]
+    port = q["tcp_port"]
 
     ids = q["id"].list
 
@@ -50,7 +50,7 @@ class Tracker < WEBrick::HTTPServlet::AbstractServlet
       @@peers[id].each do |peer_id,info|
         next if peer_id == peer
         next if info[2] + TIMEOUT < now
-        peers.push "#{peer_id}@#{info[0]}:#{info[1]}"
+        peers.push "#{peer_id}@tcp:#{info[0]}:#{info[1]}"
       end
 
       next if peers.empty?

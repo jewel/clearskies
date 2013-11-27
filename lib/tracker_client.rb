@@ -56,7 +56,7 @@ module TrackerClient
     uri = URI(url)
     uri.query = URI.encode_www_form({
       :id => ids,
-      :myport => Network.listen_port,
+      :tcp_port => Network.listen_port,
     })
     Log.debug "Tracking with #{uri}"
     res = gunlock { Net::HTTP.get_response uri }
@@ -67,7 +67,8 @@ module TrackerClient
       peers.each do |peerspec|
         id, addr = peerspec.split "@"
         # FIXME Support IPv6
-        ip, port = addr.split ":"
+        proto, ip, port = addr.split ":"
+        next unless proto == "tcp"
         @peer_discovered.call share_id, id, ip, port.to_i
       end
     end
