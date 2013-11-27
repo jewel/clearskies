@@ -158,15 +158,21 @@ Tracker Protocol
 ----------------
 
 The tracker is an HTTP or HTTPS service.  The main tracker service runs at
-tracker.example.com (to be determined).
+clearskies.example.com (to be determined).
 
 Software should come with the main tracker service address built-in, and may
 optionally support additional tracker addresses.  Finally, the user should be
 allowed to customize the tracker list.
 
+The tracker is sent the listening TCP port number.  When operating behind a
+NAT, this may not be accessible from the outside world, unless the user has set
+up port forwarding or the port was automatically opened with UPnP.  If known,
+an outside UDP port number for uTP (explained in a later section) can also be
+included.
+
 Note that both peers should register themselves immediately with the tracker,
-and re-registration should happen if the local IP address changes, or after the
-TTL period has expired of the registration.
+and re-registration should happen if the IP address or port changes, or after
+the TTL period has expired of the registration.
 
 The ID and peer ID are combined into a single string separated by an "@"
 character, and sent as the "id" parameter.
@@ -178,7 +184,7 @@ The ID and listening port are used to make a GET request to the tracker (hex
 has been abbreviated using "..." for clarity, and whitespace has also been
 added):
 
-    http://tracker.example.com/clearskies/track?myport=30020
+    http://tracker.example.com/clearskies/track?tcp_port=30020&utp_port=61301
          &id=1bff33a2...b08d1075@e1392fc1...5110d9a1
          &id=55ebe824...722c894c@133584bc...10453167
 
@@ -190,7 +196,7 @@ JSON body like the following (whitespace has been added for clarity):
    "your_ip": "32.169.0.1",
    "others": {
      "1bff33a239ae76ab89f94b3e582bcf7dde5549c141db6d3bf8f37b49b08d1075":
-       ["be8b773c227f44c5110945e8254e722c@128.1.2.3:40321"]
+       ["be8b773c227f44c5110945e8254e722c@tcp:128.1.2.3:40321"]
      }
    },
    "ttl": 300
@@ -201,9 +207,13 @@ The TTL is the number of seconds until the client should register again.
 
 The "others" object has a key for each share that was requested (if it has any
 peers).  The value contains a list of all other peers that have registered for
-this ID, with the client's "peer ID", followed by an @ sign, and then
-peer's IP address.  The IP address can be an IPV4 address, or an IPV6 address
-surrounded in square brackets.
+this ID, with the client's "peer ID", followed by an @ sign, and then a psuedo
+protocol, followed by the peer's IP address.  The IP address can be an IPV4
+address, or an IPV6 address surrounded in square brackets.  Finally, the port
+number is given.
+
+The psuedo protocol will be one of "tcp:" or "utp:".  uTP is explained in a
+later section.  Other protocols, if not understood, should be ignored.
 
 
 Fast Tracker Extension
@@ -230,10 +240,10 @@ alive.
 A complete response might look like:
 
 ```json
-{"success":true,"your_ip":"192.169.0.1","others":{"13b41af0af37eb8a6153499116bf018c3a11dae6120c80af807cdedace54fc5b":["a958e1b202a3a432caeeb66616b1305f@128.1.2.3:40321"]},"ttl":3600,"timeout":120}
+{"success":true,"your_ip":"192.169.0.1","others":{"13b41af0af37eb8a6153499116bf018c3a11dae6120c80af807cdedace54fc5b":["a958e1b202a3a432caeeb66616b1305f@utp:128.1.2.3:40321"]},"ttl":3600,"timeout":120}
 {}
 {}
-{"others":{"13b41af0af37eb8a6153499116bf018c3a11dae6120c80af807cdedace54fc5b":["a958e1b202a3a432caeeb66616b1305f@128.1.2.3:40321","2a3728dca353324de4d6bfbebf2128d9@99.1.2.4:41234"]}}
+{"others":{"13b41af0af37eb8a6153499116bf018c3a11dae6120c80af807cdedace54fc5b":["a958e1b202a3a432caeeb66616b1305f@utp:128.1.2.3:40321","2a3728dca353324de4d6bfbebf2128d9@tcp:99.1.2.4:41234"]}}
 {}
 {}
 ```
@@ -271,16 +281,34 @@ contains a mapping from share ID to peer address.
 Future updates to protocol version 1 will include the DHT mechanism.
 
 
-Firewall Transversal
---------------------
+NAT Transversal
+---------------
 
 There is no standard port number on which to listen.
 
-Software should use UPnP to make sure that its listening port is open to the
-world.
+Software should attempt to use UPnP to make sure that the listening TCP port is
+open to the world.
 
-Future updates to the protocol will include a method for communicating over
-UDP.
+In order to bypass typical home NATs,
+[STUN](http://tools.ietf.org/html/rfc5389) and
+[uTP](http://www.bittorrent.org/beps/bep_0029.html) are used.  STUN is a way to
+determine the public port of an open UDP socket.  uTP is akin to a TCP-in-UDP
+wrapper.
+
+On startup, the software should connect to the STUN server to determine its UDP
+port.  Each software vendor should hard-code a default STUN server or list of
+STUN servers.
+
+The UDP port mapping in the firewall's NAT table should be kept open by
+accessing the STUN server periodically if there is no other activity on the
+port.
+
+Once the UDP port has be determined, it should be sent to the tracker using the
+"utp_port" parameter.  A peer can then use this information to open a uTP
+session.
+
+Since uTP acts very similar to TCP, the TLS encryption (described later) can be
+used as if it were a normal TCP connection.
 
 
 Wire Protocol
