@@ -1,4 +1,8 @@
+require_relative '../buffered_io'
+
 class GnuTLS::Session
+  include BufferedIO
+
   def initialize ptr, direction
     @session = ptr
     @direction = direction
@@ -126,30 +130,6 @@ class GnuTLS::Session
     nil
   end
 
-  def puts str
-    write str + "\n"
-  end
-
-  def read len
-    str = String.new
-    while str.size < len
-      str << readpartial( len - str.size )
-    end
-    str
-  end
-
-  def gets
-    loop do
-      if index = @buffer.index("\n")
-        slice = @buffer[0..index]
-        @buffer = @buffer[(index+1)..-1]
-        return slice
-      end
-
-      @buffer << unbuffered_readpartial(1024 * 16)
-    end
-  end
-
   def unbuffered_readpartial len
     buffer = FFI::MemoryPointer.new :char, len
 
@@ -169,18 +149,6 @@ class GnuTLS::Session
     buffer.free
   end
   private :unbuffered_readpartial
-
-  def readpartial len
-    # To keep things simple, always drain the buffer first
-    if @buffer.size > 0
-      amount = [len,@buffer.size].min
-      slice = @buffer[0...amount]
-      @buffer = @buffer[amount..-1]
-      return slice
-    end
-
-    unbuffered_readpartial len
-  end
 
   def deinit
     # FIXME How do we ensure this is called?
