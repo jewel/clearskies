@@ -55,11 +55,18 @@ class UPnP
       })
 
       opened ||= res
+      timeout = Time.new + DURATION
 
-      break if res
+      if res
+        at_exit { delete_port({
+          control: control_url,
+          protocol: protocol,
+          external_port: external_port,
+          timeout: timeout
+        }) }
+        break
+      end
     end
-
-    # FIXME we should set an at_exit to attempt to clean up our port mapping
 
     opened
   end
@@ -94,7 +101,7 @@ EOF
     urls = []
 
     responses.each do |response|
-      next unless response =~ /^Location: (http:\/\/.*?)\r\n/
+      next unless response =~ /^Location: (http:\/\/.*?)\r\n/i
       urls << $1
     end
 
@@ -166,6 +173,21 @@ EOF
 EOF
 
     Log.info "UPnP router #{URI.parse(opts[:control]).host} is forwarding #{opts[:external_port]} to #{opts[:internal_ip]}:#{opts[:internal_port]}, expires in #{DURATION} s."
+    return true
+  end
+
+  # Remove router port mapping
+  def self.delete_port opts
+    return if Time.new > opts[:timeout]
+    namespace = "service:WANIPConnection:1"
+    return false unless send_soap opts[:control], namespace, :DeletePortMapping, <<EOF
+<NewRemoteHost></NewRemoteHost>
+<NewExternalPort>#{opts[:external_port]}</NewExternalPort>
+<NewProtocol>#{opts[:protocol]}</NewProtocol>
+EOF
+
+    Log.info "UPnP router #{URI.parse(opts[:control]).host} is no longer forwarding #{opts[:external_port]}"
+    return true
   end
 
 
