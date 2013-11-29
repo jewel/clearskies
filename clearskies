@@ -175,7 +175,9 @@ when "create"
 
   path = File.realpath path
 
-  ControlClient.issue :create_share, path
+  ControlClient.issue :create_share, {
+    path: path
+  }
 
 when "ls", "list"
   res = ControlClient.issue :list_shares

@@ -123,7 +123,7 @@ module ControlServer
         shares: Shares.map do |share|
           {
             path: share.path,
-            status: share.status,
+            status: 'N/A',
           }
         end
       }
