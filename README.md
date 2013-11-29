@@ -83,10 +83,10 @@ If you already have a working ruby 1.9 or 2.0:
 gem install rb-inotify ffi
 ```
 
-Otherwise, installing dependencies on Ubuntu:
+Otherwise, installing dependencies on Ubuntu or Debian:
 
 ```bash
-apt-get install libgnutls26 ruby1.9.1 librb-inotify-ruby1.9.1
+apt-get install libgnutls26 ruby1.9.1 ruby-rb-inotify ruby-ffi
 ```
 
 Clone this repo:
