@@ -215,7 +215,11 @@ class AuthenticatedConnection < Connection
     if msg[:deleted]
       path = @share.full_path msg[:path]
       @share.check_path path
-      File.unlink path if File.exists? path
+      if File.exists? path
+        metadata.deleted = true
+        @share.save msg[:path]
+        File.unlink path
+      end
       return
     end
 

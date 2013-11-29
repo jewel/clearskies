@@ -76,6 +76,15 @@ rm /tmp/1/stuff/fourth
 
 wait_gone /tmp/2/stuff/fourth
 
+# Force delay by creating another file
+touch /tmp/1/stuff/baz
+verify_synced baz
+
+# ----- Recreate deleted file -----
+echo "fourth rises again" > /tmp/1/stuff/fourth
+verify_synced fourth
+
+
 # ----- Create subdirectory -----
 
 # Test that directory contents are added even if the monitor
@@ -100,7 +109,7 @@ verify_synced second
 verify_synced read-only
 verify_synced empty
 verify_synced third
-verify_missing fourth
+verify_synced fourth
 verify_synced subdir/five
 verify_synced subdir/six
 
