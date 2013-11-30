@@ -117,12 +117,37 @@ log "Creating subdir/six on server"
 echo "Now six, six files" > /tmp/1/stuff/subdir/six
 verify_synced subdir/six
 
+# ----- Delete a file while server is stopped -----
+log "Stopping client"
+CLEARSKIES_DIR=/tmp/2 ./clearskies stop
+
+log "Removing third on server"
+rm /tmp/1/stuff/third
+
+log "Creating gargle on server"
+echo "garg garg" > /tmp/1/stuff/gargle
+
+log "Creating boggle on client"
+echo "barg barg" > /tmp/2/stuff/boggle
+
+# Make sure that changes are registered in server before client starts again
+sleep 0.1
+
+log "Starting client again"
+launch_daemon "Client" 2
+
+verify_synced gargle
+verify_synced boggle
+verify_missing third
+
 log "Checking all files again"
 verify_synced first
 verify_synced second
 verify_synced read-only
 verify_synced empty
-verify_synced third
+verify_missing third
+verify_synced boggle
+verify_synced gargle
 verify_synced fourth
 verify_missing fourth-temp
 verify_synced subdir/five
