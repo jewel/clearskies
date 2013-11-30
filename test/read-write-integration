@@ -76,12 +76,25 @@ rm /tmp/1/stuff/fourth
 
 wait_gone /tmp/2/stuff/fourth
 
+log "Recreating fourth"
+
 # Force delay by creating another file
 touch /tmp/1/stuff/baz
 verify_synced baz
 
 # ----- Recreate deleted file -----
 echo "fourth rises again" > /tmp/1/stuff/fourth
+verify_synced fourth
+
+# ---- Rename file -----
+log "Renaming fourth to fourth-temp on server"
+mv /tmp/1/stuff/fourth /tmp/1/stuff/fourth-temp
+verify_synced fourth-temp
+verify_missing fourth
+log "Renaming fourth-temp to fourth on server"
+mv /tmp/1/stuff/fourth-temp /tmp/1/stuff/fourth
+verify_synced fourth
+verify_missing fourth-temp
 verify_synced fourth
 
 
@@ -110,6 +123,7 @@ verify_synced read-only
 verify_synced empty
 verify_synced third
 verify_synced fourth
+verify_missing fourth-temp
 verify_synced subdir/five
 verify_synced subdir/six
 
