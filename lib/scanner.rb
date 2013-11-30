@@ -106,8 +106,9 @@ module Scanner
     rescue Errno::ENOENT
       # File was deleted!
       if file = share[relpath]
+        return if file.deleted
         Log.debug "#{relpath} was deleted"
-        file.deleted = true
+        file.deleted!
         file.utime = Time.new.to_f
         share.save relpath
         return

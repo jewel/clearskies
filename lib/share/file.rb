@@ -23,5 +23,13 @@ class Share
       self.size = stat.size
       self.deleted = false
     end
+
+    def deleted!
+      self.deleted = true
+      self.size = nil
+      self.mtime = nil
+      self.mode = nil
+      self.sha256 = nil
+    end
   end
 end

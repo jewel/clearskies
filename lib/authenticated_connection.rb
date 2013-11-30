@@ -74,7 +74,7 @@ class AuthenticatedConnection < Connection
       end
       send_manifest
       @share.subscribe do |file|
-        Log.debug "Learned about a change to #{file.path}"
+        Log.debug "Connection learned about a change to #{file.path}"
         send_update file
       end
     when :manifest_current
@@ -139,7 +139,7 @@ class AuthenticatedConnection < Connection
   end
 
   def send_update file
-    return unless file.sha256
+    return unless file.sha256 || file.deleted
     send :update, {
       file: file_as_manifest(file),
     }
@@ -215,11 +215,10 @@ class AuthenticatedConnection < Connection
     if msg[:deleted]
       path = @share.full_path msg[:path]
       @share.check_path path
-      if File.exists? path
-        metadata.deleted = true
-        @share.save msg[:path]
-        File.unlink path
-      end
+      metadata.deleted!
+      metadata.utime = msg[:utime]
+      @share.save msg[:path]
+      File.unlink path if File.exists? path
       return
     end
 

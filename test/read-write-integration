@@ -91,6 +91,7 @@ log "Renaming fourth to fourth-temp on server"
 mv /tmp/1/stuff/fourth /tmp/1/stuff/fourth-temp
 verify_synced fourth-temp
 verify_missing fourth
+
 log "Renaming fourth-temp to fourth on server"
 mv /tmp/1/stuff/fourth-temp /tmp/1/stuff/fourth
 verify_synced fourth
