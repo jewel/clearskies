@@ -15,6 +15,7 @@ class UTPSocket
 
   class Packet
     def self.parse addr, data
+
     end
 
     def to_binary
@@ -142,7 +143,12 @@ class UTPSocket
       return
     end
 
-    # Send ACK
+    # FIXME Sending an ack for every incoming packet is inefficient.  If we
+    # delay a small amount of time we can send a single ACK to ack multiple
+    # packets.
+    #
+    # We can have the same thread that does retransmissions handle sending out
+    # ACKs, since it will be a similar job.
     ack = Packet.new
     ack.flags = ACK
     ack.timestamp_difference_microseconds = packet.timestamp_microseconds - now
