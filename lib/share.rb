@@ -124,7 +124,6 @@ class Share
   def each
     @db.each do |key,val|
       next unless key =~ /\Afile\//
-      next if val.deleted
       yield val
     end
   end

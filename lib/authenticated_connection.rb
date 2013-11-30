@@ -176,7 +176,7 @@ class AuthenticatedConnection < Connection
     msg[:version] = @share.version
     msg[:files] = []
     @share.each do |file|
-      next unless file[:sha256]
+      next unless file.sha256 || file.deleted
 
       obj = file_as_manifest file
 
