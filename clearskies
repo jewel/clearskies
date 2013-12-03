@@ -145,8 +145,9 @@ when "stop"
   ControlClient.issue :stop
 
 when "restart"
+  require_relative 'lib/daemon'
   ControlClient.issue :stop
-  Daemon.start
+  Daemon.daemonize
 
 when "logcat"
   logfile = Conf.path 'log'

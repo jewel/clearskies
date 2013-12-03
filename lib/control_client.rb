@@ -34,7 +34,7 @@ module ControlClient
     begin
       @socket = UNIXSocket.open Conf.control_path
     rescue Errno::ENOENT
-      abort "Daemon not running"
+      abort "Daemon not running (run 'clearskies start' first)"
     end
 
     greeting = JSON.parse @socket.gets, symbolize_names: true
