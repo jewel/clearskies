@@ -98,6 +98,11 @@ algorithm](http://en.wikipedia.org/wiki/Luhn_mod_N_algorithm), where N is 32.
 The final result is a 33 character string which (due to the magic prefix) will
 start with "SYNC".
 
+The human-readable access code should be given with a "clearskies:" URL prefix.
+This facilitates single-click opening on platforms that support registering
+custom protocols.  Manual entry should support the code both with and without
+the URL prefix.
+
 The 128-bit number is run through SHA256 to get an access ID.  This is used
 to locate other peers.
 

@@ -27,6 +27,9 @@ class AccessCode
   # Parse an access code in ASCII format.
   # These are BASE32 encoded.
   def self.parse str
+    # Remove psuedo URL prefix, if present
+    str = $' if str =~ /\A\s*clearskies:/i
+
     raise "Wrong length, should be 33 characters, not #{str.size} characters" unless str.size == 33
 
     str.upcase!

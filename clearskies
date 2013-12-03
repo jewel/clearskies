@@ -221,7 +221,7 @@ when "share"
     mode: mode,
   }
 
-  puts res[:access_code]
+  puts "clearskies:#{res[:access_code]}"
 
 when "attach", "add"
   code = ARGV.shift
