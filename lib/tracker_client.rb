@@ -66,8 +66,8 @@ module TrackerClient
     info[:others].each do |share_id,peers|
       peers.each do |peerspec|
         id, addr = peerspec.split "@"
-        # FIXME Support IPv6
-        proto, ip, port = addr.split ":"
+        addr =~ /\A(\w+):(\[(.*?)\]|(.*?)):(\d+)\Z/ or raise "Invalid addr #{addr.inspect}"
+        proto, ip, port = $1, $3 || $4, $5
         next unless proto == "tcp"
         @peer_discovered.call share_id, id, ip, port.to_i
       end

@@ -18,15 +18,16 @@ module Broadcaster
   def self.start
     # We make sure that we mark the socket as "REUSEADDR" so that multiple
     # copies of the software can be running at once, for testing
-    @socket = UDPSocket.new
-    @socket.setsockopt Socket::SOL_SOCKET, Socket::SO_REUSEADDR, true
-    @socket.setsockopt Socket::SOL_SOCKET, Socket::SO_BROADCAST, true
-    @socket.bind '0.0.0.0', BROADCAST_PORT
+    ipv4 = bind Socket::AF_INET, '0.0.0.0'
+    ipv6 = bind Socket::AF_INET6, '::'
+    Log.info "Broadcaster listening on #{ipv4.inspect} and #{ipv6.inspect}"
 
-    Log.info "Broadcaster listening on #{@socket.inspect}"
+    SimpleThread.new 'broadcast4' do
+      listen ipv4
+    end
 
-    SimpleThread.new 'broadcast' do
-      listen
+    SimpleThread.new 'broadcast6' do
+      listen ipv6
     end
 
     SimpleThread.new 'broadcast_send' do
@@ -42,9 +43,9 @@ module Broadcaster
   private
 
   # Listen for broadcasts from other peers
-  def self.listen
+  def self.listen socket
     loop do
-      json, sender = gunlock { @socket.recvfrom 512 }
+      json, sender = gunlock { socket.recvfrom 512 }
       msg = JSON.parse json, symbolize_names: true
       Log.debug "Got message: #{json}"
       next if msg[:name] != "ClearSkiesBroadcast"
@@ -64,12 +65,13 @@ module Broadcaster
   # Send a broadcast for each share
   def self.send_all_broadcast
     IDMapper.each do |id,peer_id|
-      send_broadcast id, peer_id
+      send_broadcast Socket::AF_INET, '255.255.255.255', id, peer_id
+      send_broadcast Socket::AF_INET6, 'ff02::1', id, peer_id # IPv6
     end
   end
 
   # Send a broadcast for the given share_id and peer_id
-  def self.send_broadcast id, peer_id
+  def self.send_broadcast type, addr, id, peer_id
     message = {
       :name => "ClearSkiesBroadcast",
       :version => 1,
@@ -77,9 +79,19 @@ module Broadcaster
       :peer => peer_id,
       :myport => Network.listen_port,
     }.to_json
-    socket = UDPSocket.new
+
+    socket = UDPSocket.new type
     socket.setsockopt Socket::SOL_SOCKET, Socket::SO_BROADCAST, true
 
-    gunlock { socket.send message, 0, '255.255.255.255', BROADCAST_PORT }
+    gunlock { socket.send message, 0, addr, BROADCAST_PORT }
   end
+
+  def self.bind type, addr
+    socket = UDPSocket.new type
+    socket.setsockopt Socket::SOL_SOCKET, Socket::SO_REUSEADDR, true
+    socket.setsockopt Socket::SOL_SOCKET, Socket::SO_BROADCAST, true
+    socket.bind addr, BROADCAST_PORT
+    socket
+  end
+
 end
