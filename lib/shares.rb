@@ -50,5 +50,6 @@ module Shares
   def self.remove share
     @db.delete share.path
     @shares.delete share.id
+    share.delete!
   end
 end

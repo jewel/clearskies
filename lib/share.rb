@@ -241,6 +241,10 @@ class Share
     @subscribers << block
   end
 
+  def delete!
+    @db.delete_database!
+  end
+
   private
   # Notify subscribers about changes to a file
   def notify file

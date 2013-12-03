@@ -244,7 +244,9 @@ when "detach", "rm"
   end
   path = File.realpath(path)
 
-  ControlClient.issue :remove_share, path
+  ControlClient.issue :remove_share, {
+    path: path
+  }
 
 else
   abort "Invalid command: #{command.inspect}, try --help"
