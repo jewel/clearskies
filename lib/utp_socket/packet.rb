@@ -37,7 +37,7 @@ class UTPSocket::Packet
     4 => :syn,
   }
 
-  TYPE_SYMBOLS = Hash[TYPE_NUMBERS.to_a.reverse]
+  TYPE_SYMBOLS = Hash[TYPE_NUMBERS.to_a.map &:reverse]
 
   EXTENSIONS = {
     1 => :selective_ack
@@ -85,7 +85,7 @@ class UTPSocket::Packet
   def to_binary
     raw_data = String.new
 
-    type = TYPE_SYMBOLS[self.type || 0]
+    type = TYPE_SYMBOLS[self.type || :data]
     raise "Invalid type: #{type.inspect}" unless type
     first_field = (type << 4) | 1
 
