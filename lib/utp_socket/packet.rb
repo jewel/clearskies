@@ -50,7 +50,7 @@ class UTPSocket::Packet
     fields = header.unpack HEADER_FORMAT
 
     type = fields[0] >> 4
-    packet.type = TYPES[type]
+    packet.type = TYPE_NUMBERS[type]
     raise "Invalid packet type (or not uTP packet): #{type.inspect}" unless packet.type
 
     version = fields[0] & 0b1111
@@ -80,6 +80,8 @@ class UTPSocket::Packet
 
     # All that's left is the packet's data
     packet.data = raw_data
+
+    packet
   end
 
   def to_binary
@@ -106,12 +108,17 @@ class UTPSocket::Packet
 
     # FIXME extensions
 
-    raw_data << data
+    raw_data << data if data
     raw_data
   end
 
   def to_s
-    (data[0..40] + "...").inspect
+    payload = size > 40 ? (data[0..40] + "...").inspect : data.inspect
+    "packet(src: #{src[3]}, #{payload})"
+  end
+
+  def new_session?
+    type == :syn
   end
 end
 

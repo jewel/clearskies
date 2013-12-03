@@ -15,6 +15,14 @@ require_relative 'buffered_io'
 require_relative 'socket_multiplier'
 require_relative 'utp_socket/packet'
 
+# Signal.trap :INT do
+#   puts "Currently in #{Thread.current.title}"
+#   Thread.current.backtrace.each do |line|
+#     warn "    #{line}"
+#   end
+#   exit
+# end
+
 class UTPSocket
   include BufferedIO
 
@@ -54,7 +62,7 @@ class UTPSocket
     # packet stays in this array until it we receive an ACK for it.
     @window = []
 
-    @window_has_room = SimpleCondition.new
+    # @window_has_room = SimpleCondition.new
 
     @socket = @@socket
 
@@ -68,14 +76,26 @@ class UTPSocket
     # incoming buffer because we can't limit the size of incoming packets.
     #
     # Luckily we can drain it immediately which keeps things simple.
+
     if @buffer.size > 0
+      warn "Wanted more bytes, already had them in #@buffer"
       amount = [@buffer.size, maxlen].min
       slice = @buffer[0...amount]
       @buffer = @buffer[amount..-1]
       return slice
     end
 
-    packet = gunlock { @queue.shift }
+    warn "Reading #{maxlen} more bytes into #@buffer"
+
+
+    packet = gunlock {
+      warn "shifting"
+      packet = @queue.shift
+      warn "unshifting"
+      packet
+    }
+
+    warn "Wonderful, got a packet: #{packet.inspect}"
 
     # Since the packet might be bigger than maxlen, we'll need to split it,
     # which we can let our buffer splitter code above do if add the data to the
@@ -88,9 +108,14 @@ class UTPSocket
     while data.size > 0
       # If our window is full then we need to block.
       while @window.size > 2  #FIXME @window.full?
-        @window_has_room.wait
+        gsleep 1 # FIXME
+        # @window_has_room.wait
       end
       packet = Packet.new
+      packet.seq_nr = 0
+      packet.ack_nr = 0
+      packet.wnd_size = 0
+      packet.connection_id = @connection_id
       packet.timestamp_microseconds = now
       amount = [data.size, max_packet_size].min
       packet.data = data[0...amount]
@@ -101,7 +126,6 @@ class UTPSocket
     end
   end
 
-  private
   def self.handle_incoming_packet data, addr
     packet = Packet.parse addr, data
     client_id = "#{addr[3]}:#{addr[1]}"
@@ -119,21 +143,20 @@ class UTPSocket
     false
   end
 
-  def send_packet packet
-    @socket.send packet.to_binary, 0, @peer_addr, @peer_port
-  end
-
   # Handle all incoming packets
   def handle_incoming_packet packet
-    if packet.ack?
-      # Move window forward
-      while window[0].seq_no <= packet.ack_no
-        window.shift
-      end
-      # Notify senders (if any) that the window is no longer full
-      @window_has_room.signal
-      return
+    warn "#$$ Got #{packet.inspect}"
+
+    # Move window forward
+    # FIXME handle seq_nr wrapping around to zero for long connections
+    while @window.first && @window.first.seq_nr <= packet.ack_nr
+      @window.shift
     end
+
+    # Notify senders (if any) that the window is no longer full
+    # @window_has_room.signal unless @window.size > 2 # FIXME @window.full?
+
+    return if packet.type == :state
 
     # FIXME Sending an ack for every incoming packet is inefficient.  If we
     # delay a small amount of time we can send a single ACK to ack multiple
@@ -142,11 +165,21 @@ class UTPSocket
     # We can have the same thread that does retransmissions handle sending out
     # ACKs, since it will be a similar job.
     ack = Packet.new
-    ack.flags = ACK
+    ack.type = :state
+    ack.timestamp_microseconds = now
     ack.timestamp_difference_microseconds = packet.timestamp_microseconds - now
+    ack.ack_nr = packet.seq_nr
+    ack.seq_nr = @seq_nr
     send_packet ack
 
     @queue << packet
+  end
+
+  private
+
+  def send_packet packet
+    warn "Sending #{packet.inspect}"
+    @socket.send packet.to_binary, 0, @peer_addr, @peer_port
   end
 
   def now

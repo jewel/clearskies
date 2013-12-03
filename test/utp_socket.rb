@@ -16,11 +16,14 @@ describe UTPSocket do
 
     next if fork
 
+    STDOUT.reopen "/dev/null"
+    STDERR.reopen "/dev/null"
+
     @client_socket.close
 
     UTPSocket.setup server
 
-    peer = UTPSocket.new 'localhost', @client_port
+    peer = UTPSocket.new '127.0.0.1', @client_port
 
     while data = peer.readpartial(1024)
       peer.write data
@@ -31,7 +34,7 @@ describe UTPSocket do
 
   it "can connect and send data" do
     UTPSocket.setup @client_socket
-    peer = UTPSocket.new 'localhost', @server_port
+    peer = UTPSocket.new '127.0.0.1', @server_port
     peer.puts "hehe"
     peer.gets.must_equal "hehe\n"
     peer.puts "hoheho 1234"
