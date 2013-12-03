@@ -1,30 +1,22 @@
-# Pure ruby implementation of uTP (http://www.bittorrent.org/beps/bep_0029.html)
+# Pure ruby implementation of the "Micro Transport Protocol", or uTP
+# (http://www.bittorrent.org/beps/bep_0029.html)
+#
+# uTP is used to give TCP-like semantics over UDP sockets.  UDP is desireable
+# because of UDP hole punching for NAT firewalls.
+#
+# This class mimics the behavior of the regular TCP classes in ruby, where
+# possible.  Note that both peers have to connect to each other at the same
+# time, so this does not have the concept of "server" and "client" in the
+# traditional sense.
 
 require_relative 'simple_thread'
 require_relative 'simple_condition'
 require_relative 'buffered_io'
 require_relative 'socket_multiplier'
+require_relative 'utp_socket/packet'
 
 class UTPSocket
-  Packet = Struct.new :type, :ver, :extension, :connection_id,
-                      :timestamp_microseconds, :timestamp_difference_microseconds,
-                      :wnd_size, :seq_nr, :ack_nr,
-                      :src, :data
-
   include BufferedIO
-
-  class Packet
-    def self.parse addr, data
-
-    end
-
-    def to_binary
-      String.new
-    end
-
-    def to_s
-    end
-  end
 
   def self.setup socket
     # All packets are going to come in on a single UDP socket, so a dedicated
@@ -34,18 +26,16 @@ class UTPSocket
     @incoming = Queue.new
     @@socket = socket
     SocketMultiplier.setup socket
-    SocketMultiplier.on_recvfrom do |data, addr|
+    SocketMultiplier.on_recvfrom(:low) do |data, addr|
       self.handle_incoming_packet data, addr
     end
   end
 
-  def self.accept
-    addr = gunlock { @@incoming.shift }
-    self.new addr[3], addr[1]
-  end
-
   def initialize addr, port
     client_id = "#{addr}:#{port}"
+
+    @peer_addr = addr
+    @peer_port = port
 
     # Queue for incoming data packets.  The thread that reads the data off the
     # socket isn't the thread that will be in the middle of a read() or gets()
@@ -69,6 +59,8 @@ class UTPSocket
     @socket = @@socket
 
     @@objects[client_id] = self
+
+    # FIXME This should be a blocking call
   end
 
   def unbuffered_readpartial maxlen
@@ -95,7 +87,7 @@ class UTPSocket
   def write data
     while data.size > 0
       # If our window is full then we need to block.
-      while window.full?
+      while @window.size > 2  #FIXME @window.full?
         @window_has_room.wait
       end
       packet = Packet.new
@@ -104,7 +96,7 @@ class UTPSocket
       packet.data = data[0...amount]
       data = data[amount..-1]
 
-      window << packet
+      @window << packet
       send_packet packet
     end
   end
@@ -128,7 +120,7 @@ class UTPSocket
   end
 
   def send_packet packet
-    @socket.send packet.to_binary
+    @socket.send packet.to_binary, 0, @peer_addr, @peer_port
   end
 
   # Handle all incoming packets
@@ -155,5 +147,14 @@ class UTPSocket
     send_packet ack
 
     @queue << packet
+  end
+
+  def now
+    time = Time.new
+    time.to_i * 1_000_000 + time.usec
+  end
+
+  def max_packet_size
+    1000 # FIXME
   end
 end
