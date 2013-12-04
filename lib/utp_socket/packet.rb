@@ -4,7 +4,7 @@
 
 class UTPSocket
   Packet = Struct.new :type, :connection_id,
-                      :timestamp_microseconds, :timestamp_difference_microseconds,
+                      :timestamp, :timestamp_diff,
                       :wnd_size, :seq_nr, :ack_nr, :extensions,
                       :data, :src
 end
@@ -57,8 +57,8 @@ class UTPSocket::Packet
     raise "Packet has wrong version (or not uTP packet): #{packet.ver.inspect}" unless version == 1
 
     packet.connection_id = fields[2]
-    packet.timestamp_microseconds = fields[3]
-    packet.timestamp_difference_microseconds = fields[4]
+    packet.timestamp = fields[3]
+    packet.timestamp_diff = fields[4]
     packet.wnd_size = fields[5]
     packet.seq_nr = fields[6]
     packet.ack_nr = fields[7]
@@ -87,8 +87,8 @@ class UTPSocket::Packet
   def to_binary
     raw_data = String.new
 
-    type = TYPE_SYMBOLS[self.type || :data]
-    raise "Invalid type: #{type.inspect}" unless type
+    type = TYPE_SYMBOLS[self.type]
+    raise "Invalid type: #{self.type.inspect}" unless type
     first_field = (type << 4) | 1
 
     # FIXME check all fields for errors, most shouldn't be nil
@@ -97,8 +97,8 @@ class UTPSocket::Packet
       first_field,
       0,
       connection_id || 0,
-      timestamp_microseconds || 0,
-      timestamp_difference_microseconds || 0,
+      timestamp || 0,
+      timestamp_diff || 0,
       wnd_size || 0,
       seq_nr || 0,
       ack_nr || 0,
@@ -114,11 +114,15 @@ class UTPSocket::Packet
 
   def to_s
     payload = size > 40 ? (data[0..40] + "...").inspect : data.inspect
-    "packet(src: #{src[3]}, #{payload})"
-  end
-
-  def new_session?
-    type == :syn
+    case type
+    when :syn
+      "syn packet"
+    when :state
+      "ack ##{ack_nr}"
+    when :data
+      "data ##{seq_nr}: #{payload}"
+    else
+      "weird packet"
+    end
   end
 end
-

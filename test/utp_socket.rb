@@ -10,30 +10,23 @@ describe UTPSocket do
     server.bind '0.0.0.0', 0
     @server_port = server.local_address.ip_port
 
-    @client_socket = UDPSocket.new
-    @client_socket.bind '0.0.0.0', 0
-    @client_port = @client_socket.local_address.ip_port
-
     next if fork
-
-    STDOUT.reopen "/dev/null"
-    STDERR.reopen "/dev/null"
-
-    @client_socket.close
 
     UTPSocket.setup server
 
-    peer = UTPSocket.new '127.0.0.1', @client_port
-
-    while data = peer.readpartial(1024)
-      peer.write data
+    while peer = UTPSocket.accept
+      while data = peer.readpartial(1024)
+        peer.write data
+      end
+      peer.close
     end
-
-    peer.close
   end
 
   it "can connect and send data" do
-    UTPSocket.setup @client_socket
+    client = UDPSocket.new
+    client.bind '0.0.0.0', 0
+    UTPSocket.setup client
+
     peer = UTPSocket.new '127.0.0.1', @server_port
     peer.puts "hehe"
     peer.gets.must_equal "hehe\n"

@@ -15,23 +15,17 @@ require_relative 'buffered_io'
 require_relative 'socket_multiplier'
 require_relative 'utp_socket/packet'
 
-# Signal.trap :INT do
-#   puts "Currently in #{Thread.current.title}"
-#   Thread.current.backtrace.each do |line|
-#     warn "    #{line}"
-#   end
-#   exit
-# end
-
 class UTPSocket
   include BufferedIO
+
+  CONNECT_TIMEOUT = 10
 
   def self.setup socket
     # All packets are going to come in on a single UDP socket, so a dedicated
     # thread will divvy incoming packets out to the appropriate objects via
     # Queues.
     @@objects ||= {}
-    @incoming = Queue.new
+    @@incoming = Queue.new
     @@socket = socket
     SocketMultiplier.setup socket
     SocketMultiplier.on_recvfrom(:low) do |data, addr|
@@ -39,84 +33,87 @@ class UTPSocket
     end
   end
 
-  def initialize addr, port
-    client_id = "#{addr}:#{port}"
+  def self.accept
+    packet = gunlock { @@incoming.shift }
 
-    @peer_addr = addr
-    @peer_port = port
+    self.new packet
+  end
 
-    # Queue for incoming data packets.  The thread that reads the data off the
-    # socket isn't the thread that will be in the middle of a read() or gets()
-    # call.
-    @queue = Queue.new
+  def initialize *args
+    raise "Not setup" unless @@socket
 
-    # Extra incoming data.  We have to simulate a stream, so sometimes a
-    # packet will come in with more data than the maximum the user requested
-    # with readpartial().  We store it here.
-    @extra_data = String.new
+    # Is this incoming or outgoing?
+    if args.first.is_a? Packet
+      # Incoming
+      packet = args.first
+      @peer_addr = packet.src[3]
+      @peer_port = packet.src[1]
+      @conn_id_recv = packet.connection_id + 1
+      @conn_id_send = packet.connection_id
+      @seq_nr = rand(2**16)
+      @ack_nr = packet.seq_nr
+      @outbound = false
+      @state = :connected
+    else
+      # Outgoing
+      @peer_addr = args[0]
+      @peer_port = args[1]
+      @conn_id_recv = rand(2**16)
+      @conn_id_send = @conn_id_recv + 1
+      @seq_nr = 1
+      @ack_nr = nil
+      @outbound = true
+      @state = :connecting
+    end
+
+    # FIXME make sure that "addr" is resolved to an IP address
+    client_id = "#@peer_addr:#@peer_port/#@conn_id_recv"
+
+    # Queue for incoming data.  The thread that reads the data off the socket
+    # isn't the thread that will be in the middle of a read() or gets() call.
+    @queue = String.new
+    @data_available = SimpleCondition.new
 
     # Buffer of data for BufferedIO
     @buffer = String.new
+
+    # Receive data
 
     # Window of packets that are currently "in flight" to our peer.  Each
     # packet stays in this array until it we receive an ACK for it.
     @window = []
 
-    # @window_has_room = SimpleCondition.new
+    @window_has_room = SimpleCondition.new
 
     @socket = @@socket
 
     @@objects[client_id] = self
 
-    # FIXME This should be a blocking call
+    if @outbound
+      connect
+    else
+      respond_to_syn packet
+    end
   end
 
-  def unbuffered_readpartial maxlen
-    # Even though this should be unbuffered, we have to implement our own
-    # incoming buffer because we can't limit the size of incoming packets.
-    #
-    # Luckily we can drain it immediately which keeps things simple.
-
-    if @buffer.size > 0
-      warn "Wanted more bytes, already had them in #@buffer"
-      amount = [@buffer.size, maxlen].min
-      slice = @buffer[0...amount]
-      @buffer = @buffer[amount..-1]
-      return slice
-    end
-
-    warn "Reading #{maxlen} more bytes into #@buffer"
-
-
-    packet = gunlock {
-      warn "shifting"
-      packet = @queue.shift
-      warn "unshifting"
-      packet
-    }
-
-    warn "Wonderful, got a packet: #{packet.inspect}"
-
-    # Since the packet might be bigger than maxlen, we'll need to split it,
-    # which we can let our buffer splitter code above do if add the data to the
-    # buffer and recurse.
-    @buffer << packet.data
-    return unbuffered_readpartial maxlen
+  # FIXME temporary for debugging
+  def warn msg
+    @lock ||= File.open( "/tmp/lockylock", 'a' )
+    @lock.flock File::LOCK_EX
+    Kernel.warn "#$$ #{Thread.current.title}> #{msg}"
+    @lock.flock File::LOCK_UN
   end
 
   def write data
     while data.size > 0
       # If our window is full then we need to block.
-      while @window.size > 2  #FIXME @window.full?
-        gsleep 1 # FIXME
-        # @window_has_room.wait
+      while window_full?
+        @window_has_room.wait
       end
       packet = Packet.new
-      packet.seq_nr = 0
-      packet.ack_nr = 0
-      packet.wnd_size = 0
-      packet.connection_id = @connection_id
-      packet.timestamp_microseconds = now
+      packet.type = :data
+      packet.seq_nr = (@seq_nr += 1)
+      packet.ack_nr = @ack_nr
       amount = [data.size, max_packet_size].min
       packet.data = data[0...amount]
       data = data[amount..-1]
@@ -128,14 +125,15 @@ class UTPSocket
 
   def self.handle_incoming_packet data, addr
     packet = Packet.parse addr, data
-    client_id = "#{addr[3]}:#{addr[1]}"
-    if packet.new_session?
-      @@incoming.push addr
-      return true
-    end
+    client_id = "#{addr[3]}:#{addr[1]}/#{packet.connection_id}"
 
     if socket = @@objects[client_id]
       socket.handle_incoming_packet packet
+      return true
+    end
+
+    if packet.type == :syn
+      @@incoming.push packet
       return true
     end
 
@@ -145,7 +143,17 @@ class UTPSocket
 
   # Handle all incoming packets
   def handle_incoming_packet packet
-    warn "#$$ Got #{packet.inspect}"
+    warn "Got #{packet}"
+
+    if @state == :connecting
+      return unless packet.type == :state
+      @window.shift
+      @ack_nr = packet.seq_nr
+      @state = :connected
+      return
+    end
+
+    return unless packet.type == :state || packet.type == :data
 
     # Move window forward
     # FIXME handle seq_nr wrapping around to zero for long connections
@@ -154,9 +162,15 @@ class UTPSocket
     end
 
     # Notify senders (if any) that the window is no longer full
-    # @window_has_room.signal unless @window.size > 2 # FIXME @window.full?
+    @window_has_room.signal unless window_full?
 
-    return if packet.type == :state
+    return unless packet.type == :data
+
+    if @ack_nr + 1 == packet.seq_nr
+      @ack_nr = packet.seq_nr
+      @queue << packet.data
+      @data_available.signal
+    end
 
     # FIXME Sending an ack for every incoming packet is inefficient.  If we
     # delay a small amount of time we can send a single ACK to ack multiple
@@ -166,28 +180,88 @@ class UTPSocket
     # ACKs, since it will be a similar job.
     ack = Packet.new
     ack.type = :state
-    ack.timestamp_microseconds = now
-    ack.timestamp_difference_microseconds = packet.timestamp_microseconds - now
-    ack.ack_nr = packet.seq_nr
+    ack.timestamp_diff = now - packet.timestamp
+    ack.ack_nr = @ack_nr
     ack.seq_nr = @seq_nr
     send_packet ack
-
-    @queue << packet
   end
 
   private
 
   def send_packet packet
-    warn "Sending #{packet.inspect}"
+    packet.timestamp = now
+    # FIXME How do we determine our advertised window size?
+    packet.wnd_size = 1000
+    packet.connection_id ||= @conn_id_send
+    warn "Sending #{packet}"
     @socket.send packet.to_binary, 0, @peer_addr, @peer_port
   end
 
   def now
     time = Time.new
-    time.to_i * 1_000_000 + time.usec
+    (time.to_i * 1_000_000 + time.usec) % 2**32
   end
 
   def max_packet_size
     1000 # FIXME
+  end
+
+  def window_full?
+    @window.size > 2
+  end
+
+  def connect
+    # Send SYN packet
+    packet = Packet.new
+    packet.type = :syn
+    packet.connection_id = @conn_id_recv
+    packet.seq_nr = (@seq_nr += 1)
+    packet.ack_nr = 0
+
+    @window << packet
+    send_packet packet
+
+    # FIXME Don't spinlock here
+    CONNECT_TIMEOUT.times do
+      gsleep 1
+      send_packet packet
+      return if @state == :connected
+    end
+
+    raise "Connection timeout to #@peer_addr:#@peer_port"
+  end
+
+  def respond_to_syn syn
+    packet = Packet.new
+    packet.type = :state
+    packet.seq_nr = (@seq_nr += 1)
+    packet.ack_nr = @ack_nr
+    packet.timestamp_diff = now - syn.timestamp
+    send_packet packet
+  end
+
+  # Read a partial packet straight from the socket.  Don't use this, instead
+  # call readpartial, read, or gets.
+  def unbuffered_readpartial maxlen
+    # Even though this should be unbuffered, we have to implement our own
+    # incoming buffer because we can't limit the size of incoming packets.
+    #
+    # Luckily we can drain it immediately which keeps things simple.
+
+    if @queue.size > 0
+      amount = [@queue.size, maxlen].min
+      slice = @queue[0...amount]
+      @queue = @queue[amount..-1]
+      warn "readpartial returning #{slice.inspect}"
+      return slice
+    end
+
+    warn "Waiting for more data"
+    @data_available.wait
+
+    # Since the packet might be bigger than maxlen, we'll need to split it,
+    # which we can let our buffer splitter code above do if add the data to the
+    # buffer and recurse.
+    return unbuffered_readpartial maxlen
   end
 end
