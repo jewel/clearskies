@@ -102,7 +102,7 @@ module Scanner
     share.check_path path
 
     begin
-      stat = File.stat path
+      stat = gunlock { File.stat path }
     rescue Errno::ENOENT
       # File was deleted!
       if file = share[relpath]
