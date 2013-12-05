@@ -5,26 +5,30 @@ require 'socket'
 
 describe UTPSocket do
   before do
-    # Figure out safe port before forking
     server = UDPSocket.new
-    server.bind '0.0.0.0', 0
+    server.bind '127.0.0.1', 0
     @server_port = server.local_address.ip_port
 
-    next if fork
+    @server_pid = fork
+    next if @server_pid
 
     UTPSocket.setup server
-
     while peer = UTPSocket.accept
       while data = peer.readpartial(1024)
         peer.write data
       end
       peer.close
     end
+    exit
+  end
+
+  after do
+    Process.kill :TERM, @server_pid
   end
 
   it "can connect and send data" do
     client = UDPSocket.new
-    client.bind '0.0.0.0', 0
+    client.bind '127.0.0.1', 0
     UTPSocket.setup client
 
     peer = UTPSocket.new '127.0.0.1', @server_port
@@ -38,5 +42,26 @@ describe UTPSocket do
       peer.read(i).must_equal str
     end
     peer.close
+  end
+
+  it "can handle high packet loss" do
+    client = UDPSocket.new
+    client.bind '127.0.0.1', 0
+    UTPSocket.setup client
+
+    UTPSocket.simulate_loss = true
+
+    peer = UTPSocket.new '127.0.0.1', @server_port
+    peer.puts "greetings!"
+    peer.gets.must_equal "greetings!\n"
+
+    100.times do |i|
+      str = "#{i} " * i
+      peer.write str
+      peer.read(str.size).must_equal str
+    end
+    peer.close
+
+    UTPSocket.simulate_loss = false
   end
 end

@@ -27,10 +27,25 @@ class UTPSocket
     @@objects ||= {}
     @@incoming = Queue.new
     @@socket = socket
+    @@simulate_loss = false
     SocketMultiplier.setup socket
     SocketMultiplier.on_recvfrom(:low) do |data, addr|
       self.handle_incoming_packet data, addr
     end
+
+    SimpleThread.new 'utp_resend' do
+      loop do
+        gsleep 1
+        @@objects.values.each do |socket|
+          # FIXME This isn't the right way to do this
+          socket.resend_packet
+        end
+      end
+    end
+  end
+
+  def self.simulate_loss= val
+    @@simulate_loss = val
   end
 
   def self.accept
@@ -185,6 +200,7 @@ class UTPSocket
 
     return unless packet.type == :data
 
+    # FIXME handle seq_nr wrapping around to zero
     if @ack_nr + 1 == packet.seq_nr
       @ack_nr = packet.seq_nr
       @queue << packet.data
@@ -205,6 +221,12 @@ class UTPSocket
     send_packet ack
   end
 
+  def resend_packet
+    # FIXME This is temporary
+    return unless @window.first
+    send_packet @window.first
+  end
+
   private
 
   def send_packet packet
@@ -212,6 +234,10 @@ class UTPSocket
     # FIXME How do we determine our advertised window size?
     packet.wnd_size = 1000
     packet.connection_id ||= @conn_id_send
+    if @@simulate_loss && rand(2) == 0
+      warn "Dropping #{packet}"
+      return
+    end
     warn "Sending #{packet}"
     @socket.send packet.to_binary, 0, @peer_addr, @peer_port
   end
@@ -222,11 +248,11 @@ class UTPSocket
   end
 
   def max_packet_size
-    1000 # FIXME
+    900 # FIXME
   end
 
   def window_full?
-    @window.size > 2 # FIXME
+    @window.size > 10 # FIXME
   end
 
   def connect
@@ -277,7 +303,7 @@ class UTPSocket
 
     return nil if @state == :closed
 
-    warn "Waiting for more data"
+    warn "Waiting for data"
     @data_available.wait
 
     # Since the packet might be bigger than maxlen, we'll need to split it,

@@ -9,18 +9,14 @@ class SocketMultiplier
   PRIORITIES = [:low, :medium, :high]
 
   def self.setup socket
-    raise "Already setup, but with a different socket" if @setup and socket != @socket
-    return if @setup
-    @socket = socket
+    socket = socket
     @callbacks = {}
 
     SimpleThread.new 'socket_mult' do
       loop do
-        receive_packet
+        receive_packet socket
       end
     end
-
-    @setup = true
   end
 
   def self.on_recvfrom priority, &block
@@ -29,8 +25,8 @@ class SocketMultiplier
   end
 
   private
-  def self.receive_packet
-    data, addr = gunlock { @socket.recvfrom 65535 }
+  def self.receive_packet socket
+    data, addr = gunlock { socket.recvfrom 65535 }
     PRIORITIES.each do |priority|
       callbacks = @callbacks[priority] || []
       callbacks.each do |callback|

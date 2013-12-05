@@ -121,6 +121,10 @@ class UTPSocket::Packet
       "ack ##{ack_nr}"
     when :data
       "data ##{seq_nr}: #{payload}"
+    when :fin
+      "fin packet"
+    when :reset
+      "reset packet"
     else
       "weird packet"
     end
