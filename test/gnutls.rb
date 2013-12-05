@@ -13,7 +13,8 @@ def run_test first_tls_class, second_tls_class
     server = TCPServer.new "localhost", 0
     @port = server.local_address.ip_port
 
-    next if fork
+    @server_pid = fork
+    next if @server_pid
     begin
       loop do
         socket = server.accept
@@ -36,6 +37,10 @@ def run_test first_tls_class, second_tls_class
       warn "Helper process raised exception: #$!"
     end
     exit
+  end
+
+  after do
+    Process.kill :TERM, @server_pid
   end
 
   it "can connect and send data" do
