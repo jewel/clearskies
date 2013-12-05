@@ -32,10 +32,10 @@ describe UTPSocket do
     peer.gets.must_equal "hehe\n"
     peer.puts "hoheho 1234"
     peer.gets.must_equal "hoheho 1234\n"
-    1000.times do |i|
-      str = "!" * 1024
+    100.times do |i|
+      str = "!" * i
       peer.write str
-      peer.read(1024).must_equal str
+      peer.read(i).must_equal str
     end
     peer.close
   end

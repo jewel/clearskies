@@ -67,7 +67,7 @@ class UTPSocket
     end
 
     # FIXME make sure that "addr" is resolved to an IP address
-    client_id = "#@peer_addr:#@peer_port/#@conn_id_recv"
+    @client_id = "#@peer_addr:#@peer_port/#@conn_id_recv"
 
     # Queue for incoming data.  The thread that reads the data off the socket
     # isn't the thread that will be in the middle of a read() or gets() call.
@@ -87,7 +87,7 @@ class UTPSocket
 
     @socket = @@socket
 
-    @@objects[client_id] = self
+    @@objects[@client_id] = self
 
     if @outbound
       connect
@@ -105,6 +105,8 @@ class UTPSocket
   end
 
   def write data
+    raise "Socket is closed" if @state == :closed
+
     while data.size > 0
       # If our window is full then we need to block.
       while window_full?
@@ -121,6 +123,16 @@ class UTPSocket
       @window << packet
       send_packet packet
     end
+  end
+
+  def close
+    @state = :closed
+    packet = Packet.new
+    packet.type = :fin
+    packet.seq_nr = (@seq_nr += 1)
+    packet.ack_nr = @ack_nr
+    packet.timestamp_diff = 0
+    send_packet packet
   end
 
   def self.handle_incoming_packet data, addr
@@ -150,6 +162,13 @@ class UTPSocket
       @window.shift
       @ack_nr = packet.seq_nr
       @state = :connected
+      return
+    end
+
+    if packet.type == :fin || packet.type == :reset
+      # FIXME closing should wait for other packets still
+      @state = :closed
+      @@objects.delete @client_id
       return
     end
 
@@ -207,7 +226,7 @@ class UTPSocket
   end
 
   def window_full?
-    @window.size > 2
+    @window.size > 2 # FIXME
   end
 
   def connect
@@ -255,6 +274,8 @@ class UTPSocket
       warn "readpartial returning #{slice.inspect}"
       return slice
     end
+
+    return nil if @state == :closed
 
     warn "Waiting for more data"
     @data_available.wait
