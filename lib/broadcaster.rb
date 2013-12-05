@@ -18,16 +18,24 @@ module Broadcaster
   def self.start
     # We make sure that we mark the socket as "REUSEADDR" so that multiple
     # copies of the software can be running at once, for testing
-    ipv4 = bind Socket::AF_INET, '0.0.0.0'
-    ipv6 = bind Socket::AF_INET6, '::'
-    Log.info "Broadcaster listening on #{ipv4.inspect} and #{ipv6.inspect}"
+    begin
+      ipv4 = bind Socket::AF_INET, '0.0.0.0'
 
-    SimpleThread.new 'broadcast4' do
-      listen ipv4
+      SimpleThread.new 'broadcast4' do
+        listen ipv4
+      end
+    rescue
+      Log.warn "Could not bind IPv4 broadcast address: #$!"
     end
 
-    SimpleThread.new 'broadcast6' do
-      listen ipv6
+    begin
+      ipv6 = bind Socket::AF_INET6, '::'
+
+      SimpleThread.new 'broadcast6' do
+        listen ipv6
+      end
+    rescue
+      Log.warn "Could not bind IPv6 broadcast address: #$!"
     end
 
     SimpleThread.new 'broadcast_send' do
@@ -84,6 +92,8 @@ module Broadcaster
     socket.setsockopt Socket::SOL_SOCKET, Socket::SO_BROADCAST, true
 
     gunlock { socket.send message, 0, addr, BROADCAST_PORT }
+  rescue
+    Log.warn "Can't send broadcast to #{addr}: #$!"
   end
 
   def self.bind type, addr
