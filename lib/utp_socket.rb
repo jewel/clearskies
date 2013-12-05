@@ -35,7 +35,7 @@ class UTPSocket
 
     SimpleThread.new 'utp_resend' do
       loop do
-        gsleep 1
+        gsleep 0.1
         @@objects.values.each do |socket|
           # FIXME This isn't the right way to do this
           socket.resend_packet
@@ -180,6 +180,8 @@ class UTPSocket
       return
     end
 
+    return if @state == :closed
+
     if packet.type == :fin || packet.type == :reset
       # FIXME closing should wait for other packets still
       @state = :closed
@@ -240,6 +242,11 @@ class UTPSocket
     end
     warn "Sending #{packet}"
     @socket.send packet.to_binary, 0, @peer_addr, @peer_port
+
+    if @@simulate_loss && rand(2) == 0
+      warn "Double sending #{packet}"
+      @socket.send packet.to_binary, 0, @peer_addr, @peer_port
+    end
   end
 
   def now
