@@ -3,6 +3,35 @@ require 'minitest/autorun'
 require_relative '../lib/utp_socket'
 require 'socket'
 
+class LossyUDPSocket < UDPSocket
+  def send *args
+    # Drop some packets
+    return if rand(4) == 0
+
+    # Duplicate others
+    super *args if rand(4) == 0
+
+    super *args
+  end
+
+  def recvfrom *args
+    # Drop some packets
+    if rand(4) == 0
+      warn "Dropping"
+      super *args
+    end
+
+    # Duplicate others
+    if @prev_packet && rand(4) == 0
+      warn "Duplicating"
+      return @prev_packet
+    end
+
+    @prev_packet = super *args
+    @prev_packet
+  end
+end
+
 describe UTPSocket do
   before do
     server = UDPSocket.new
@@ -45,11 +74,9 @@ describe UTPSocket do
   end
 
   it "can handle high packet loss" do
-    client = UDPSocket.new
+    client = LossyUDPSocket.new
     client.bind '127.0.0.1', 0
     UTPSocket.setup client
-
-    UTPSocket.simulate_loss = true
 
     peer = UTPSocket.new '127.0.0.1', @server_port
     peer.puts "greetings!"
@@ -61,7 +88,5 @@ describe UTPSocket do
       peer.read(str.size).must_equal str
     end
     peer.close
-
-    UTPSocket.simulate_loss = false
   end
 end

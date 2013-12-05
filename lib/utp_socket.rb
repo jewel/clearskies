@@ -27,7 +27,6 @@ class UTPSocket
     @@objects ||= {}
     @@incoming = Queue.new
     @@socket = socket
-    @@simulate_loss = false
     SocketMultiplier.setup socket
     SocketMultiplier.on_recvfrom(:low) do |data, addr|
       self.handle_incoming_packet data, addr
@@ -42,10 +41,6 @@ class UTPSocket
         end
       end
     end
-  end
-
-  def self.simulate_loss= val
-    @@simulate_loss = val
   end
 
   def self.accept
@@ -236,17 +231,8 @@ class UTPSocket
     # FIXME How do we determine our advertised window size?
     packet.wnd_size = 1000
     packet.connection_id ||= @conn_id_send
-    if @@simulate_loss && rand(2) == 0
-      warn "Dropping #{packet}"
-      return
-    end
     warn "Sending #{packet}"
     @socket.send packet.to_binary, 0, @peer_addr, @peer_port
-
-    if @@simulate_loss && rand(2) == 0
-      warn "Double sending #{packet}"
-      @socket.send packet.to_binary, 0, @peer_addr, @peer_port
-    end
   end
 
   def now
@@ -284,6 +270,7 @@ class UTPSocket
   end
 
   def respond_to_syn syn
+    # FIXME If this packet is dropped then the connection attempt times out
     packet = Packet.new
     packet.type = :state
     packet.seq_nr = (@seq_nr += 1)
