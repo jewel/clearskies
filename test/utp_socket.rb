@@ -1,9 +1,10 @@
 require 'minitest/autorun'
 
 require_relative '../lib/utp_socket'
+require_relative '../lib/shared_udp_socket'
 require 'socket'
 
-class LossyUDPSocket < UDPSocket
+class LossyUDPSocket < SharedUDPSocket
   def send *args
     # Drop some packets
     return if rand(4) == 0
@@ -34,7 +35,7 @@ end
 
 describe UTPSocket do
   before do
-    server = UDPSocket.new
+    server = SharedUDPSocket.new
     server.bind '127.0.0.1', 0
     @server_port = server.local_address.ip_port
 
@@ -56,7 +57,7 @@ describe UTPSocket do
   end
 
   it "can connect and send data" do
-    client = UDPSocket.new
+    client = SharedUDPSocket.new
     client.bind '127.0.0.1', 0
     UTPSocket.setup client
 

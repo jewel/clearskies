@@ -12,7 +12,6 @@
 require_relative 'simple_thread'
 require_relative 'simple_condition'
 require_relative 'buffered_io'
-require_relative 'socket_multiplier'
 require_relative 'utp_socket/packet'
 
 class UTPSocket
@@ -27,10 +26,6 @@ class UTPSocket
     @@objects ||= {}
     @@incoming = Queue.new
     @@socket = socket
-    SocketMultiplier.setup socket
-    SocketMultiplier.on_recvfrom(:low) do |data, addr|
-      self.handle_incoming_packet data, addr
-    end
 
     SimpleThread.new 'utp_resend' do
       loop do
@@ -39,6 +34,15 @@ class UTPSocket
           # FIXME This isn't the right way to do this
           socket.resend_packet
         end
+      end
+    end
+
+    socket.create_channel :utp
+
+    SimpleThread.new 'utp_recv' do
+      loop do
+        data, addr = socket.recv_from_channel(:utp)
+        handle_incoming_packet data, addr
       end
     end
   end
@@ -146,6 +150,9 @@ class UTPSocket
   end
 
   def self.handle_incoming_packet data, addr
+    # Skip STUN packets, which come in on the same socket
+    return if data[4...8].unpack('N').first == 0x2112A442
+
     packet = Packet.parse addr, data
     client_id = "#{addr[3]}:#{addr[1]}/#{packet.connection_id}"
 
