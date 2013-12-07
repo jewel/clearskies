@@ -42,7 +42,7 @@ class UTPSocket
     SimpleThread.new 'utp_recv' do
       loop do
         data, addr = socket.recv_from_channel(:utp)
-        handle_incoming_packet data, addr
+        find_socket_for_packet data, addr
       end
     end
   end
@@ -149,7 +149,7 @@ class UTPSocket
     send_packet packet
   end
 
-  def self.handle_incoming_packet data, addr
+  def self.find_socket_for_packet data, addr
     # Skip STUN packets, which come in on the same socket
     return if data[4...8].unpack('N').first == 0x2112A442
 
