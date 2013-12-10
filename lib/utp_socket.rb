@@ -48,7 +48,7 @@ class UTPSocket
   end
 
   def self.accept
-    packet = gunlock { @@incoming.shift }
+    packet = @@incoming.shift
 
     self.new packet
   end
@@ -108,6 +108,10 @@ class UTPSocket
     else
       respond_to_syn packet
     end
+  end
+
+  def peeraddr
+    @peer_addr
   end
 
   # FIXME temporary for debugging

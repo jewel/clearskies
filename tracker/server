@@ -19,17 +19,33 @@ server.mount_proc '/' do |req,res|
   res.body = "This is the example ClearSkies tracker server\n"
 end
 
-class Tracker < WEBrick::HTTPServlet::AbstractServlet
-  @@peers = {}
+TIMEOUT = 30
 
-  TIMEOUT = 30
+class PeerList
+  def initialize
+    @peers = {}
+  end
+
+  def add id, peer, proto, addr, port
+    @peers[id] ||= []
+    @peers[id] << [peer, proto, addr, port, Time.new + TIMEOUT]
+  end
+
+  def get id
+    return [] unless @peers[id]
+    @peers[id].delete_if { |_| _[4] < Time.new }
+    @peers[id]
+  end
+end
+
+class Tracker < WEBrick::HTTPServlet::AbstractServlet
+  @@peers = PeerList.new
 
   def do_GET req, res
     q = req.query
 
     addr = req.remote_ip.to_s
     addr = "[#{addr}]" if addr =~ /:/ # IPv6
-    port = q["tcp_port"]
 
     ids = q["id"].list
 
@@ -37,20 +53,26 @@ class Tracker < WEBrick::HTTPServlet::AbstractServlet
 
     others = {}
 
+    now = Time.new.to_i
+
     ids.each do |foo|
       id, peer = foo.split "@"
 
-      @@peers[id] ||= {}
+      ['tcp', 'utp'].each do |proto|
+        field = "#{proto}_port"
+        next unless q[field]
+        port_number = q[field].to_i
+        next unless (1..65535) === port_number
 
-      now = Time.new.to_i
-      @@peers[id][peer] = [ addr, port, now ]
+        @@peers.add id, peer, proto, addr, port_number
+      end
 
       peers = []
 
-      @@peers[id].each do |peer_id,info|
+      @@peers.get(id).each do |info|
+        peer_id, peer_proto, peer_addr, peer_port = info
         next if peer_id == peer
-        next if info[2] + TIMEOUT < now
-        peers.push "#{peer_id}@tcp:#{info[0]}:#{info[1]}"
+        peers.push "#{peer_id}@#{peer_proto}:#{peer_addr}:#{peer_port}"
       end
 
       next if peers.empty?

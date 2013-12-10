@@ -76,6 +76,7 @@ module TrackerClient
     info = JSON.parse res.body, symbolize_names: true
 
     info[:others].each do |share_id,peers|
+      share_id = share_id.to_s
       peers.each do |peerspec|
         id, addr = peerspec.split "@"
         addr =~ /\A(\w+):(\[(.*?)\]|(.*?)):(\d+)\Z/ or raise "Invalid addr #{addr.inspect}"

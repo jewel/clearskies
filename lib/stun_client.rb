@@ -78,7 +78,7 @@ class STUNClient
   def receive_response
     res, src = @socket.recv_from_channel :stun
 
-    Log.debug "Received STUN response from #{src.inspect}"
+    Log.debug "Received STUN response from #{src[3]}"
 
     res_header = res[0...20].unpack HEADER_FORMAT
 

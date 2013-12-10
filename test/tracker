@@ -2,6 +2,8 @@
 
 . test/integration-functions
 
+export DISABLE_BROADCAST=1
+
 start_session
 
 cleanup

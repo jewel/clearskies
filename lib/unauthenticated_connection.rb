@@ -289,7 +289,7 @@ class UnauthenticatedConnection < Connection
     if @socket.respond_to? :peeraddr
       @socket.peeraddr[2]
     else
-      @socket[0]
+      @socket[1]
     end
   end
 

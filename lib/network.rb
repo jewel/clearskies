@@ -28,7 +28,7 @@ module Network
       Log.debug "Broadcast discovered #{share_id} #{peer_id} #{addr} #{port}"
       peer_discovered share_id, peer_id, 'tcp', addr, port
     end
-    Broadcaster.start
+    Broadcaster.start unless ENV['DISABLE_BROADCAST']
 
     TrackerClient.tcp_port = listen_port
     TrackerClient.on_peer_discovered do |share_id,peer_id,proto,addr,port|
@@ -78,6 +78,9 @@ module Network
   # Current listening port.  This will be different than Conf.listen_port if
   # Conf.listen_port is set to 0.
   def self.listen_port
+
+    # FIXME Purposely *DISABLE* TCP by adding one
+
     @server.local_address.ip_port + 1
   end
 
