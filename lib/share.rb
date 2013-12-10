@@ -124,7 +124,6 @@ class Share
   def each
     @db.each do |key,val|
       next unless key =~ /\Afile\//
-      next if val.deleted
       yield val
     end
   end
@@ -240,6 +239,10 @@ class Share
   # Ask to be notified about changes to any files in this share.
   def subscribe &block
     @subscribers << block
+  end
+
+  def delete!
+    @db.delete_database!
   end
 
   private

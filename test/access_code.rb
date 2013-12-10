@@ -27,4 +27,10 @@ describe AccessCode, "generating" do
       codes[code] = true
     end
   end
+
+  it "should allow clearskies: protocol" do
+    str = AccessCode.create.to_s
+    code = AccessCode.parse "clearskies:#{str}"
+    code.to_s.must_equal str
+  end
 end

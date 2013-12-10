@@ -71,7 +71,12 @@ module Scanner
         file.path = path
         file
       end
-      def commit stat; end
+      def commit stat
+        self.deleted = false
+      end
+      def deleted!
+        self.deleted = true
+      end
     end
   end
 

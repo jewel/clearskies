@@ -27,8 +27,8 @@ class Tracker < WEBrick::HTTPServlet::AbstractServlet
   def do_GET req, res
     q = req.query
 
-    # FIXME support IPv6
     addr = req.remote_ip.to_s
+    addr = "[#{addr}]" if addr =~ /:/ # IPv6
     port = q["tcp_port"]
 
     ids = q["id"].list

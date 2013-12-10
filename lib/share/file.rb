@@ -21,6 +21,15 @@ class Share
       self.mode = stat.mode.to_s(8)
       self.mtime = [stat.mtime.to_i, stat.mtime.nsec]
       self.size = stat.size
+      self.deleted = false
+    end
+
+    def deleted!
+      self.deleted = true
+      self.size = nil
+      self.mtime = nil
+      self.mode = nil
+      self.sha256 = nil
     end
   end
 end

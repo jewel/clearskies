@@ -145,8 +145,9 @@ when "stop"
   ControlClient.issue :stop
 
 when "restart"
+  require_relative 'lib/daemon'
   ControlClient.issue :stop
-  Daemon.start
+  Daemon.daemonize
 
 when "logcat"
   logfile = Conf.path 'log'
@@ -175,7 +176,9 @@ when "create"
 
   path = File.realpath path
 
-  ControlClient.issue :create_share, path
+  ControlClient.issue :create_share, {
+    path: path
+  }
 
 when "ls", "list"
   res = ControlClient.issue :list_shares
@@ -218,7 +221,7 @@ when "share"
     mode: mode,
   }
 
-  puts res[:access_code]
+  puts "clearskies:#{res[:access_code]}"
 
 when "attach", "add"
   code = ARGV.shift
@@ -241,7 +244,9 @@ when "detach", "rm"
   end
   path = File.realpath(path)
 
-  ControlClient.issue :remove_share, path
+  ControlClient.issue :remove_share, {
+    path: path
+  }
 
 else
   abort "Invalid command: #{command.inspect}, try --help"

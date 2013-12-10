@@ -98,6 +98,11 @@ algorithm](http://en.wikipedia.org/wiki/Luhn_mod_N_algorithm), where N is 32.
 The final result is a 33 character string which (due to the magic prefix) will
 start with "SYNC".
 
+The human-readable access code should be given with a "clearskies:" URL prefix.
+This facilitates single-click opening on platforms that support registering
+custom protocols.  Manual entry should support the code both with and without
+the URL prefix.
+
 The 128-bit number is run through SHA256 to get an access ID.  This is used
 to locate other peers.
 
@@ -927,18 +932,6 @@ greater, that way software on mobile devices can adjust for battery life and
 network conditions.
 
 
-
-Checking for Missing Shares
----------------------------
-
-Each directory should have a hidden file, perhaps named ".ClearSkies", which is
-not synced but is used to check if a drive is not mounted or a removable drive
-is not present.  The file should contain the Share ID or another ID that is
-unique to the share.  If this file is not present, the software should not
-attempt to do any synchronization, instead showing an error state for the
-share.
-
-
 Archival
 --------
 
@@ -1050,6 +1043,10 @@ certain threshold (perhaps defaulting to a week).
 Software can rescan files from time-to-time to detect files that cannot be read
 from disk or that have become corrupted, and replace them with good copies from
 other peers.
+
+Software should detect when a share is on a removable device, and put the share
+in a soft error state when the device is not present.  (As opposed to deleting
+all the files in the share on the peers.)
 
 Software may choose to create read-only directories, and read-only files, in
 read-only mode, so that a user doesn't make changes that will be immediately

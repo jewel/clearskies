@@ -29,6 +29,15 @@ module Daemon
     STDOUT.reopen '/dev/null', 'a'
     STDERR.reopen STDOUT
 
+    at_exit do
+      if $!
+        Log.error "Exiting due to exception in 'main' thread: #$!"
+        $!.backtrace.each do |line|
+          Log.error line
+        end
+      end
+    end
+
     run
   end
 

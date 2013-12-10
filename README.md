@@ -75,7 +75,8 @@ problem by sharing the access codes over secure channels.
 Installation
 ------------
 
-It is currently only tested on Linux.  (It may also work on OS X and Windows.)
+It is currently only tested on Linux.  (It should also work on ruby 1.9 on OS X
+and Windows, if not please file an issue.)
 
 If you already have a working ruby 1.9 or 2.0:
 
@@ -83,10 +84,20 @@ If you already have a working ruby 1.9 or 2.0:
 gem install rb-inotify ffi
 ```
 
-Otherwise, installing dependencies on Ubuntu:
+Otherwise, installing dependencies on Ubuntu or Debian:
 
 ```bash
-apt-get install libgnutls26 ruby1.9.1 librb-inotify-ruby1.9.1
+apt-get install libgnutls26 ruby1.9.1 ruby-rb-inotify ruby-ffi
+```
+
+Note: The version of "ffi" in the Debian stable (wheezy) apt repository has
+issues.  The version of "rb-inotify" in Ubuntu 12.04 (precise) also has issues.
+In those cases, install the gems via ruby gems:
+
+```bash
+apt-get remove ruby-rb-inotify ruby-ffi
+apt-get install ruby-dev
+gem install rb-inotify ffi
 ```
 
 Clone this repo:
@@ -94,7 +105,6 @@ Clone this repo:
 ```bash
 git clone https://github.com/jewel/clearskies
 ```
-
 
 To start and share a directory:
 

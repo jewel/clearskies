@@ -78,6 +78,11 @@ class Permahash
     @logfile = nil
   end
 
+  # Delete the database file
+  def delete_database!
+    File.unlink @logfile
+  end
+
   private
   # Save an update to disk
   def append oper, key, val=nil

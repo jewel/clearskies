@@ -39,6 +39,7 @@ module Hasher
     Shares.each do |share|
       share.each do |file|
         next if file.sha256
+        next if file.deleted
         @hash_queue.push [share, file]
       end
     end
@@ -52,7 +53,12 @@ module Hasher
       next if file.sha256
       Log.info "Hashing #{file.path}"
 
-      hash = hash_file share.full_path(file.path)
+      begin
+        hash = hash_file share.full_path(file.path)
+      rescue
+        Log.warn "Couldn't hash file: #$!"
+        next
+      end
 
       Log.debug "Hashed #{file.path} to #{hash[0..8]}..."
       file.sha256 = hash

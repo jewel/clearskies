@@ -102,12 +102,13 @@ module Scanner
     share.check_path path
 
     begin
-      stat = File.stat path
+      stat = gunlock { File.stat path }
     rescue Errno::ENOENT
       # File was deleted!
       if file = share[relpath]
+        return if file.deleted
         Log.debug "#{relpath} was deleted"
-        file.deleted = true
+        file.deleted!
         file.utime = Time.new.to_f
         share.save relpath
         return

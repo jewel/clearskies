@@ -123,7 +123,7 @@ module ControlServer
         shares: Shares.map do |share|
           {
             path: share.path,
-            status: share.status,
+            status: 'N/A',
           }
         end
       }
@@ -137,8 +137,15 @@ module ControlServer
 
       nil
 
+    when :remove_share
+      share = Shares.find_by_path command[:path]
+      raise "No such share: #{command[:path].inspect}" unless share
+      Shares.remove share
+
+      nil
+
     else
-      raise "Invalid control command: #{command[type].inspect}"
+      raise "Invalid control command: #{command[:type].inspect}"
     end
   end
 end

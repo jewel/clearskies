@@ -18,6 +18,12 @@ module Shares
     end
   end
 
+  def self.map
+    @db.values.map do |id|
+      yield find_by_id(id)
+    end
+  end
+
   # Find a share by path, or return nil if not present.
   def self.find_by_path path
     if id = @db[path]
@@ -44,5 +50,6 @@ module Shares
   def self.remove share
     @db.delete share.path
     @shares.delete share.id
+    share.delete!
   end
 end
