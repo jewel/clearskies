@@ -35,12 +35,16 @@ end
 
 describe UTPSocket do
   before do
-    server = SharedUDPSocket.new
+    server = UDPSocket.new
     server.bind '127.0.0.1', 0
     @server_port = server.local_address.ip_port
+    server.close
 
     @server_pid = fork
     next if @server_pid
+
+    server = SharedUDPSocket.new
+    server.bind '127.0.0.1', @server_port
 
     UTPSocket.setup server
     while peer = UTPSocket.accept
