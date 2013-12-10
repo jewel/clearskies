@@ -14,6 +14,10 @@ module Broadcaster
     @discovered = block
   end
 
+  def self.tcp_port= val
+    @tcp_port = val
+  end
+
   # Start sending broadcasts occasionally
   def self.start
     # We make sure that we mark the socket as "REUSEADDR" so that multiple
@@ -75,7 +79,7 @@ module Broadcaster
       :version => 1,
       :id => id,
       :peer => peer_id,
-      :myport => Network.listen_port,
+      :myport => @tcp_port,
     }.to_json
     socket = UDPSocket.new
     socket.setsockopt Socket::SOL_SOCKET, Socket::SO_BROADCAST, true

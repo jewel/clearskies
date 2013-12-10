@@ -8,6 +8,9 @@ require_relative 'unauthenticated_connection'
 require_relative 'id_mapper'
 require_relative 'upnp'
 require_relative 'connection_manager'
+require_relative 'shared_udp_socket'
+require_relative 'stun_client'
+require_relative 'utp_socket'
 
 module Network
   # Start all network-related pieces.  This spawns several background threads.
@@ -20,17 +23,38 @@ module Network
       listen
     end
 
+    Broadcaster.tcp_port = listen_port
     Broadcaster.on_peer_discovered do |share_id,peer_id,addr,port|
       Log.debug "Broadcast discovered #{share_id} #{peer_id} #{addr} #{port}"
-      peer_discovered share_id, peer_id, addr, port
+      peer_discovered share_id, peer_id, 'tcp', addr, port
     end
     Broadcaster.start
 
-    TrackerClient.on_peer_discovered do |share_id,peer_id,addr,port|
-      Log.debug "Tracker discovered #{share_id} #{peer_id} #{addr} #{port}"
-      peer_discovered share_id, peer_id, addr, port
+    TrackerClient.tcp_port = listen_port
+    TrackerClient.on_peer_discovered do |share_id,peer_id,proto,addr,port|
+      Log.debug "Tracker discovered #{share_id} #{peer_id} #{proto} #{addr} #{port}"
+      peer_discovered share_id, peer_id, proto, addr, port
     end
     TrackerClient.start
+
+    # Create shared UDP socket for both STUN and uTP
+    @udp_socket = SharedUDPSocket.new
+    @udp_socket.bind '0.0.0.0', 0
+
+    stun_client = STUNClient.new @udp_socket
+    stun_client.on_bind do |addr,port|
+      TrackerClient.utp_port = port
+    end
+
+    UTPSocket.setup @udp_socket
+    SimpleThread.new 'utp_accept' do
+      loop do
+        client = UTPSocket.accept
+        start_connection client
+      end
+    end
+
+    stun_client.start
 
     UPnP.start listen_port
   end
@@ -54,11 +78,11 @@ module Network
   # Current listening port.  This will be different than Conf.listen_port if
   # Conf.listen_port is set to 0.
   def self.listen_port
-    @server.local_address.ip_port
+    @server.local_address.ip_port + 1
   end
 
   # Callback for when a peer is discovered.
-  def self.peer_discovered id, peer_id, addr, port
+  def self.peer_discovered id, peer_id, proto, addr, port
     share, code = IDMapper.find id
     unless share || code
       Log.debug "Can't find ID #{id}"
@@ -72,7 +96,7 @@ module Network
 
     return if ConnectionManager.have_connection? id, peer_id
 
-    start_connection [addr, port], share, code
+    start_connection [proto, addr, port], share, code
   end
 
   # Start a connection, regardless of source.

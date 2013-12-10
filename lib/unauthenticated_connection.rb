@@ -52,10 +52,19 @@ class UnauthenticatedConnection < Connection
     thread_name = "connection#{@connection_number > 1 ? @connection_number : nil}"
     SimpleThread.new thread_name do
       if @socket.is_a? Array
-        Log.debug "Opening socket to #{@socket[0]} #{@socket[1]}"
-        gunlock {
-          @socket = TCPSocket.new *@socket
-        }
+        Log.debug "Opening socket to #{@socket[0]} #{@socket[1]} #{@socket[2]}"
+        proto = @socket.shift
+        case proto
+        when "tcp"
+          gunlock {
+            @socket = TCPSocket.new *@socket
+          }
+        when "utp"
+          @socket = UTPSocket.new *@socket
+        else
+          Log.warn "Unsupported protocol: #{proto.inspect}"
+          return
+        end
       end
 
       Log.debug "Shaking hands"

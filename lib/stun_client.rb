@@ -11,6 +11,10 @@ class STUNClient
   HEADER_FORMAT = 'nnNNNN'
   MAGIC = 0x2112A442
 
+  # FIXME We should run our own STUN server
+  # FIXME Let user override STUN server
+  SERVER = "stun.l.google.com:19302"
+
   def initialize socket
     @socket = socket
 
@@ -18,15 +22,24 @@ class STUNClient
 
     socket.create_channel :stun
 
-    SimpleThread.new 'stun_client' do
+    SimpleThread.new 'stun_recv' do
       loop do
         receive_response
       end
     end
   end
 
-  def on_discovery &block
-    @on_discovery = block
+  def on_bind &block
+    @on_bind = block
+  end
+
+  def start
+    SimpleThread.new 'stun_send' do
+      loop do
+        send_bind_request SERVER
+        gsleep 60
+      end
+    end
   end
 
   def send_bind_request addr
@@ -57,11 +70,15 @@ class STUNClient
     packet = header.pack HEADER_FORMAT
 
     @socket.send packet, 0, addr, port
+
+    Log.debug "Sent STUN request to #{addr}:#{port}"
   end
 
   private
   def receive_response
     res, src = @socket.recv_from_channel :stun
+
+    Log.debug "Received STUN response from #{src.inspect}"
 
     res_header = res[0...20].unpack HEADER_FORMAT
 
@@ -158,8 +175,8 @@ class STUNClient
     end
 
     if addr
-      Log.info "STUN server #{id[5]} says we're running on #{addr}:#{port}"
-      @on_discovery.call addr, port if @on_discovery
+      Log.info "STUN server #{id[5]} says our UDP port is mapped to #{addr}:#{port}"
+      @on_bind.call addr, port if @on_bind
     end
   end
 

@@ -14,6 +14,14 @@ module TrackerClient
     end
   end
 
+  def self.utp_port= val
+    @utp_port = val
+  end
+
+  def self.tcp_port= val
+    @tcp_port = val
+  end
+
   # Callback for when peer is discovered
   def self.on_peer_discovered &block
     @peer_discovered = block
@@ -54,10 +62,14 @@ module TrackerClient
   # Ask tracker for a list of peers interested in a share.
   def self.poll_tracker ids, url
     uri = URI(url)
-    uri.query = URI.encode_www_form({
+    query = {
       :id => ids,
-      :tcp_port => Network.listen_port,
-    })
+    }
+
+    query[:tcp_port] = @tcp_port if @tcp_port
+    query[:utp_port] = @utp_port if @utp_port
+
+    uri.query = URI.encode_www_form(query)
     Log.debug "Tracking with #{uri}"
     res = gunlock { Net::HTTP.get_response uri }
     return unless res.is_a? Net::HTTPSuccess
@@ -68,8 +80,7 @@ module TrackerClient
         id, addr = peerspec.split "@"
         # FIXME Support IPv6
         proto, ip, port = addr.split ":"
-        next unless proto == "tcp"
-        @peer_discovered.call share_id, id, ip, port.to_i
+        @peer_discovered.call share_id, id, proto, ip, port.to_i
       end
     end
   end
