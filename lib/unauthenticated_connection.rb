@@ -5,8 +5,7 @@
 # Once the handshake has taken place, we hand off the connection to
 # `Connection`.
 
-require 'socket'
-
+require_relative 'unlocking_tcp_socket'
 require_relative 'simple_thread'
 require_relative 'gnutls'
 require_relative 'conf'
@@ -54,16 +53,19 @@ class UnauthenticatedConnection < Connection
       if @socket.is_a? Array
         Log.debug "Opening socket to #{@socket[0]} #{@socket[1]} #{@socket[2]}"
         proto = @socket.shift
-        case proto
-        when "tcp"
-          gunlock {
-            @socket = TCPSocket.new *@socket
-          }
-        when "utp"
-          @socket = UTPSocket.new *@socket
-        else
-          Log.warn "Unsupported protocol: #{proto.inspect}"
-          return
+        begin
+          case proto
+          when "tcp"
+            @socket = UnlockingTCPSocket.new *@socket
+          when "utp"
+            @socket = UTPSocket.new *@socket
+          else
+            Log.warn "Unsupported protocol: #{proto.inspect}"
+            next
+          end
+        rescue
+          Log.warn "Could not connect via #{proto} to #{@socket.join ':'}: #$!"
+          next
         end
       end
 
@@ -184,13 +186,11 @@ class UnauthenticatedConnection < Connection
         raise "Invalid PSK: #{fake.inspect}" unless Base64.decode64(fake[:key])== psk
       end
     else
-      @socket = gunlock {
-        if @incoming
-          GnuTLS::Server.new @socket, psk
-        else
-          GnuTLS::Socket.new @socket, psk
-        end
-      }
+      @socket = if @incoming
+                  GnuTLS::Server.new @socket, psk
+                else
+                  GnuTLS::Socket.new @socket, psk
+                end
     end
   end
 

@@ -76,7 +76,7 @@ class SimpleThread < Thread
         begin
           yield
         rescue
-          Log.error "Thread crash: #$!"
+          Log.error "Thread crash: #$! (#{$!.class})"
           $!.backtrace.each do |line|
             Log.error line
           end

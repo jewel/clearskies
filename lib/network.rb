@@ -17,7 +17,7 @@ module Network
   def self.start
     @connections = {}
 
-    @server = TCPServer.new Conf.listen_port
+    @server = UnlockingTCPServer.new Conf.listen_port
 
     SimpleThread.new('network') do
       listen
@@ -70,7 +70,7 @@ module Network
   # Listen for incoming clearskies connections.
   def self.listen
     loop do
-      client = gunlock { @server.accept }
+      client = @server.accept
       start_connection client
     end
   end

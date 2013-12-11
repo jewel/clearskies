@@ -48,7 +48,7 @@ class UTPSocket
   end
 
   def self.accept
-    packet = @@incoming.shift
+    packet = gunlock { @@incoming.shift }
 
     self.new packet
   end

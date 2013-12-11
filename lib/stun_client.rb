@@ -78,8 +78,6 @@ class STUNClient
   def receive_response
     res, src = @socket.recv_from_channel :stun
 
-    Log.debug "Received STUN response from #{src[3]}"
-
     res_header = res[0...20].unpack HEADER_FORMAT
 
     res_type = res_header[0]
@@ -91,6 +89,8 @@ class STUNClient
 
     # Skip non-STUN packets, which come on the same socket
     return unless res_id1 == MAGIC
+
+    Log.debug "Received STUN response from #{src[3]}"
 
     orig_id = nil
 

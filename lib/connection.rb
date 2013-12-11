@@ -30,7 +30,7 @@ class Connection
     if @send_queue
       @send_queue.push message
     else
-      gunlock { message.write_to_io @socket }
+      message.write_to_io @socket
     end
   end
 
@@ -38,11 +38,9 @@ class Connection
   def start_send_thread
     @send_queue = Queue.new
     @sending_thread = SimpleThread.new 'connection_send' do
-      gunlock {
-        while msg = @send_queue.shift
-          msg.write_to_io @socket
-        end
-      }
+      while msg = gunlock { @send_queue.shift }
+        msg.write_to_io @socket
+      end
     end
   end
 
@@ -51,7 +49,7 @@ class Connection
   # received.
   def recv type=nil
     loop do
-      msg = gunlock { Message.read_from_io @socket }
+      msg = Message.read_from_io @socket
       return msg if !type || msg.type.to_s == type.to_s
       Log.warn "Unexpected message: #{msg[:type]}, expecting #{type}"
     end
