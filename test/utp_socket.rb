@@ -4,6 +4,10 @@ require_relative '../lib/utp_socket'
 require_relative '../lib/shared_udp_socket'
 require 'socket'
 
+if $0 == __FILE__
+  Log.screen_level = :debug
+end
+
 class LossyUDPSocket < SharedUDPSocket
   def send *args
     # Drop some packets
@@ -18,13 +22,13 @@ class LossyUDPSocket < SharedUDPSocket
   def recvfrom *args
     # Drop some packets
     if rand(4) == 0
-      warn "Dropping"
+      Log.warn "Dropping"
       super *args
     end
 
     # Duplicate others
     if @prev_packet && rand(4) == 0
-      warn "Duplicating"
+      Log.warn "Duplicating"
       return @prev_packet
     end
 

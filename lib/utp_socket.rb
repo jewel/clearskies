@@ -114,14 +114,6 @@ class UTPSocket
     @peer_addr
   end
 
-  # FIXME temporary for debugging
-  def warn msg
-    @lock ||= File.open( "/tmp/lockylock", 'a' )
-    @lock.flock File::LOCK_EX
-    Kernel.warn "#$$ #{Thread.current.title}> #{msg}"
-    @lock.flock File::LOCK_UN
-  end
-
   def write data
     raise "Socket is closed" if @state == :closed
 
@@ -159,24 +151,26 @@ class UTPSocket
 
     packet = Packet.parse addr, data
     client_id = "#{addr[3]}:#{addr[1]}/#{packet.connection_id}"
+    Log.debug "uTP received #{client_id} #{packet}"
 
     if socket = @@objects[client_id]
+      Log.debug "Found home for #{packet}"
       socket.handle_incoming_packet packet
-      return true
+      return
     end
+    Log.debug "No home for #{packet}"
 
     if packet.type == :syn
       @@incoming.push packet
-      return true
+      return
     end
 
-    Log.warn "Received unexpected #{packet} from #{client_id}"
-    false
+    Log.debug "uTP received unexpected #{packet} from #{client_id}"
   end
 
   # Handle all incoming packets
   def handle_incoming_packet packet
-    warn "Got #{packet}"
+    Log.debug "uTP Got #{packet}"
 
     if @state == :connecting
       return unless packet.type == :state
@@ -242,7 +236,7 @@ class UTPSocket
     # FIXME How do we determine our advertised window size?
     packet.wnd_size = 1000
     packet.connection_id ||= @conn_id_send
-    warn "Sending #{packet}"
+    Log.debug "uTP Sending #{packet}"
     @socket.send packet.to_binary, 0, @peer_addr, @peer_port
   end
 
@@ -267,14 +261,18 @@ class UTPSocket
     packet.seq_nr = (@seq_nr += 1)
     packet.ack_nr = 0
 
-    @window << packet
+    attempt = 1
+
     send_packet packet
 
     # FIXME Don't spinlock here
     CONNECT_TIMEOUT.times do
       gsleep 1
-      send_packet packet
       return if @state == :connected
+      # FIXME Sending the syn more than once breaks things in clearskies
+      # (although not in the test environment)
+      Log.warn "Sending syn again"
+      send_packet packet
     end
 
     raise "Connection timeout to #@peer_addr:#@peer_port"
@@ -302,13 +300,13 @@ class UTPSocket
       amount = [@queue.size, maxlen].min
       slice = @queue[0...amount]
       @queue = @queue[amount..-1]
-      warn "readpartial returning #{slice.inspect}"
+      Log.debug "uTP readpartial returning #{slice.inspect}"
       return slice
     end
 
     return nil if @state == :closed
 
-    warn "Waiting for data"
+    Log.debug "uTP waiting for data"
     @data_available.wait
 
     # Since the packet might be bigger than maxlen, we'll need to split it,

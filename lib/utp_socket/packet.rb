@@ -114,7 +114,7 @@ class UTPSocket::Packet
 
   def to_s
     payload = size > 40 ? (data[0..40] + "...").inspect : data.inspect
-    case type
+    "#{connection_id}-" + case type
     when :syn
       "syn packet"
     when :state

@@ -23,14 +23,14 @@ module Network
       listen
     end
 
-    Broadcaster.tcp_port = listen_port
-    Broadcaster.on_peer_discovered do |share_id,peer_id,addr,port|
-      Log.debug "Broadcast discovered #{share_id} #{peer_id} #{addr} #{port}"
-      peer_discovered share_id, peer_id, 'tcp', addr, port
-    end
-    Broadcaster.start unless ENV['DISABLE_BROADCAST']
+    # Broadcaster.tcp_port = listen_port
+    # Broadcaster.on_peer_discovered do |share_id,peer_id,addr,port|
+    #   Log.debug "Broadcast discovered #{share_id} #{peer_id} #{addr} #{port}"
+    #   peer_discovered share_id, peer_id, 'tcp', addr, port
+    # end
+    # Broadcaster.start unless ENV['DISABLE_BROADCAST']
 
-    TrackerClient.tcp_port = listen_port
+    # TrackerClient.tcp_port = listen_port
     TrackerClient.on_peer_discovered do |share_id,peer_id,proto,addr,port|
       Log.debug "Tracker discovered #{share_id} #{peer_id} #{proto} #{addr} #{port}"
       peer_discovered share_id, peer_id, proto, addr, port
@@ -56,7 +56,7 @@ module Network
 
     stun_client.start
 
-    UPnP.start listen_port
+    # UPnP.start listen_port
   end
 
   # Force an immediate attempt at finding new peers, instead of waiting for the

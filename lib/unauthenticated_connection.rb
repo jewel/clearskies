@@ -49,6 +49,7 @@ class UnauthenticatedConnection < Connection
   # outgoing connections this will open a socket.
   def start
     thread_name = "connection#{@connection_number > 1 ? @connection_number : nil}"
+    return if @connection_number > 1
     SimpleThread.new thread_name do
       if @socket.is_a? Array
         Log.debug "Opening socket to #{@socket[0]} #{@socket[1]} #{@socket[2]}"
