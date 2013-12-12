@@ -30,7 +30,7 @@ end
 class UnlockingTCPSocket
   def initialize *args
     if args.first && args.first.is_a?(TCPSocket)
-      @socket = socket
+      @socket = args.first
     else
       @socket = gunlock { TCPSocket.new *args }
     end
