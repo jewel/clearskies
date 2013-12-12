@@ -123,9 +123,7 @@ class AuthenticatedConnection < Connection
       return unless metadata
 
       file = write_file metadata do
-        gunlock {
-          msg.read_binary_payload
-        }
+        msg.read_binary_payload
       end
 
       if file
@@ -332,11 +330,15 @@ class AuthenticatedConnection < Connection
     File.open temp, 'wb' do |f|
       if file_data
         digest << file_data
-        f.write file_data
+        gunlock {
+          f.write file_data
+        }
       else
         while data = yield
           digest << data
-          f.write data
+          gunlock {
+            f.write data
+          }
         end
       end
     end
