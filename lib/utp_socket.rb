@@ -48,9 +48,7 @@ class UTPSocket
   end
 
   def self.accept
-    packet = gunlock { @@incoming.shift }
-
-    self.new packet
+    gunlock { @@incoming.shift }
   end
 
   def initialize *args
@@ -161,7 +159,7 @@ class UTPSocket
     Log.debug "No home for #{packet}"
 
     if packet.type == :syn
-      @@incoming.push packet
+      @@incoming.push self.new(packet)
       return
     end
 
