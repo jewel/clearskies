@@ -560,9 +560,9 @@ File Tree Database
 ------------------
 
 Each read-write peer needs to keep a persistent database of all the files in a
-share.  The database has a "version" attribute, which is a double-precision
-floating-point unix timestamp representing the last time anything has changed
-in the database.
+share.  The database has a "revision" attribute, which is a 64-bit unsigned
+integer that is incremented any time something changes in the database.  A new,
+empty database should be revision 0.
 
 The following fields are tracked for each file:
 
@@ -643,14 +643,16 @@ Read-Write Manifests
 --------------------
 
 Once an encrypted connection is established, the peers usually ask for each
-other's file tree listing.
+other's file tree listing.  This step is not required in all cases, for example
+if two peers have multiple open connections with each other they wouldn't share
+manifests on all of them.
 
 Each access level has its own way of creating file listings.  The file listing
 and a signature are together called a manifest.
 
 A read-write peer will generate a new manifest whenever requested by a peer
 from the contents of its database.  It contains the entire contents of the
-database, including the database "version" timestamp.  The file entries should
+database, including the database "revision" number.  The file entries should
 be sorted by path.  Its own peer_id is also included.  The entire manifest will
 be signed (using the key-signing mechanism explained in the "Wire Protocol"
 section) except when being sent to other read-write peers.
@@ -662,7 +664,7 @@ is not shown):
 {
   "type": "manifest",
   "peer": "489d80c2f2aba1ff3c7530d0768f5642",
-  "version": 1379487751.581837,
+  "revision": 379,
   "files": [
     {
       "path": "photos/img1.jpg",
@@ -695,17 +697,17 @@ opts not to sync some files, as is explained in the "Subtree Copy" section.)
 For this reason, each read-write peer has its own manifest.
 
 To request a manifest, a "get_manifest" message is sent.  The message may
-optionally contain the last-synced "version" of the peer's database.
+optionally contain the last-synced "revision" of the peer's database.
 (Read-write peers are never required to store manifests.)
 
 ```json
 {
   "type": "get_manifest",
-  "version": 1379489220.149822
+  "revision": 379
 }
 ```
 
-If the manifest version matches the current database number, the peer will
+If the manifest revision matches the current database number, the peer will
 respond with a "manifest_current" message.
 
 ```json
@@ -714,9 +716,9 @@ respond with a "manifest_current" message.
 }
 ```
 
-If the "get_manifest" request didn't include a "version" field, or the manifest
-version is not current, the peer should respond with the full "manifest"
-message, as explained above.
+If the "get_manifest" request didn't include a "revision" field, or the
+manifest revision number is not current, the peer should respond with the full
+"manifest" message, as explained above.
 
 A peer may elect not to request a manifest, and may also elect to ignore the
 "get_manifest" message.
@@ -818,6 +820,10 @@ match, the mtime should be checked one last time to make sure that the file
 hasn't been written to while the hash was being computed.  Peers should then be
 notified of the change.
 
+Change notifications should only be sent on connections when a "manifest" or
+"manifest_current" message have already been sent on that connection (which
+would have been in response to a "get_manifest" message.)
+
 Change notifications are signed messages except when sent to other read-write
 peers.
 
@@ -832,11 +838,14 @@ should be used.  Deleted files should always use the previous scan time as the
 "utime".  (The start time of the previous scan can be used instead of the
 previous scan time for the file in question, if desired.)
 
+Each change contains the manifest "revision" number.
+
 Notification of a new or changed file looks like this:
 
 ```json
 {
   "type": "update",
+  "revision": 400,
   "file": {
     "path": "photos/img1.jpg",
     "utime": 1379220476,
@@ -856,6 +865,7 @@ Notification of a deleted file looks like this:
 ```json
 {
   "type": "update",
+  "revision": 401,
   "file": {
     "path": "photos/img3.jpg",
     "utime": 1379224548,
@@ -869,6 +879,7 @@ Notification of a moved file looks like this:
 ```json
 {
   "type": "move",
+  "revision": 402,
   "source": "photos/img5.jpg",
   "destination": {
     "path": "photos/img1.jpg",
@@ -890,9 +901,8 @@ sending them to the other peer.  If file change notification support by the OS
 is present, the software may want to delay outgoing changes for a few seconds
 to ensure that a delete wasn't really a move.
 
-File changes notifications should be relayed to other peers once the file has
-been successfully retrieved, assuming the other peers haven't already sent
-notification that they have the file.
+File change notifications should be relayed to other peers once the file has
+been successfully retrieved, including back to the originator of the change.
 
 
 Deleted Files
