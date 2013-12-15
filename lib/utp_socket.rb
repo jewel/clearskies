@@ -13,6 +13,7 @@ require_relative 'simple_thread'
 require_relative 'simple_condition'
 require_relative 'buffered_io'
 require_relative 'utp_socket/packet'
+require_relative 'simple_timer'
 
 class UTPSocket
   include BufferedIO
@@ -26,16 +27,6 @@ class UTPSocket
     @@objects ||= {}
     @@incoming = Queue.new
     @@socket = socket
-
-    SimpleThread.new 'utp_resend' do
-      loop do
-        gsleep 0.1
-        @@objects.values.each do |socket|
-          # FIXME This isn't the right way to do this
-          socket.resend_packet
-        end
-      end
-    end
 
     socket.create_channel :utp
 
@@ -64,6 +55,7 @@ class UTPSocket
       @conn_id_send = packet.connection_id
       @seq_nr = rand(2**16)
       @ack_nr = packet.seq_nr
+      @wnd_size = packet.wnd_size
       @outbound = false
       @state = :connected
     else
@@ -76,6 +68,7 @@ class UTPSocket
       @ack_nr = nil
       @outbound = true
       @state = :connecting
+      @wnd_size = 0
     end
 
     # FIXME make sure that "addr" is resolved to an IP address
@@ -85,17 +78,29 @@ class UTPSocket
     # isn't the thread that will be in the middle of a read() or gets() call.
     @queue = String.new
     @data_available = SimpleCondition.new
+    @state_change = SimpleCondition.new
 
     # Buffer of data for BufferedIO
     @buffer = String.new
 
-    # Receive data
+    @reply_micro = 0
+    @dup_acks = 0
+
+    @rtt = 0
+    @rtt_var = 0
+    @first_packet_resent = false
+    # timeout in milliseconds
+    @timeout = 1000
+    @prev_timer = nil
 
     # Window of packets that are currently "in flight" to our peer.  Each
     # packet stays in this array until it we receive an ACK for it.
+    @cur_window = 0
     @window = []
+    @window_reduced = SimpleCondition.new
 
-    @window_has_room = SimpleCondition.new
+    # Start our send window at ten packets
+    @max_window = 10 * max_packet_size
 
     @socket = @@socket
 
@@ -116,30 +121,35 @@ class UTPSocket
     raise "Socket is closed" if @state == :closed
 
     while data.size > 0
-      # If our window is full then we need to block.
-      while window_full?
-        @window_has_room.wait
+      # If window is full then we need to block.
+      amount = [data.size, packet_size].min
+
+      if @cur_window + amount > [@max_window, @wnd_size].min
+        Log.warn "Window is full at #{@max_window} or #{@wnd_size}"
+        @window_reduced.wait
+        next
       end
+
       packet = Packet.new
       packet.type = :data
       packet.seq_nr = (@seq_nr += 1)
       packet.ack_nr = @ack_nr
-      amount = [data.size, max_packet_size].min
       packet.data = data[0...amount]
       data = data[amount..-1]
 
       @window << packet
+      @cur_window += amount
       send_packet packet
     end
   end
 
   def close
     @state = :closed
+    @state_change.broadcast
     packet = Packet.new
     packet.type = :fin
     packet.seq_nr = (@seq_nr += 1)
     packet.ack_nr = @ack_nr
-    packet.timestamp_diff = 0
     send_packet packet
   end
 
@@ -156,7 +166,6 @@ class UTPSocket
       socket.handle_incoming_packet packet
       return
     end
-    Log.debug "No home for #{packet}"
 
     if packet.type == :syn
       @@incoming.push self.new(packet)
@@ -170,11 +179,18 @@ class UTPSocket
   def handle_incoming_packet packet
     Log.debug "uTP Got #{packet}"
 
+    bump_timer
+
+    @wnd_size = packet.wnd_size
+    @reply_micro = now - packet.timestamp
+
     if @state == :connecting
       return unless packet.type == :state
-      @window.shift
       @ack_nr = packet.seq_nr
+      raise "First packet is not syn!?" if !@window.first || @window.first.type != :syn
+      @window.shift
       @state = :connected
+      @state_change.broadcast
       return
     end
 
@@ -183,20 +199,55 @@ class UTPSocket
     if packet.type == :fin || packet.type == :reset
       # FIXME closing should wait for other packets still
       @state = :closed
+      @state_change.broadcast
       @@objects.delete @client_id
       return
     end
 
     return unless packet.type == :state || packet.type == :data
 
-    # Move window forward
-    # FIXME handle seq_nr wrapping around to zero for long connections
-    while @window.first && @window.first.seq_nr <= packet.ack_nr
-      @window.shift
+    # If we receive an ACK for the packet that is right before the start of the
+    # window, the first packet in the window might have been lost.
+    if packet.type == :state && @window.first && @window.first.seq_nr == packet.ack_nr + 1
+      @dup_acks += 1
+
+      if @dup_acks >= 3
+        # Packet must have been lost, resend
+        @dup_acks = 0
+        @max_window /= 2
+
+        resend_window
+      end
     end
 
-    # Notify senders (if any) that the window is no longer full
-    @window_has_room.signal unless window_full?
+    # Update RTT tracking when receiving a normal ACK
+    if packet.type == :state && @window.first && packet.ack_nr == @window.first.seq_nr && !@first_packet_resent
+      packet_rtt = (now - @window.first.timestamp) / 1_000
+      Log.warn "Got this packet in #{packet_rtt}"
+      # Ignore wrapped data
+      if packet_rtt > 0
+        delta = @rtt - packet_rtt
+        @rtt_var += (delta - @rtt_var) / 4
+        @rtt += (packet_rtt - @rtt) / 8
+        @timeout = [@rtt + @rtt_var * 4, 500].max
+      end
+    end
+
+    # Move window forward.
+    #
+    # Note that this can be done by a :data packet or a :state packet.
+    #
+    # FIXME handle seq_nr wrapping around to zero for long connections
+    while @window.first && @window.first.seq_nr <= packet.ack_nr
+      @cur_window -= @window.first.data.size
+      @max_window += ( @window.first.data.size * 2 )
+      @window.shift
+
+      # Notify senders (if any) that the window is no longer full
+      @window_reduced.signal
+      @dup_acks = 0
+      @first_packet_resent = false
+    end
 
     return unless packet.type == :data
 
@@ -207,48 +258,44 @@ class UTPSocket
       @data_available.signal
     end
 
-    # FIXME Sending an ack for every incoming packet is inefficient.  If we
-    # delay a small amount of time we can send a single ACK to ack multiple
-    # packets.
-    #
-    # We can have the same thread that does retransmissions handle sending out
-    # ACKs, since it will be a similar job.
-    ack = Packet.new
-    ack.type = :state
-    ack.timestamp_diff = now - packet.timestamp
-    ack.ack_nr = @ack_nr
-    ack.seq_nr = @seq_nr
-    send_packet ack
-  end
-
-  def resend_packet
-    # FIXME This is temporary
-    return unless @window.first
-    send_packet @window.first
+    send_ack
   end
 
   private
 
+  def receive_queue_max_size
+    # This can be tuned lower on low-memory machines
+    1024 * max_packet_size
+  end
+
   def send_packet packet
     packet.timestamp = now
-    # FIXME How do we determine our advertised window size?
-    packet.wnd_size = 1000
+    packet.timestamp_diff = @reply_micro
+    packet.wnd_size = receive_queue_max_size - @queue.size
     packet.connection_id ||= @conn_id_send
     Log.debug "uTP Sending #{packet}"
     @socket.send packet.to_binary, 0, @peer_addr, @peer_port
+    Log.debug "bumping timer"
+    bump_timer
   end
 
+  # Current timestamp, as the number of microseconds that fit in a 32 bit int
   def now
     time = Time.new
     (time.to_i * 1_000_000 + time.usec) % 2**32
   end
 
   def max_packet_size
-    900 # FIXME
+    # Conservative value to avoid fragmentation
+    1300
   end
 
-  def window_full?
-    @window.size > 10 # FIXME
+  def packet_size
+    # Spec calls to vary the packet size based on the send rate, but doesn't
+    # give a formula.
+    #
+    # Since we don't measure the send rate, we'll just use the max_packet_size.
+    max_packet_size
   end
 
   def connect
@@ -258,22 +305,18 @@ class UTPSocket
     packet.connection_id = @conn_id_recv
     packet.seq_nr = (@seq_nr += 1)
     packet.ack_nr = 0
+    packet.data = String.new
 
     attempt = 1
 
+    @window << packet
     send_packet packet
 
-    # FIXME Don't spinlock here
-    CONNECT_TIMEOUT.times do
-      gsleep 1
-      return if @state == :connected
-      # FIXME Sending the syn more than once breaks things in clearskies
-      # (although not in the test environment)
-      Log.warn "Sending syn again"
-      send_packet packet
+    while @state == :connecting
+      Log.debug "State is #{@state}"
+      @state_change.wait 1.0
     end
-
-    raise "Connection timeout to #@peer_addr:#@peer_port"
+    Log.warn "State is NOW #{@state}"
   end
 
   def respond_to_syn syn
@@ -282,7 +325,6 @@ class UTPSocket
     packet.type = :state
     packet.seq_nr = (@seq_nr += 1)
     packet.ack_nr = @ack_nr
-    packet.timestamp_diff = now - syn.timestamp
     send_packet packet
   end
 
@@ -311,5 +353,52 @@ class UTPSocket
     # which we can let our buffer splitter code above do if add the data to the
     # buffer and recurse.
     return unbuffered_readpartial maxlen
+  end
+
+  def send_ack
+    ack = Packet.new
+    ack.type = :state
+    ack.ack_nr = @ack_nr
+    ack.seq_nr = @seq_nr
+    send_packet ack
+  end
+
+  def resend_window
+    @first_packet_resent = true
+
+    # FIXME it seems like just resending the first packet isn't enough to
+    # get the stream to start flowing again.  We'll receive an immediate
+    # ACK, and then will just wait until timeout to send the rest of the
+    # window
+    #
+    # Since we don't have selective ACK yet, we'll resend
+    # up to max_window of our packets again
+    total = 0
+    @window.each do |packet|
+      send_packet packet
+      total += packet.data.size
+      break if total > @max_window
+    end
+  end
+
+  def bump_timer
+    SimpleTimer.cancel @prev_timer if @prev_timer
+
+    Log.warn "Timer is at #{@timeout}"
+
+    run_time = Time.new + @timeout.to_f / 1000
+
+    @prev_timer = SimpleTimer.run_at run_time do
+      Log.warn "uTP timeout"
+      @max_window = packet_size
+      @timeout *= 2
+
+      # Signal that we need more data by sending ack three times
+      send_ack
+      send_ack
+      send_ack
+
+      resend_window
+    end
   end
 end

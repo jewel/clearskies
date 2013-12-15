@@ -9,12 +9,23 @@ if $0 == __FILE__
 end
 
 class LossyUDPSocket < SharedUDPSocket
+  def initialize *args
+    @start = Time.new
+    @total = 0
+    super *args
+  end
+
   def send *args
-    # Drop some packets
-    return if rand(4) == 0
+    # Rate limit to 3 KB/s
+    @total += args[0].size
+    rate = @total.to_f / (Time.new - @start)
+    return if rate > 3000
+
+    # Drop some packets no matter what
+    return if rand(100) == 0
 
     # Duplicate others
-    super *args if rand(4) == 0
+    super *args if rand(100) == 0
 
     super *args
   end
@@ -22,13 +33,17 @@ class LossyUDPSocket < SharedUDPSocket
   def recvfrom *args
     # Drop some packets
     if rand(4) == 0
-      Log.warn "Dropping"
+      glock {
+        Log.warn "Dropping"
+      }
       super *args
     end
 
     # Duplicate others
     if @prev_packet && rand(4) == 0
-      Log.warn "Duplicating"
+      glock {
+        Log.warn "Duplicating"
+      }
       return @prev_packet
     end
 
@@ -91,6 +106,18 @@ describe UTPSocket do
     peer.puts "greetings!"
     peer.gets.must_equal "greetings!\n"
 
+    # Non-chatty test
+    100.times do |i|
+      str = "#{i} " * i
+      peer.write str
+    end
+
+    100.times do |i|
+      str = "#{i} " * i
+      peer.read(str.size).must_equal str
+    end
+
+    # Chatty test
     100.times do |i|
       str = "#{i} " * i
       peer.write str

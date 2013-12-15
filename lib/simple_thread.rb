@@ -12,7 +12,8 @@
 require 'thread'
 require_relative 'log'
 
-# A thread should never abort since we're handling it in safe thread
+# A thread should never cause an abort, unless there is a problem with the
+# thread exception handling code below
 Thread.abort_on_exception = true
 
 $global_lock = Mutex.new

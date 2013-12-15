@@ -80,7 +80,7 @@ module Hasher
           digest << data
         }
 
-        Thread.stop if @paused
+        gunlock { Thread.stop } if @paused
       end
     end
   end
