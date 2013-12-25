@@ -39,7 +39,7 @@ module Network
 
     # Create shared UDP socket for both STUN and uTP
     @udp_socket = SharedUDPSocket.new
-    @udp_socket.bind '0.0.0.0', 0
+    @udp_socket.bind '0.0.0.0', Conf.udp_port
 
     stun_client = STUNClient.new @udp_socket
     stun_client.on_bind do |addr,port|

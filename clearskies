@@ -48,6 +48,12 @@ files to sync to other devices.
       Conf.listen_port = p.to_i
     end
 
+    # FIXME Instead of having to pass this at start time, let the user
+    # reconfigure it dynamically via the CLI
+    opts.on( '-d', '--udp-port NUMBER', 'Port for incoming connections' ) do |p|
+      Conf.udp_port = p.to_i
+    end
+
   when "stop"
     extra_help = "Cause background program to exit."
 

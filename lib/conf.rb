@@ -30,6 +30,16 @@ module Conf
     @listen_port = val
   end
 
+  # Port to listen on for shared STUN/uTP UDP socket.  A port of "0"
+  # means to pick a random port each time the daemon starts.
+  def self.udp_port
+    @udp_port || 0
+  end
+
+  def self.udp_port= val
+    @udp_port = val
+  end
+
   # Path to unix socket used by CLI to control the daemon
   def self.control_path
     data_dir "control"

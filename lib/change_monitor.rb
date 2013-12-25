@@ -7,7 +7,7 @@ module ChangeMonitor
     begin
       require 'rb-inotify'
     rescue LoadError
-      Log.warning "Cannot load a file change monitor, is rb-inotify installed?"
+      Log.warn "Cannot load a file change monitor, is rb-inotify installed?"
       return nil
     end
 
