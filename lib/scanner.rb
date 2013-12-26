@@ -76,7 +76,7 @@ module Scanner
       return
     end
 
-    debouncer = Debouncer.new 'inotify-filter', 0.3
+    debouncer = Debouncer.new 'cm-filter', 0.3
 
     @change_monitor.on_change do |path|
       debouncer.call(path) do
@@ -183,7 +183,7 @@ module Scanner
   # Go through each file in a share and make sure it is being monitored.
   def self.register_and_scan share
     @change_monitor.register share if @change_monitor
-    
+
     Hasher.pause
     Log.info "Doing scan of share #{share.path}"
 

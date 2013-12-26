@@ -23,7 +23,7 @@ module ChangeMonitor
     def on_change &block
       @on_change = block
     end
-    
+
     def register share
     end
 

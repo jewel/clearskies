@@ -16,14 +16,14 @@ module ChangeMonitor
     def on_change &block
       @on_change = block
     end
-    
+
     def register share
       path = share.path
       return if @watching.include? path
       @watching << path
-      
+
       @notifier.stop
-      
+
       @notifier.watch @watching do |dirs|
         dirs.map do |dir|
           glock do
@@ -34,16 +34,15 @@ module ChangeMonitor
       end
 
       Log.info "monitoring #{@watching}"
-      
+
       SimpleThread.new 'fsevent' do
         gunlock {
           @notifier.run
         }
       end
     end
-      
+
     def monitor path
     end
   end
-  
 end
