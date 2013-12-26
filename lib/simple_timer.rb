@@ -2,40 +2,24 @@
 #
 # This is a module to allow a single thread to run all timers for the entire
 # program.
+#
+# Note that these timers are purposely imprecise, trading accuracy for
+# efficiency.
 
 require_relative 'simple_thread'
 require_relative 'simple_condition'
 
 module SimpleTimer
   def self.run_at time, &block
-    warn "Running for #{time.to_f}"
     init
-
-    id = @next_id
-    @next_id += 1
 
     event = {
       time: time,
-      id: id,
       block: block,
       canceled: false
     }
 
-    if @current_event && time < @current_event[:time]
-      # We unfortunately have already ran our main thread, so instead of trying
-      # to interrupt it, we'll just start another thread for this event
-      SimpleThread.new do
-        wait_for_event event
-      end
-      return event
-    end
-
     @events << event
-
-    # FIXME This isn't an efficient approach if there are lots of events
-    @events.sort_by { |_| _[:time] }
-
-    @thread.wakeup
 
     event
   end
@@ -50,10 +34,7 @@ module SimpleTimer
   def self.init
     return if @initialized
 
-    @next_id = 1
     @events = []
-
-    @current_event = nil
 
     @thread = SimpleThread.new 'timer' do
       loop do
@@ -65,22 +46,13 @@ module SimpleTimer
   end
 
   def self.do_next_event
-    if @events.empty?
-      gunlock {
-        Thread.stop
-      }
-      return
+    gsleep 0.2
+    now = Time.new
+    @events.delete_if do |event|
+      next true if event[:canceled]
+      next false unless event[:time] < now
+      event[:block].call
+      true
     end
-
-    @current_event = @events.shift
-    wait_for_event @current_event
-    @current_event = nil
-  end
-
-  def self.wait_for_event event
-    time_to_sleep = event[:time] - Time.new
-    gsleep time_to_sleep if time_to_sleep > 0
-    return if event[:canceled]
-    event[:block].call
   end
 end

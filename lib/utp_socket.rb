@@ -125,7 +125,6 @@ class UTPSocket
       amount = [data.size, packet_size].min
 
       if @cur_window + amount > [@max_window, @wnd_size].min
-        Log.warn "Window is full at #{@max_window} or #{@wnd_size}"
         @window_reduced.wait
         next
       end
@@ -159,10 +158,8 @@ class UTPSocket
 
     packet = Packet.parse addr, data
     client_id = "#{addr[3]}:#{addr[1]}/#{packet.connection_id}"
-    Log.debug "uTP received #{client_id} #{packet}"
 
     if socket = @@objects[client_id]
-      Log.debug "Found home for #{packet}"
       socket.handle_incoming_packet packet
       return
     end
@@ -177,8 +174,6 @@ class UTPSocket
 
   # Handle all incoming packets
   def handle_incoming_packet packet
-    Log.debug "uTP Got #{packet}"
-
     bump_timer
 
     @wnd_size = packet.wnd_size
@@ -223,7 +218,6 @@ class UTPSocket
     # Update RTT tracking when receiving a normal ACK
     if packet.type == :state && @window.first && packet.ack_nr == @window.first.seq_nr && !@first_packet_resent
       packet_rtt = (now - @window.first.timestamp) / 1_000
-      Log.warn "Got this packet in #{packet_rtt}"
       # Ignore wrapped data
       if packet_rtt > 0
         delta = @rtt - packet_rtt
@@ -273,9 +267,7 @@ class UTPSocket
     packet.timestamp_diff = @reply_micro
     packet.wnd_size = receive_queue_max_size - @queue.size
     packet.connection_id ||= @conn_id_send
-    Log.debug "uTP Sending #{packet}"
     @socket.send packet.to_binary, 0, @peer_addr, @peer_port
-    Log.debug "bumping timer"
     bump_timer
   end
 
@@ -313,10 +305,8 @@ class UTPSocket
     send_packet packet
 
     while @state == :connecting
-      Log.debug "State is #{@state}"
       @state_change.wait 1.0
     end
-    Log.warn "State is NOW #{@state}"
   end
 
   def respond_to_syn syn
@@ -340,13 +330,11 @@ class UTPSocket
       amount = [@queue.size, maxlen].min
       slice = @queue[0...amount]
       @queue = @queue[amount..-1]
-      Log.debug "uTP readpartial returning #{slice.inspect}"
       return slice
     end
 
     return nil if @state == :closed
 
-    Log.debug "uTP waiting for data"
     @data_available.wait
 
     # Since the packet might be bigger than maxlen, we'll need to split it,
@@ -384,12 +372,9 @@ class UTPSocket
   def bump_timer
     SimpleTimer.cancel @prev_timer if @prev_timer
 
-    Log.warn "Timer is at #{@timeout}"
-
     run_time = Time.new + @timeout.to_f / 1000
 
     @prev_timer = SimpleTimer.run_at run_time do
-      Log.warn "uTP timeout"
       @max_window = packet_size
       @timeout *= 2
 

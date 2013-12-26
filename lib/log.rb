@@ -64,7 +64,7 @@ module Log
           msg = "\e[34m" + msg + "\e[0m"
         end
       end
-      Kernel.warn "#$$ #{msg}"
+      Kernel.warn msg
     end
 
     @file_level ||= :debug
