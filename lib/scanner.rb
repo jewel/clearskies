@@ -182,6 +182,8 @@ module Scanner
 
   # Go through each file in a share and make sure it is being monitored.
   def self.register_and_scan share
+    @change_monitor.register share if @change_monitor
+    
     Hasher.pause
     Log.info "Doing scan of share #{share.path}"
 
