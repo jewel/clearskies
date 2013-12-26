@@ -23,6 +23,9 @@ module ChangeMonitor
     def on_change &block
       @on_change = block
     end
+    
+    def register share
+    end
 
     def monitor path
       raise "Must specify callback with on_change" unless @on_change

@@ -6,12 +6,11 @@ module ConnectionManager
   # Check if we're currently connected to a peer
   def self.have_connection? share_id, peer_id
     connections = get_connections key(share_id, peer_id)
-    active = false
     connections.each do |connection|
-      active ||= connection.active?
+      return true if connection.authenticated?
     end
-
-    active
+    
+    return false
   end
 
   # Call this to tell the connection manager that we are attempting to connect

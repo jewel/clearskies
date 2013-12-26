@@ -56,4 +56,8 @@ class Connection
 
     msg
   end
+  
+  def authenticated?
+    return false
+  end
 end

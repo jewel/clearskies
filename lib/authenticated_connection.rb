@@ -364,4 +364,8 @@ class AuthenticatedConnection < Connection
 
     file
   end
+  
+  def authenticated?
+    return true
+  end
 end
