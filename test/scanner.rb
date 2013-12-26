@@ -137,9 +137,15 @@ module Scanner
     def self.on_change &block
       @on_change = block
     end
+
     def self.monitor path
       return if @monitored.include? path
       @monitored.push path
+    end
+
+    def self.register share
+      return if @monitored.include? share.path
+      @monitored.push share.path
     end
 
     def self.change_file path
