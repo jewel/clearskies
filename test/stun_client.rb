@@ -15,7 +15,7 @@ describe STUNClient do
       stun = STUNClient.new socket
 
       addr, port = nil, nil
-      stun.on_discover_port do |a,p|
+      stun.on_bind do |a,p|
         addr = a
         port = p
       end
