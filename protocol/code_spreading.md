@@ -1,4 +1,4 @@
-Code Speading Extension
+Code Spreading Extension
 =======================
 
 This is an optional protocol feature.  The official feature string is
