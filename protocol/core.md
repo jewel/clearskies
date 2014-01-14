@@ -346,9 +346,16 @@ prefixed with an exclamation point and then the JSON message as usual,
 including the termination newline.  After the newline, the binary payload is
 sent.  It is sent in one or more chunks, ending with a zero-length binary
 chunk.  Each chunk begins with its length in ASCII digits, followed by a
-newline, followed by the binary data.
+newline, followed by the binary data.  The size for each chunk shall be no
+greater than 16777216 bytes.
 
-For example:
+Note: Since large chunk sizes minimize the protocol overhead and syscall
+overhead for high-speed transfers, the recommended chunk size is a megabyte.  A
+memory-constrained implementations might receive a chunk that is bigger than
+its maximum desired buffer size, in which case it will need to read the chunk
+in multiple passes.
+
+An example message with a binary payload might look like:
 
 ```
 !{"type":"file_data","path":"test/file.txt",...}
