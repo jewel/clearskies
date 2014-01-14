@@ -36,6 +36,12 @@ The protocol features:
 * Media streaming (future extension)
 * Photo thumbnails (future extension)
 
+The protocol is designed to be a common base for other sync programs, so that
+they can interoperate with each other.  For example, a hypothetical
+wifi-enabled MIDI piano could speak the protocol and thereby sync its saved
+files to the owner's computer or tablet, without the piano manufacturer needing
+to write any PC or tablet software.
+
 
 The Software
 ------------
@@ -127,10 +133,25 @@ Contributing
 ------------
 
 If you are a professional cryptographer with interest in this project, any
-feedback on the protocol is welcome.
+feedback on the protocol is very welcome.
 
-Other help is also welcome.  You can email jewel at clearskies@stevenjewel.com
-for discussion that doesn't seem to fit well in the context of a github issue.
+A major area that needs work is creating GUIs for each platform, such as GTK,
+Cocoa, QT, Android, iOS, browser-based, and a Windows program.  GUIs do not
+need to be written in ruby, since they can control the daemon using a simple
+JSON RPC protocol, which is documented in `protocol/control.md`.  This
+repository will only contain the command-line user interface, but will happily
+link to any GUIs that exist.
+
+Another area that needs work is creating release binaries for platforms that
+don't ship with ruby by default, such as Windows.
+
+We need a port of the core daemon to C that can be used on both Android and iOS
+(or a separate java and objective-C port, respectively.)
+
+Issues and pull requests are welcome.
+
+You can email jewel at clearskies@stevenjewel.com with questions or feedback
+that don't seem to fit well in the context of a github issue.
 
 
 More Information
