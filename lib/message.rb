@@ -67,6 +67,8 @@ class Message
     len = len.to_i
     return nil if len == 0
 
+    raise "Binary chunk of size #{len} is too large" if len > 16_777_216
+
     data = @binary_io.read len
     raise "Premature end of stream" if data.nil?
     data

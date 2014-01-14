@@ -108,7 +108,7 @@ class AuthenticatedConnection < Connection
 
       res.binary_payload do
         if remaining > 0
-          data = fp.read [1024 * 256, remaining].max
+          data = fp.read [1024 * 1024, remaining].max
           remaining -= data.size
           data
         else
