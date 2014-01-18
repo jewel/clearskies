@@ -150,8 +150,9 @@ We need a port of the core daemon to C that can be used on both Android and iOS
 
 Issues and pull requests are welcome.
 
-You can email jewel at clearskies@stevenjewel.com with questions or feedback
-that don't seem to fit well in the context of a github issue.
+The project mailing list is on [google
+groups](https://groups.google.com/forum/#!managemembers/clearskies-dev).  (You
+can participate via email if you do not have a google account.)
 
 
 More Information
