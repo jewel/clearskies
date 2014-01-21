@@ -17,7 +17,13 @@ module Network
   def self.start
     @connections = {}
 
-    @server = UnlockingTCPServer.new '::', Conf.listen_port
+    # Try IPv6 and if that doesn't work fall back to IPv4
+    begin
+      @server = UnlockingTCPServer.new '::', Conf.listen_port
+    rescue Errno::EAFNOSUPPORT
+      Log.warn "No IPv6 support for TCP service"
+      @server = UnlockingTCPServer.new '0.0.0.0', Conf.listen_port
+    end
 
     SimpleThread.new('network') do
       listen
