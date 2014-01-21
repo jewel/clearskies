@@ -17,7 +17,7 @@ module Network
   def self.start
     @connections = {}
 
-    @server = UnlockingTCPServer.new Conf.listen_port
+    @server = UnlockingTCPServer.new '::', Conf.listen_port
 
     SimpleThread.new('network') do
       listen
