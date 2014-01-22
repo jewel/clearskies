@@ -52,10 +52,13 @@ module Network
       TrackerClient.utp_port = port
     end
 
-    UTPSocket.setup @udp_socket
+    @utp_server = UTPServer.new @udp_socket
+
+    UTPSocket.default_socket = @udp_socket
+
     SimpleThread.new 'utp_accept' do
       loop do
-        client = UTPSocket.accept
+        client = @utp_server.accept
         start_connection client
       end
     end

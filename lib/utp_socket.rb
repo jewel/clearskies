@@ -7,7 +7,9 @@
 # This class mimics the behavior of the regular TCP classes in ruby, where
 # possible.  Note that both peers have to connect to each other at the same
 # time, so this does not have the concept of "server" and "client" in the
-# traditional sense.
+# traditional sense.  Instead, both sides create a "server", which will can
+# spawn a new outbound connection via 'connect' or a new inbound connection via
+# 'accept'.
 
 require_relative 'simple_thread'
 require_relative 'simple_condition'
@@ -15,18 +17,14 @@ require_relative 'buffered_io'
 require_relative 'utp_socket/packet'
 require_relative 'simple_timer'
 
-class UTPSocket
-  include BufferedIO
-
-  CONNECT_TIMEOUT = 10
-
-  def self.setup socket
+class UTPServer
+  def initialize socket
     # All packets are going to come in on a single UDP socket, so a dedicated
     # thread will divvy incoming packets out to the appropriate objects via
     # Queues.
-    @@objects ||= {}
-    @@incoming = Queue.new
-    @@socket = socket
+    @utp_sockets = {}
+    @incoming = Queue.new
+    @socket = socket
 
     socket.create_channel :utp
 
@@ -38,12 +36,57 @@ class UTPSocket
     end
   end
 
-  def self.accept
-    gunlock { @@incoming.shift }
+  def accept
+    socket = gunlock { @incoming.shift }
+    Log.debug "accepted connection from #{socket.client_id}"
+    @utp_sockets[socket.client_id] = socket
+    socket
   end
 
+  def connect server, port
+    socket = UTPSocket.new @socket, server, port
+    @utp_sockets[socket.client_id] = socket
+    Log.debug "connecting to #{socket.client_id}"
+    socket.start_connection
+    socket
+  end
+
+  private
+  def find_socket_for_packet data, addr
+    # Skip STUN packets, which come in on the same socket
+    return if data[4...8].unpack('N').first == 0x2112A442
+
+    packet = UTPSocket::Packet.parse addr, data
+    client_id = "#{addr[3]}:#{addr[1]}/#{packet.connection_id}"
+
+    if socket = @utp_sockets[client_id]
+      socket.handle_incoming_packet packet
+      return
+    end
+
+    if packet.type == :syn
+      @incoming.push UTPSocket.new(@socket, packet)
+      return
+    end
+
+    Log.debug "uTP received unexpected #{packet} from #{client_id}.  Valid clients are #{@utp_sockets.keys.inspect}"
+  end
+
+end
+
+class UTPSocket
+  include BufferedIO
+
+  CONNECT_TIMEOUT = 10
+
   def initialize *args
-    raise "Not setup" unless @@socket
+    if args.first.is_a? UDPSocket
+      @socket = args.shift
+    elsif self.class.class_variable_defined? :@@default_socket
+      @socket = @@default_socket
+    else
+      raise "No UDP socket configured as default_socket"
+    end
 
     # Is this incoming or outgoing?
     if args.first.is_a? Packet
@@ -70,9 +113,6 @@ class UTPSocket
       @state = :connecting
       @wnd_size = 0
     end
-
-    # FIXME make sure that "addr" is resolved to an IP address
-    @client_id = "#@peer_addr:#@peer_port/#@conn_id_recv"
 
     # Queue for incoming data.  The thread that reads the data off the socket
     # isn't the thread that will be in the middle of a read() or gets() call.
@@ -102,15 +142,20 @@ class UTPSocket
     # Start our send window at ten packets
     @max_window = 10 * max_packet_size
 
-    @socket = @@socket
-
-    @@objects[@client_id] = self
-
-    if @outbound
-      connect
-    else
+    if !@outbound
       respond_to_syn packet
     end
+  end
+
+  # Most of the time, a program will only have one UDP Socket, ever.  For those
+  # cases, save the programmer the trouble of having to pass the socket around.
+  def self.default_socket= socket
+    @@default_socket = socket
+  end
+
+  def client_id
+    # FIXME make sure that "addr" is resolved to an IP address
+    "#@peer_addr:#@peer_port/#@conn_id_recv"
   end
 
   def peeraddr
@@ -152,26 +197,6 @@ class UTPSocket
     send_packet packet
   end
 
-  def self.find_socket_for_packet data, addr
-    # Skip STUN packets, which come in on the same socket
-    return if data[4...8].unpack('N').first == 0x2112A442
-
-    packet = Packet.parse addr, data
-    client_id = "#{addr[3]}:#{addr[1]}/#{packet.connection_id}"
-
-    if socket = @@objects[client_id]
-      socket.handle_incoming_packet packet
-      return
-    end
-
-    if packet.type == :syn
-      @@incoming.push self.new(packet)
-      return
-    end
-
-    Log.debug "uTP received unexpected #{packet} from #{client_id}"
-  end
-
   # Handle all incoming packets
   def handle_incoming_packet packet
     bump_timer
@@ -192,10 +217,9 @@ class UTPSocket
     return if @state == :closed
 
     if packet.type == :fin || packet.type == :reset
-      # FIXME closing should wait for other packets still
       @state = :closed
       @state_change.broadcast
-      @@objects.delete @client_id
+      # FIXME Ask our UTPServer to clean up this socket, somehow
       return
     end
 
@@ -255,6 +279,25 @@ class UTPSocket
     send_ack
   end
 
+  def start_connection
+    packet = Packet.new
+    packet.type = :syn
+    packet.connection_id = @conn_id_recv
+    packet.seq_nr = (@seq_nr += 1)
+    packet.ack_nr = 0
+    packet.data = String.new
+
+    attempt = 1
+
+    @window << packet
+    send_packet packet
+
+    while @state == :connecting
+      @state_change.wait 1.0
+    end
+  end
+
+
   private
 
   def receive_queue_max_size
@@ -288,25 +331,6 @@ class UTPSocket
     #
     # Since we don't measure the send rate, we'll just use the max_packet_size.
     max_packet_size
-  end
-
-  def connect
-    # Send SYN packet
-    packet = Packet.new
-    packet.type = :syn
-    packet.connection_id = @conn_id_recv
-    packet.seq_nr = (@seq_nr += 1)
-    packet.ack_nr = 0
-    packet.data = String.new
-
-    attempt = 1
-
-    @window << packet
-    send_packet packet
-
-    while @state == :connecting
-      @state_change.wait 1.0
-    end
   end
 
   def respond_to_syn syn
@@ -379,9 +403,11 @@ class UTPSocket
       @timeout *= 2
 
       # Signal that we need more data by sending ack three times
-      send_ack
-      send_ack
-      send_ack
+      if @state == :connected
+        send_ack
+        send_ack
+        send_ack
+      end
 
       resend_window
     end
