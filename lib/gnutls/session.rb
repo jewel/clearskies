@@ -36,12 +36,6 @@ class GnuTLS::Session
   def socket= socket
     @socket = socket
 
-    if GnuTLS.respond_to? :transport_set_int
-      GnuTLS.transport_set_int(@socket.to_i)
-      handshake
-      return
-    end
-
     @pull_function = Proc.new { |_, data, maxlen|
       d = nil
       begin
