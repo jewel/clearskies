@@ -329,6 +329,8 @@ newlines are allowed within the JSON representation.  (Note that JSON encodes
 newlines in strings as "\n", so there is no need to worry about cleaning out
 newlines within the object.)
 
+Note that only JSON objects are allowed, not strings, literals, or null.
+
 The object will have a "type" key, which will identify the type of message.
 
 For example:
@@ -396,7 +398,7 @@ As a rule, the receiver of file data should always be the one to request it.
 It should never be pushed unrequested.  This allows streaming content and do
 partial copies, as will be explained in later sections.
 
-If a message does not begin with a, '$', '{' or an '!', it should be ignored,
+If a line does not begin with a '$', '{' or an '!', it should be ignored,
 for forwards compatibility.
 
 
