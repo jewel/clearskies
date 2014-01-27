@@ -145,8 +145,9 @@ link to any GUIs that exist.
 Another area that needs work is creating release binaries for platforms that
 don't ship with ruby by default, such as Windows.
 
-We need a port of the core daemon to C that can be used on both Android and iOS
-(or a separate java and objective-C port, respectively.)
+There is an effort to port the daemon to C++ in a [different
+repository](https://github.com/larroy/clearskies_core) which will replace the
+ruby proof-of-concept once it's ready.
 
 Issues and pull requests are welcome.
 
