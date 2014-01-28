@@ -47,8 +47,19 @@ The Software
 ------------
 
 The software in this repository is a proof-of-concept of the protocol, written
-in ruby.  It (currently) consists of a background daemon and a command-line
+in ruby.  It consists of a background daemon and a command-line
 interface to control that daemon.
+
+There is an effort to port the daemon to C++ in a [different
+repository](https://github.com/larroy/clearskies_core) which will replace the
+ruby proof-of-concept once it's ready.
+
+The C++ daemon is being ported to android in [this
+repository](https://github.com/cachapa/clearskies_core_android).
+
+There is a separate effort to get the ruby proof-of-concept to run under jruby
+on android in [this
+repository](https://github.com/onionjake/clearskies-ruboto).
 
 
 Status
@@ -141,13 +152,6 @@ need to be written in ruby, since they can control the daemon using a simple
 JSON RPC protocol, which is documented in `protocol/control.md`.  This
 repository will only contain the command-line user interface, but will happily
 link to any GUIs that exist.
-
-Another area that needs work is creating release binaries for platforms that
-don't ship with ruby by default, such as Windows.
-
-There is an effort to port the daemon to C++ in a [different
-repository](https://github.com/larroy/clearskies_core) which will replace the
-ruby proof-of-concept once it's ready.
 
 Issues and pull requests are welcome.
 
