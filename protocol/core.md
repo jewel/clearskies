@@ -338,6 +338,8 @@ from the output of a JSON library.)
 
 Note that only JSON objects are allowed, not strings, literals, or null.
 
+The maximum size for the JSON part of the message is 16777216 bytes.
+
 The object will have a "type" member, which will identify the type of message.
 
 For example:
@@ -741,6 +743,22 @@ read-write peers are present.  The "read_only_manifest" extension adds a more
 robust way to get metadata from a read-only peer.
 
 
+Large Manifests
+---------------
+
+Shares with many files will create JSON messages that are larger than the spec
+allows (16777216 bytes).  For that reason, manifests should be split into
+multiple "manifest" messages.  A `"partial":true` member should be included on
+all but the final manifest message.  Only the files in the "files" array should
+differ between the messages, in other words, both the "peer" and "revision"
+keys should be present in the future messages
+
+Care should be taken to have an atomic view of the manifest.  In other words,
+if a change is made to the tree while a set of manifest messages are being sent
+to a peer, that change shouldn't appear in any of the partial manifest
+messages.
+
+
 Tree Merge Algorithm
 --------------------
 
@@ -751,7 +769,7 @@ matches, the file with the latest "mtime" wins.  If the "mtime" matches, the
 largest file wins.  If the sizes match, the file with the smallest "sha256"
 wins.
 
-This merged tree is kept in memory and is used to decide which files need to be
+This merged tree is remembered and is used to decide which files need to be
 retrieved from the peer.  Information about the new files shouldn't be applied
 to the database until after the files have been retrieved.
 
