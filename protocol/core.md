@@ -319,29 +319,37 @@ used as if it were a normal TCP connection.
 Wire Protocol
 -------------
 
-The wire protocol is composed of JSON messages.  Some message types include
-binary data, which is sent as a binary payload after the JSON message, but
-considered part of it.  In a similar manner, some JSON messages are signed, and
-the signature is included after the JSON message.
+The wire protocol is composed of JSON messages.  Sometimes the messages are
+accompanied by binary data, which is sent as a payload after the JSON message,
+but considered part of it.  In a similar manner, some JSON messages are signed,
+and the signature is included after the JSON message.
 
-A normal message is a JSON object on a single line, followed by a newline.  No
+Each message begins with a single character prefix:
+
+* `_` is a message with only JSON
+* `!` is a JSON message with a binary attachment
+* `s` is a signed JSON message
+* `$` is a signed JSON message with a binary attachment
+
+After the prefix the JSON object should be sent, terminated by a newline.  No
 newlines are allowed within the JSON representation.  (Note that JSON encodes
-newlines in strings as "\n", so there is no need to worry about cleaning out
-newlines within the object.)
+newlines in strings as "\n", so it is safe to remove all newline characters
+from the output of a JSON library.)
 
 Note that only JSON objects are allowed, not strings, literals, or null.
 
-The object will have a "type" key, which will identify the type of message.
+The object will have a "type" member, which will identify the type of message.
 
 For example:
 
 ```json
-{"type":"foo","arg1":"Basic example message","arg2":"For great justice"}
+_{"type":"foo","arg1":"Basic example message","arg2":"For great justice"}
 ```
 
 To simplify implementations, messages are asynchronous (no immediate response
 is required).  The protocol is almost entirely stateless.  For forward
-compatibility, unsupported message types or extra keys are silently ignored.
+compatibility, unsupported message types or extra keys should be silently
+ignored.
 
 A message with a binary data payload is also encoded in JSON, but it is
 prefixed with an exclamation point and then the JSON message as usual,
@@ -353,9 +361,9 @@ greater than 16777216 bytes.
 
 Note: Since large chunk sizes minimize the protocol overhead and syscall
 overhead for high-speed transfers, the recommended chunk size is a megabyte.  A
-memory-constrained implementations might receive a chunk that is bigger than
-its maximum desired buffer size, in which case it will need to read the chunk
-in multiple passes.
+memory-constrained implementation might receive a chunk that is bigger than its
+maximum desired buffer size, in which case it will need to read the chunk in
+multiple passes.
 
 An example message with a binary payload might look like:
 
@@ -368,23 +376,22 @@ This is more binary data
 0
 ```
 
-A signed message will be prefixed with a dollar sign.  The JSON message is then
-sent, and then on the next line the RSA signature is given, encoded with
-base64, and followed up with a newline.  The base64 data should not include any
-newlines.
+A signed message will be prefixed with an 's' character, lower case.  The JSON
+message is then sent, and then on the next line the RSA signature is given,
+encoded with base64, and followed up with a newline.  All newlines should be
+removed from the base64 data so that it fits on a single line.
 
 ```
-${"type":"foo","arg":"bar"}
+s{"type":"foo","arg":"bar"}
 MC0CFGq+pt0m53OP9eZSndaUtWwKnoJ7AhUAy6ScPi8Kbwe4SJiIvsf9DUFHWKE=
 ```
 
 If a message has both a binary payload and a signature, it will start with a
-dollar sign and then an exclamation mark, in that order.  The signature does
-not cover the binary data, just the JSON text.  Here is the previous example,
-but with binary data added:
+dollar sign.  The signature does not cover the binary data, just the JSON text.
+Here is the previous example, but with binary data added:
 
 ```
-$!{"type":"foo","arg":"bar"}
+${"type":"foo","arg":"bar"}
 MC0CFGq+pt0m53OP9eZSndaUtWwKnoJ7AhUAy6ScPi8Kbwe4SJiIvsf9DUFHWKE=
 40
 Another example of possibly binary data
@@ -398,17 +405,13 @@ As a rule, the receiver of file data should always be the one to request it.
 It should never be pushed unrequested.  This allows streaming content and do
 partial copies, as will be explained in later sections.
 
-If a line does not begin with a '$', '{' or an '!', it should be ignored,
-for forwards compatibility.
-
 
 Handshake
 ---------
 
 We will distinguish between client and server for the purposes of the
 handshake.  The server is the computer that received the connection, but isn't
-necessarily the computer where the share was originally created.  In fact, the
-server can be the computer that only has an access code so far.
+necessarily the computer where the share was originally created.
 
 The handshake negotiates a protocol version as well as optional features, such
 as compression.  When a connection is opened, the server sends a "greeting"
