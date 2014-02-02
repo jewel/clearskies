@@ -27,7 +27,7 @@ Accept Reject  Github Username
 
  [ ]    [ ]    onionjake
 
- [ ]    [ ]    cmatheson
+ [X]    [ ]    cmatheson
 
  [ ]    [ ]    cseed
 
