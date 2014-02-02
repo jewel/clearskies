@@ -24,8 +24,12 @@ Please add an 'X' in the box of your choice:
 Accept Reject  Github Username
 
  [X]    [ ]    jewel
+
  [ ]    [ ]    onionjake
+
  [ ]    [ ]    cmatheson
+
  [ ]    [ ]    cseed
+
  [ ]    [ ]    wilagobler
 
