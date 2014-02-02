@@ -31,5 +31,5 @@ Accept Reject  Github Username
 
  [ ]    [ ]    cseed
 
- [ ]    [ ]    wilagobler
+ [X]    [ ]    wilagobler
 
