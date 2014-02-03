@@ -25,7 +25,7 @@ Accept Reject  Github Username
 
  [X]    [ ]    jewel
 
- [ ]    [ ]    onionjake
+ [X]    [ ]    onionjake
 
  [X]    [ ]    cmatheson
 
