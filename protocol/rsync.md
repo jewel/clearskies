@@ -1,8 +1,8 @@
 Rsync Extension
 ---------------
 
-This is an optional protocol feature.  The official feature string is "rsync".
-Feature negotiation is covered in the core protocol documentation.
+This is an optional protocol extension.  The official extension string is
+"rsync".  Extension negotiation is covered in the core protocol documentation.
 
 The rsync extension increases wire efficiency by only transferring the parts of
 files that have changed.
@@ -43,8 +43,8 @@ in this case.
 Rsync Tree Extension
 -----------------------
 
-This is an optional protocol feature.  The official feature string is
-"rsync_tree".  Feature negotiation is covered in the core protocol
+This is an optional protocol extension.  The official extension string is
+"rsync_tree".  Extension negotiation is covered in the core protocol
 documentation.
 
 The rsync algorithm can also be used to reduce the amount of bandwidth

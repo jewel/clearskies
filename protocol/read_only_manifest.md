@@ -1,8 +1,8 @@
 Read-Only Manifest Extension
 ============================
 
-This is an optional protocol feature.  The official feature string is
-"read_only_manifest".  Feature negotiation is explained in the core protocol
+This is an optional protocol extension.  The official extension string is
+"read_only_manifest".  Extension negotiation is explained in the core protocol
 documentation.
 
 This extension makes it possible for a read-only peer to give a manifest of its

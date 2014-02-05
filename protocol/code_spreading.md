@@ -1,8 +1,8 @@
 Code Spreading Extension
 =======================
 
-This is an optional protocol feature.  The official feature string is
-"code_spread".  Feature negotiation is covered in the core protocol
+This is an optional protocol extension.  The official extension string is
+"code_spread".  Extension negotiation is covered in the core protocol
 documentation.
 
 This extension makes it possible for access codes to be spread amongst all

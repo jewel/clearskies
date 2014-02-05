@@ -1,8 +1,8 @@
 Untrusted Extension
 ===================
 
-This is an optional protocol feature.  The official feature string is
-"untrusted".  Feature negotiation is covered in the core protocol
+This is an optional protocol extension.  The official extension string is
+"untrusted".  Extension negotiation is covered in the core protocol
 documentation.
 
 This extension adds a new peer type, "untrusted", which only has access to

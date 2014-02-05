@@ -2,7 +2,7 @@ Rainy Day Extension
 ===================
 
 The rainy day extension is an extension that provides peer-to-peer backup or
-archival amongst a large group of peers.  It's official feature string is
+archival amongst a large group of peers.  It's official extension name is
 "rainy_day".
 
 This file currently contains my personal notes on what the feature might

@@ -1,10 +1,15 @@
 ClearSkies Protocol v1 Draft
 =========================
 
-The ClearSkies protocol is a two-way (or multi-way) directory synchronization
+The ClearSkies protocol is a two-way (or multi-way) data synchronization
 protocol, inspired by BitTorrent Sync.  It is a friend-to-friend protocol, as
-opposed to a peer-to-peer protocol, meaning that files are only shared with
+opposed to a peer-to-peer protocol, meaning that data is only shared with
 computers that are given an access key -- never anonymously.
+
+While the original intended usage is file synchronization, the core protocol
+only specifies how to keep a key-value store in sync.  The
+[file_sync](file_sync.md) extension builds on this functionality to add file
+synchronization to the mix.
 
 
 Draft Status
@@ -20,8 +25,17 @@ Analysis of the cryptography is doubly welcome.
 License
 -------
 
-This license is in the public domain.  See the file LICENSE in this same
-directory for licensing information about the protocol.
+This spec is in the public domain.  See the file LICENSE in this same directory
+for licensing information about the protocol.
+
+
+Nomenclature
+------------
+
+A "database" is a set of key-value "tables" that have been shared.  Each key of
+the table can have an associated binary blob of arbitrary size.
+
+A "peer" is a device that is participating in the shared database.
 
 
 Access Levels
@@ -29,49 +43,49 @@ Access Levels
 
 The core protocol supports peers of two types:
 
-1. Read-write.  These peers can change or delete any file, and create new
-   files.
+1. Read-write.  These peers can change or delete data.
 
-2. Read-only.  These peers can read all files, but cannot change them.
+2. Read-only.  These peers can read all data, but cannot change it.
 
-A share can have any number of all the peer types.
+A database can have any number of all the peer types.
 
 All peers can spread data to any other peers.  Said another way, a read-only
 peer does not need to get the data directly from a read-write peer, but can
 receive it from another read-only peer.  Digital signatures are used to ensure
 that there is no foul play.
 
-Note: The "untrusted" extension adds supports for a third type of peer, an
-untrusted peer.  This is a peer that only receives encrypted copies of the
-files.
+Note: The [untrusted](untrusted.md) extension adds supports for a third type of
+peer, an untrusted peer.  This is a peer that only receives encrypted copies of
+the data, but cannot read it itself.
 
 
 Cryptographic Keys
 ------------------
 
-When a share is first created, a 128-bit encryption key is generated.  It must
-not be generated with a psuedo-random number generator (PRNG), but must come
-from a source of cryptographically secure numbers, such as "/dev/random" on
-Linux, CryptGenRandom() on Windows, or RAND_bytes() in OpenSSL.
+When a database is first created, a 128-bit encryption key is generated.  It
+must not be generated with a psuedo-random number generator (PRNG), but instead
+must come from a source of cryptographically secure numbers, such as
+"/dev/random" on Linux, CryptGenRandom() on Windows, or RAND_bytes() in
+OpenSSL.
 
 This key is used as the communication key.  All of the read-write peers posses
-it, but they do not give it to read-only peers.  It will be referred to as the
-read-write pre-shared-key (PSK).  (Details of communication encryption are found
-in the "Handshake" section.
+it, but they do not give it to read-only peers.  The user never sees this key.
+It will be referred to as the read-write pre-shared-key (PSK).  (Details of
+tranport encryption are found in the "Handshake" section.)
 
-A 256-bit random number is chosen called the share ID.  This is shared publicly.
+A 256-bit random number is chosen called the database ID.  This is shared
+publicly.
 
 A 128-bit random number called the peer ID is also generated.  Each peer has
-its own peer ID, and the peer should use a different peer ID for each share.
+its own peer ID, and the peer should use a different peer ID for each database.
 
 A 2048-bit RSA key should be generated for the share.  It will be used to
 digitally sign messages to stop read-only shares from pretending to be
-read-write shares.
+read-write shares.  It should never be given to read-only shares.
 
-More keys should be generated for the read-only access level:
-
-* A 128-bit read-only PSK
-* A 2048-bit read-only RSA key
+A 128-bit read-only PSK should also be generated.  It is used as the
+communication key for a read-only and read-write node, as well as between two
+read-only nodes.
 
 Once generated, all keys are saved to disk.
 
@@ -80,14 +94,16 @@ Access Codes
 ------------
 
 To grant access to a new peer, an access code is generated.  Access codes are
-random 128-bit numbers.
+two cryptographically secure 64-bit numbers, which are combined for user
+presentation as a single 128-bit number.
 
-The default method of granting access sharing uses codes that are short-lived,
-single-use code.  This is to reduce the risk of sharing the code over
-less-secure channels, such as SMS.
+The default method of granting access uses short-lived, single-use codes.  This
+is to reduce the risk of sharing the code over less-secure channels, such as
+SMS.
 
 Implementations may choose to also support advanced access codes, which may be
-multi-use and persist for a longer time (even indefinitely).
+used multiple times and persist for a longer time (even indefinitely).  More
+details on multi-use codes are in the next section.
 
 The human-sharable version of the access code is represented as base32, as
 defined in [RFC 4648](http://tools.ietf.org/html/rfc4648).  Since the access
@@ -98,41 +114,56 @@ algorithm](http://en.wikipedia.org/wiki/Luhn_mod_N_algorithm), where N is 32.
 The final result is a 33 character string which (due to the magic prefix) will
 start with "SYNC".
 
-The human-readable access code should be given with a "clearskies:" URL prefix.
+The human-readable access code should be shown with a "clearskies:" URL prefix.
 This facilitates single-click opening on platforms that support registering
 custom protocols.  Manual entry should support the code both with and without
 the URL prefix.
 
-The 128-bit number is run through SHA256 to get an access ID.  This is used
-to locate other peers.
+The SHA256 of the first 64 bits of the access ID is known as the access ID.  It
+is publicly known and used to locate other peers.  The second half is called
+the "password".
 
-The user may opt to replace the provided access code with a passphrase before
-sending it.  If this is done, the SHA256 of the passphrase should be taken ten
-million times.  This 256-bit hash is considered the access code, and its SHA256
-is the access ID.
+The user may opt to replace the provided access code with her own password.
+The user is prompted for a "username" and "password", both of which can be
+arbitrary.  (It is not essential that the username be globally unique, as long
+as the combination of username and password is unique.) The SHA256 of the
+username is used for the access ID.
 
 The core protocol has no mechanism for spreading access codes to other peers,
-so the original node needs to be online for a new peer to join.  The
-"code_spread" extension adds access code spreading.
+so the peer where the user created the code needs to be online for a new peer
+to join.  The [code_spread](code_spread.md) extension adds access code
+spreading.
 
 
 Access Code UI
 --------------
 
-This section contains a suggested user interface for sharing access codes.
+This section contains a user interface for access codes.  This is only a
+suggestion, and is included to illustrate how access codes are intended to
+work.
 
 When the user activates the "share" button, a dialog is shown with the
 following:
 
 * A radio input for one of "read-write" and "read-only"
-* The new access code, as a text field that can be edited
+* The new access code, as a text field that can be copied
+* A "Custom Password" button next to the access code
 * A status area
 * A "Cancel Access Code" button
 * A "Extend Access Code" button
 
-If the user chooses to "Cancel Access Code", the access code should no longer
-unlock the share.  The "Extend Access Code" button should present advanced
-options, and perhaps default to 24 hours.
+As soon as the dialog is shown, the access code is communicated with the
+tracker (and via other means, as is explained later).  The status area will tell
+the user the progress of communicating this to the tracker, switching to "ready"
+once it has been communicated.
+
+If the user chooses the "Custom Password" button, the access code text field
+should be replaced with username and password fields.
+
+If the user chooses to "Cancel Access Code", the access code is immediately
+deactivated.  The "Extend Access Code" button should present advanced options,
+namely the ability to have the access code be multi-use, and an expiration for
+the access code, defaulting to 24 hours.
 
 Once the access code has been used by the friend and both computers are
 connected, the status area should indicate as such.  It will no longer be
@@ -142,18 +173,16 @@ possible to cancel the access code, but it can still be extended.
 Peer Discovery
 --------------
 
-When first given an access code, the access ID is used to find peers.  If the
-share ID is known, it is used instead.
+When given an access code, the access ID is used to find peers.  After
+connecting the first time, the "database ID" is given, and this is used in
+place of the access ID for subsequent connections.  Throughout these sections,
+the term "access ID" will be used, but it refers to either ID, as appropriate.
 
 Various sources of peers are supported:
 
  * A central tracker
  * Manual entry by the user
  * LAN broadcast
- * A distributed hash table (DHT) amongst all participants (via extension)
-
-Each of these methods can be disabled by the user on a per-share basis and
-implementations can elect not to implement them at their discretion.
 
 Peer addresses are represented as ASCII, with the address and port number
 separated by a colon.  IPv6 addresses should be surrounded by square brackets.
@@ -162,95 +191,141 @@ separated by a colon.  IPv6 addresses should be surrounded by square brackets.
 Tracker Protocol
 ----------------
 
-The tracker is an HTTP or HTTPS service.  The main tracker service runs at
-clearskies.example.com (to be determined).
+The tracker is a socket service.  The main tracker service runs at
+clearskies.tuxng.com on port 49200.  Only one connection to the tracker is
+necessary.
 
-Software should come with the main tracker service address built-in, and may
-optionally support additional tracker addresses.  Finally, the user should be
-allowed to customize the tracker list.
+Both peers should register themselves immediately with the tracker, and
+re-registration should happen if the IP address or port changes.
 
-The tracker is sent the listening TCP port number.  When operating behind a
-NAT, this may not be accessible from the outside world, unless the user has set
-up port forwarding or the port was automatically opened with UPnP.  If known,
-an outside UDP port number for uTP (explained in a later section) can also be
-included.
+Communication with the tracker is done with JSON messages, which are encoded
+using the "wire protocol" explained in a later section.
 
-Note that both peers should register themselves immediately with the tracker,
-and re-registration should happen if the IP address or port changes, or after
-the TTL period has expired of the registration.
-
-The ID and peer ID are combined into a single string separated by an "@"
-character, and sent as the "id" parameter.
-
-If a peer has multiple shares (or access codes), they should be combined into a
-single request to the tracker, by sending the "id" parameter multiple times.
-
-The ID and listening port are used to make a GET request to the tracker (hex
-has been abbreviated using "..." for clarity, and whitespace has also been
-added):
-
-    http://tracker.example.com/clearskies/track?tcp_port=30020&utp_port=61301
-         &id=1bff33a2...b08d1075@e1392fc1...5110d9a1
-         &id=55ebe824...722c894c@133584bc...10453167
-
-The response must have the content-type of application/json and will have a
-JSON body like the following (whitespace has been added for clarity):
+Upon receiving a connection, the tracker will send a greeting message.  Note
+that in all examples newlines have been added for clarity, but aren't allowed
+in the actual wire protocol.  The "tracker.greeting" looks like this:
 
 ```json
 {
-   "your_ip": "32.169.0.1",
-   "others": {
-     "1bff33a239ae76ab89f94b3e582bcf7dde5549c141db6d3bf8f37b49b08d1075":
-       ["be8b773c227f44c5110945e8254e722c@tcp:128.1.2.3:40321"]
-     }
-   },
-   "ttl": 300
+  "type": "tracker.greeting",
+  "software": "clearskies tracker build 143",
+  "max_ttl": 3600,
+  "min_ttl": 60,
+  "your_ip": "1.22.1.184",
+  "protocol": [1],
+  "extensions": []
 }
 ```
 
-The TTL is the number of seconds until the client should register again.
+The protocol array has a list of the major version numbers of the tracker
+protocol that the tracker supports.  This document describes version 1 of the
+tracker protocol.  The extensions array is an optional list of extensions that
+the tracker supports, as strings.  See the description for the "greeting"
+message later in this document for details about extensions.  As of the time of
+writing, no official tracker extensions exist.
 
-The "others" object has a key for each share that was requested (if it has any
-peers).  The value contains a list of all other peers that have registered for
-this ID, with the client's "peer ID", followed by an @ sign, and then a psuedo
-protocol, followed by the peer's IP address.  The IP address can be an IPV4
-address, or an IPV6 address surrounded in square brackets.  Finally, the port
-number is given.
+The "software" field is strictly informational.
 
-The psuedo protocol will be one of "tcp:" or "utp:".  uTP is explained in a
-later section.  Other protocols, if not understood, should be ignored.
+The "your_ip" field tells the client from what source IP address the tracker
+server is seeing the connection.  This may be IPv4 or IPv6.  An IPv6 address
+will be surrounded with square brackets.
 
+The TTL fields are given as guidelines for the client.  Using these
+guidelines, the client will populate his own "ttl" response field, which
+tells the tracker how often the client intends to check in.  If the tracker
+hasn't heard from the client for longer than this time period, the tracker will
+assume the client is no longer active.
 
-Fast Tracker Extension
-----------------------
-
-The fast tracker service is an extension to the tracker protocol that avoids
-the need for polling.  The official tracker supports this extension.
-
-An additional parameter, "fast_track", is set to "1" and the HTTP server will
-not close the connection, instead sending new JSON messages whenever a new peer
-is discovered.  This is sometimes called HTTP push or HTTP streaming.
-
-If the tracker does not support fast-track responses, it will just send a
-normal response and close the connection.
-
-The response will contain the first JSON message as previously specified, with
-an additional key, "timeout", with an integer value.  If the connection is idle
-for more than "timeout" seconds, the client should consider the connection dead
-and open a new one.
-
-Some messages will be empty and used as a ping message to keep the connection
-alive.
-
-A complete response might look like:
+The client then responds with a "tracker.start" message, in which it specifies
+the version of the protocol it would like to use, as well as which extensions
+it would like to activate:
 
 ```json
-{"success":true,"your_ip":"192.169.0.1","others":{"13b41af0af37eb8a6153499116bf018c3a11dae6120c80af807cdedace54fc5b":["a958e1b202a3a432caeeb66616b1305f@utp:128.1.2.3:40321"]},"ttl":3600,"timeout":120}
-{}
-{}
-{"others":{"13b41af0af37eb8a6153499116bf018c3a11dae6120c80af807cdedace54fc5b":["a958e1b202a3a432caeeb66616b1305f@utp:128.1.2.3:40321","2a3728dca353324de4d6bfbebf2128d9@tcp:99.1.2.4:41234"]}}
-{}
-{}
+{
+  "type": "tracker.start",
+  "software": "beetlebox 0.3.7",
+  "protocol": 1,
+  "ttl": 60,
+  "extensions": []
+}
+```
+
+From this point, messages are allowed in any order.  The messages are
+asynchronous, meaning that either side may send a message at any time.
+
+The client can now send two types of messages: "tracker.connection" and
+"tracker.register".
+
+The "tracker.connection" message contains information on how to connect to the
+client:
+
+```json
+{
+  "type": "tracker.connection",
+  "addresses": [
+    "tcp:192.168.1.2:49221",
+    "tcp:1.2.1.1:49221",
+    "tcp:[2600:3c01::f03c:91ff:feae:914c]:49221",
+    "utp:1.2.1.1:3824"
+  ]
+}
+```
+
+The "addresses" array isn't parsed by the tracker, and is repeated verbatim to
+other peers.
+
+If the client later discovers it has another address, it should send another
+"tracker.connection" message, with the complete list of addresses.  The address
+list will replace the earlier list sent.
+
+The client should also register the databases and access codes it knows about.
+As was explained earlier, the tracker doesn't differentiate between access IDs
+and databases IDs.  The distinction isn't important for peer discovery.
+Registration is done with the "tracker.register" message:
+
+```json
+{
+  "type": "tracker.register",
+  "codes": [
+    "1bff33a239ae76ab89f94b3e582bcf7dde5549c141db6d3bf8f37b49b08d1075": "be8b773c227f44c5110945e8254e722c",
+    "2da03f6f37cee78fb13e32f4fc5a261e1c57c173087ccc787fb2c4f24d3447d9": "feeb61382cb9bbfb31ed4349727fa70c"
+  ]
+}
+```
+
+The "codes" field contains a hash where the key is the ID (either the access ID
+or the database ID) and the value is the peer ID.
+
+If a database or access code is added or removed on the client, it should send
+a complete "tracker.register" message, including all known IDs.
+
+The tracker combines this information into a "tracker.peers" message.  There is
+a separate peers message for each database.  Subsequent messages about the same
+database are meant to replace all earlier information about that database.
+
+```json
+{
+  "type": "tracker.peers",
+  "code": "1bff33a239ae76ab89f94b3e582bcf7dde5549c141db6d3bf8f37b49b08d1075",
+  "peers": {
+    "be8b773c227f44c5110945e8254e722c": ["tcp:128.1.2.3:3512", "utp:128.1.2.3:52012"]
+  }
+}
+```
+
+The "peers" field is a mapping from peer ID to a list of connection addresses.
+
+As of the time of writing, only the tcp and utp psuedo protocols are known.
+Clients should ignore other protocols for future compatibility.
+
+The client should send a "tracker.ping" message periodically.  If not sent less
+often than the negotiated TTL, the tracker will assume the peer has been
+disconnected.
+
+```json
+{
+  "type": "tracker.ping"
+}
 ```
 
 
@@ -415,18 +490,20 @@ We will distinguish between client and server for the purposes of the
 handshake.  The server is the computer that received the connection, but isn't
 necessarily the computer where the share was originally created.
 
-The handshake negotiates a protocol version as well as optional features, such
-as compression.  When a connection is opened, the server sends a "greeting"
-that lists all of the protocol versions it supports, as well as an optional
-feature list.  The protocol version is an integer.  The features are strings.
+The handshake negotiates a protocol version as well as optional extensions,
+such as compression.  When a connection is opened, the server sends a
+"greeting" that lists all of the protocol versions it supports, as well as an
+optional extension list.  The protocol version is an integer.  The extensions
+are strings.
 
 The current protocol version is 1.  Future improvements to version 1 will be
 done in a backwards compatible way.  Version 2 will not be compatible with
 version 1.
 
-Officially supported features will be documented here.  Unofficial features
-should start with a period and then a unique prefix (similar to Java).
-Unofficial messages should prefix the "type" key with its unique prefix.
+Officially supported extensions will be documented in the same directory as
+this spec.  Unofficial extensions should start with a period and then a unique
+prefix (similar to Java).  Unofficial messages should prefix the "type" key
+with its unique prefix.
 
 What follows is an example greeting (newlines have been added for legibility,
 but they would not be legal to send over the wire):
@@ -436,12 +513,12 @@ but they would not be legal to send over the wire):
   "type": "greeting",
   "software": "bitbox 0.1",
   "protocol": [1],
-  "features": ["gzip", ".com.github.jewel.messaging"]
+  "extensions": ["gzip", ".com.github.jewel.messaging"]
 }
 ```
 
 The client will examine the greeting and decide which protocol version and
-features it has in common with the server.  It will then respond with a start
+extensions it has in common with the server.  It will then respond with a start
 message, which asks for a particular share by the share's public ID.  (See the
 encryption section for an explanation of public IDs.)  Here is an example
 "start" message:
@@ -451,7 +528,7 @@ encryption section for an explanation of public IDs.)  Here is an example
   "type": "start",
   "software": "beetlebox 0.3.7",
   "protocol": 1,
-  "features": [],
+  "extensions": [],
   "id": "cf16aec13a8557cab5e5a5185691ab04f32f1e581cf0f8233be72ddeed7e7fc1",
   "access": "read_write",
   "peer": "6f5902ac237024bdd0c176cb93063dc4"
