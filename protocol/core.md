@@ -600,8 +600,11 @@ double-precision floating point number is not precise enough to store all nine
 digits after the decimal point, so it may need to be tracked as two separate
 fields internally.
 
-The "update time" is the time that the file was last changed, as a unix
-timestamp.  On first scan, this is the time the scan discovered the file.
+The "update time" is the time that the database entry for the file was last
+changed, as a unix timestamp.  On first scan, this is the time the scan
+discovered the file.  In other words, this is the time the change was
+discovered by the software.  (This is necessary because mtime can go back
+in time when an older copy of a file is brought in.)
 
 The unix mode bits represent the user, group, and other access modes for the
 file.  This is represented as an octal number, for example "0755".
