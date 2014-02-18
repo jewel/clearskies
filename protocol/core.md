@@ -58,7 +58,7 @@ that there is no foul play.
 Cryptographic Keys
 ------------------
 
-When a database is first created, a 128-bit encryption key is generated.  It
+When a database is first created, a 256-bit encryption key is generated.  It
 must not be generated with a psuedo-random number generator (PRNG), but instead
 must come from a source of cryptographically secure numbers, such as
 "/dev/random" on Linux, CryptGenRandom() on Windows, or RAND_bytes() in
