@@ -43,9 +43,9 @@ Access Levels
 
 The core protocol supports peers of two types:
 
-1. Read-write.  These peers can change or delete data.
+1. `read_write`.  These peers can change or delete data.
 
-2. Read-only.  These peers can read all data, but cannot change it.
+2. `read_only`.  These peers can read all data, but cannot change it.
 
 A database can have any number of all the peer types.
 
@@ -53,10 +53,6 @@ All peers can spread data to any other peers.  Said another way, a read-only
 peer does not need to get the data directly from a read-write peer, but can
 receive it from another read-only peer.  Digital signatures are used to ensure
 that there is no foul play.
-
-Note: The [untrusted](untrusted.md) extension adds supports for a third type of
-peer, an untrusted peer.  This is a peer that only receives encrypted copies of
-the data, but cannot read it itself.
 
 
 Cryptographic Keys
@@ -70,22 +66,23 @@ OpenSSL.
 
 This key is used as the communication key.  All of the read-write peers posses
 it, but they do not give it to read-only peers.  The user never sees this key.
-It will be referred to as the read-write pre-shared-key (PSK).  (Details of
-tranport encryption are found in the "Handshake" section.)
+It will be referred to as the read-write key.  (Details of
+transport encryption are found in the "Communication" section.)
 
-A 256-bit random number is chosen called the database ID.  This is shared
-publicly.
+A 256-bit number is generated that is associated with this key, called the key
+ID.
 
 A 128-bit random number called the peer ID is also generated.  Each peer has
 its own peer ID, and the peer should use a different peer ID for each database.
 
 A 2048-bit RSA key should be generated for the share.  It will be used to
 digitally sign messages to stop read-only shares from pretending to be
-read-write shares.  It should never be given to read-only shares.
+read-write shares.  Only the public portion of this key is given to read-only
+shares.
 
-A 128-bit read-only PSK should also be generated.  It is used as the
-communication key for a read-only and read-write node, as well as between two
-read-only nodes.
+A 256-bit read-only key should also be generated.  It is used as the
+communication key for a read-only and read-write peer, as well as between two
+read-only peers.  It also has its own 256-bit key ID.
 
 Once generated, all keys are saved to disk.
 
@@ -174,9 +171,9 @@ Peer Discovery
 --------------
 
 When given an access code, the access ID is used to find peers.  After
-connecting the first time, the "database ID" is given, and this is used in
-place of the access ID for subsequent connections.  Throughout these sections,
-the term "access ID" will be used, but it refers to either ID, as appropriate.
+connecting the first time, the key ID is given, and this is used in place of
+the access ID for subsequent connections.  Throughout these sections, the term
+"access ID" will be used, but it refers to either ID, as appropriate.
 
 Various sources of peers are supported:
 
@@ -294,7 +291,7 @@ Registration is done with the "tracker.register" message:
 ```
 
 The "codes" field contains a hash where the key is the ID (either the access ID
-or the database ID) and the value is the peer ID.
+or the key ID) and the value is the peer ID.
 
 If a database or access code is added or removed on the client, it should send
 a complete "tracker.register" message, including all known IDs.
@@ -315,7 +312,7 @@ database are meant to replace all earlier information about that database.
 
 The "peers" field is a mapping from peer ID to a list of connection addresses.
 
-As of the time of writing, only the tcp and utp psuedo protocols are known.
+As of the time of writing, only the `tcp` and `utp` psuedo-protocols are known.
 Clients should ignore other protocols for future compatibility.
 
 The client should send a "tracker.ping" message periodically.  If not sent less
@@ -345,7 +342,7 @@ broadcast contains the following JSON payload:
 }
 ```
 
-The ID is the share ID or access ID that the software is aware of.
+The ID is the key ID or access ID that the software is aware of.
 
 Broadcast should be sent on startup, when a new share is added, when a new
 network connection is detected, when a new access id is created, and every
@@ -419,7 +416,7 @@ The object will have a "type" member, which will identify the type of message.
 
 For example:
 
-```json
+```
 _{"type":"foo","arg1":"Basic example message","arg2":"For great justice"}
 ```
 
@@ -483,27 +480,46 @@ It should never be pushed unrequested.  This allows streaming content and do
 partial copies, as will be explained in later sections.
 
 
+Connection
+----------
+
+We will distinguish between client and server for the purposes of establishing
+the connection.  The server is the computer that received the connection, but
+isn't necessarily the computer where the share was originally created.
+
+Clearskies uses TLS-SRP mode.  For example SRP-AES-256-CBC-SHA,
+SRP-3DES-EDE-CBC-SHA, SRP-AES-128-CBC-SHA.  Note that SRP mode has [perfect
+forward secrecy](http://en.wikipedia.org/wiki/Forward_secrecy), which is
+critical to the security of the protocol, since the access codes are designed
+to be shared over low-security transports such as SMS.
+
+Authentication attempts should be rate limited to avoid dictionary attacks
+against the password.
+
+As part of the SRP initialization, the client communicates a "username" to the
+server.  Clearskies uses the username field to ask for a desired share.  The
+username is built from the string "clearskies:1:".  (The 1 in this instance
+refers to the encryption establishment protocol version, and is versioned
+separately from the rest of this protocol.)
+
+The access ID or key ID is appended to the string, as hexadecimal.
+
+The server then uses the username to see if it has a corresponding access code
+or share.  If it does, it completes the connection.  The password or key is
+given to the TLS library as lowercase hexadecimal.
+
+
 Handshake
 ---------
 
-We will distinguish between client and server for the purposes of the
-handshake.  The server is the computer that received the connection, but isn't
-necessarily the computer where the share was originally created.
+As in the previous section, "server" refers to the server that received the
+connection.
 
 The handshake negotiates a protocol version as well as optional extensions,
-such as compression.  When a connection is opened, the server sends a
+such as compression.  Once the TLS session has started, the server sends a
 "greeting" that lists all of the protocol versions it supports, as well as an
 optional extension list.  The protocol version is an integer.  The extensions
 are strings.
-
-The current protocol version is 1.  Future improvements to version 1 will be
-done in a backwards compatible way.  Version 2 will not be compatible with
-version 1.
-
-Officially supported extensions will be documented in the same directory as
-this spec.  Unofficial extensions should start with a period and then a unique
-prefix (similar to Java).  Unofficial messages should prefix the "type" key
-with its unique prefix.
 
 What follows is an example greeting (newlines have been added for legibility,
 but they would not be legal to send over the wire):
@@ -512,10 +528,15 @@ but they would not be legal to send over the wire):
 {
   "type": "greeting",
   "software": "bitbox 0.1",
+  "name": "Jaren's Laptop",
   "protocol": [1],
-  "extensions": ["gzip", ".com.github.jewel.messaging"]
+  "extensions": ["gzip", "rsync"],
+  "peer": "77b8065588ec32f95f598e93db6672ac"
 }
 ```
+
+The "peer" field is the share-specific ID explained in the tracker section.
+This is used to avoid accidental loopback.
 
 The client will examine the greeting and decide which protocol version and
 extensions it has in common with the server.  It will then respond with a start
@@ -529,57 +550,9 @@ encryption section for an explanation of public IDs.)  Here is an example
   "software": "beetlebox 0.3.7",
   "protocol": 1,
   "extensions": [],
-  "id": "cf16aec13a8557cab5e5a5185691ab04f32f1e581cf0f8233be72ddeed7e7fc1",
-  "access": "read_write",
   "peer": "6f5902ac237024bdd0c176cb93063dc4"
 }
 ```
-
-The ID is the share ID or access ID.
-
-The "access" level is one of "read_write", "read_only", or "unknown".  When a
-peer only has an access code, its access level is "unknown".
-
-The "peer" field is the ID explained in the tracker section.  This is used
-to avoid accidental loopback.
-
-If the server does not recognize the ID, it will send back a "cannot_start"
-message and close the connection:
-
-```json
-{
-  "type": "cannot_start"
-}
-```
-
-Otherwise, it will send back a "starttls" message:
-
-```json
-{
-  "type": "starttls",
-  "peer": "77b8065588ec32f95f598e93db6672ac",
-  "access": "read_only"
-}
-```
-
-The "access" in the starttls response is the highest access level that both
-peers have.
-
-For example, if the client is read-write and the server is read-only, the
-access is "read_only".  If one of the peers only has an access code, it is
-"unknown".
-
-The corresponding key or access code is then used by both peers as a pre-shared
-key (PSK) for TLS.
-
-The connection is encrypted with with TLS_DHE_PSK_WITH_AES_128_CBC_SHA
-from [RFC 4279](http://tools.ietf.org/html/rfc4279).  Protocol version 1 only
-supports this mode, not any other modes.  (It has perfect forward secrecy, which
-is critical for key exchange.)
-
-Once the server sends the "starttls" message, it upgrades the unencrypted
-connection to a TLS connection.  Likewise, when the client receives the
-"starttls" message from the server, it upgrades its socket connection.
 
 Both peers send a message through the connection divulging more information
 about themselves for diagnostic purposes:
@@ -587,7 +560,6 @@ about themselves for diagnostic purposes:
 ```json
 {
   "type": "identity",
-  "name": "Jaren's Laptop",
   "time": 1379225084
 }
 ```
@@ -598,6 +570,29 @@ The "time" is a unix timestamp of the current time.  This is sent because the
 conflict resolution relies on an accurate time.  If the difference between the
 times is too great, software may notify the user and refuse to participate or
 may attempt to account for the difference in conflict resolution algorithm.
+
+
+Extending the Protocol
+----------------------
+
+The current protocol version is 1.  Future improvements to version 1 will be
+done in a backwards compatible way.  Version 2 will not be compatible with
+version 1.
+
+Officially supported extensions will be documented in the same directory as
+this spec.  Unofficial extensions should start with a period and then a unique
+prefix (similar to Java).  Unofficial messages should prefix the "type" key
+with its unique prefix.
+
+For example, if IBM created their own music streaming extension, the extension
+name would be ".com.ibm.music_streaming".  The message "type" field should also
+be prefixed with this string:
+
+```json
+{
+  "type": ".com.ibm.music_streaming.get_artists"
+}
+```
 
 
 Key Exchange
@@ -611,17 +606,17 @@ was chosen when the access code was created.
 
 RSA keys should be encoded as PEM files, and the PSKs should be encoded as hex.
 
-Here is an example key exchange for a read-only node.  RSA keys have been
+Here is an example key exchange for a read-only peer.  RSA keys have been
 abbreviated for clarity:
 
 ```json
 {
   "type": "keys",
   "access": "read_only",
-  "share_id": "2bd01bbb634ec221f916e176cd2c7c6c2fa04e641c494979613d3485defd7d18",
   "read_only": {
-    "psk": "b699049ce1f453628117e8ba6ee75f42",
-    "rsa": "-----BEGIN RSA PRIVATE KEY-----\nMIIJKAIBAAKCAgEA4Zu1XDLoHf...TE KEY-----\n"
+    "id": "ae3d2bc89735c918f6d4a3f082924924e903f204eba949529140c41bfc8f711e",
+    "key": "b699049ce1f453628117e8ba6ee75f42b699049ce1f453628117e8ba6ee75f42",
+    "private_rsa": "-----BEGIN RSA PRIVATE KEY-----\nMIIJKAIBAAKCAgEA4Zu1XDLoHf...TE KEY-----\n"
   },
   "read_write": {
     "public_rsa": "-----BEGIN RSA PUBLIC KEY-----\nMIIBgjAcBgoqhkiG9w0BDAEDMA4E..."
@@ -629,7 +624,10 @@ abbreviated for clarity:
 }
 ```
 
-The "public_rsa" key is not unusally required, since it can be derived from the
+The "access" key is one of "read_write" or "read_only", and tells the receiver
+what access level it is allowed to participate at.
+
+The "public_rsa" key is not usually required, since it can be derived from the
 private key.
 
 Once the keys are received, the peer should respond with a
@@ -1186,7 +1184,7 @@ issues will be addressed before the spec is finalized.
 * Master passwords have to be created at the time the share is created, they
   can't be added later.  Master passwords should act more like access codes,
   i.e. be advertised separately.  This would mean we'd need to encrypt the
-  entire key set and send it all nodes, which would complicate key management.
+  entire key set and send it all peers, which would complicate key management.
 
 * Master password key protection is probably insufficient, even with 20 million
   SHA256 rounds.  Since a cheap bitcoin ASIC can do 5 billion hashes per second.
