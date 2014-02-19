@@ -1,15 +1,27 @@
 ClearSkies Protocol v1 Draft
-=========================
+============================
 
-The ClearSkies protocol is a two-way (or multi-way) data synchronization
-protocol, inspired by BitTorrent Sync.  It is a friend-to-friend protocol, as
-opposed to a peer-to-peer protocol, meaning that data is only shared with
-computers that are given an access key -- never anonymously.
+The ClearSkies protocol is a two-way (or multi-way) friend-to-friend protocol.
+This is a special kind of peer-to-peer protocol, in that the data is shared
+without the need for a central server, but it is focused on use cases where each
+participant is given an access key.
 
-While the original intended usage is file synchronization, the core protocol
-only specifies how to keep a key-value store in sync.  The
-[file_sync](file_sync.md) extension builds on this functionality to add file
-synchronization to the mix.
+The original intended usage is file sharing, as inspired by BitTorrent Sync,
+but the protocol is layered in such a way that other applications that wish to
+use it for other purposes can do so easily.
+
+This document describes the internals of the protocol.  Those wishing to use
+clearskies as a library need not understand the internals, and instead will
+want to consult with the implementation guide of the clearskies library.
+
+The core protocol specifies the essentials: the format of access keys, peer
+discovery, connection encryption, and message formatting.
+
+The [database](database.md) extension builds on the essentials to a distributed
+key-value store and how to keep it synchronized.
+
+Finally, the [file_sync](file_sync.md) extension uses both the essentials and
+the database store to implement.
 
 
 Draft Status
@@ -18,8 +30,8 @@ Draft Status
 This is a draft of the version 1 protocol and is subject to changes as the need
 arises.  However, it is believed to be feature complete.
 
-Comments and suggestions are welcome in the form of github issues.
-Analysis of the cryptography is doubly welcome.
+Comments and suggestions are welcome in the form of github issues or on the
+mailing list.  Analysis of the cryptography is doubly welcome.
 
 
 License
@@ -29,47 +41,45 @@ This spec is in the public domain.  See the file LICENSE in this same directory
 for licensing information about the protocol.
 
 
-Nomenclature
-------------
+Clubs
+-----
 
-A "database" is a set of key-value "tables" that have been shared.  Each key of
-the table can have an associated binary blob of arbitrary size.
+When the user connects two of her devices, their association forms a club.
+Clubs usually have several thousand 
 
-A "peer" is a device that is participating in the shared database.
+A set of devices that have been associated by the user.  For file
+sharing this would represent a shared directory, and the members of the club
+would be each of the user's devices.  For IM there would be a different club
+for each buddy in a user's list.
 
 
 Access Levels
 -------------
 
-The core protocol supports peers of two types:
+A single club may have multiple levels of access.  The most obvious are
+read-write access and read-only access, but applications may decide to have
+more or less.  A peer may have multiple levels of access to a club
+simultaneously.  For example, the peer may have both read-write and read-only
+access at the same time.  This allows the peer to communicate with those of
+both types.
 
-1. `read_write`.  These peers can change or delete data.
-
-2. `read_only`.  These peers can read all data, but cannot change it.
-
-A database can have any number of all the peer types.
-
-All peers can spread data to any other peers.  Said another way, a read-only
-peer does not need to get the data directly from a read-write peer, but can
-receive it from another read-only peer.  Digital signatures are used to ensure
-that there is no foul play.
+Some applications may only need a single access level.
 
 
 Cryptographic Keys
 ------------------
 
-When a database is first created, a 256-bit encryption key is generated.  It
-must not be generated with a psuedo-random number generator (PRNG), but instead
-must come from a source of cryptographically secure numbers, such as
-"/dev/random" on Linux, CryptGenRandom() on Windows, or RAND_bytes() in
-OpenSSL.
+When a club is first created, a 256-bit encryption key is generated for each
+access level.  They must not be generated with a psuedo-random number generator
+(PRNG), but instead must come from a source of cryptographically secure
+numbers, such as "/dev/random" on Linux, CryptGenRandom() on Windows, or
+RAND_bytes() in OpenSSL.
 
-This key is used as the communication key.  All of the read-write peers posses
-it, but they do not give it to read-only peers.  The user never sees this key.
-It will be referred to as the read-write key.  (Details of
-transport encryption are found in the "Communication" section.)
+These keys are used as the communication key.  All of the peers in an access
+level share the same communication key, but they do not reveal the access key
+with those in other access levels.
 
-A 256-bit number is generated that is associated with this key, called the key
+A 256-bit number is generated that is associated with each key, called the key
 ID.
 
 A 128-bit random number called the peer ID is also generated.  Each peer has
@@ -517,9 +527,9 @@ connection.
 
 The handshake negotiates a protocol version as well as optional extensions,
 such as compression.  Once the TLS session has started, the server sends a
-"greeting" that lists all of the protocol versions it supports, as well as an
-optional extension list.  The protocol version is an integer.  The extensions
-are strings.
+"greeting" message that lists all of the protocol versions it supports, as well
+as an optional extension list.  The protocol version is an integer.  The
+extensions are strings.
 
 What follows is an example greeting (newlines have been added for legibility,
 but they would not be legal to send over the wire):
@@ -536,7 +546,8 @@ but they would not be legal to send over the wire):
 ```
 
 The "peer" field is the share-specific ID explained in the tracker section.
-This is used to avoid accidental loopback.
+This is used to avoid accidental loopback.  The "name" is an optional
+human-friendly identifier, if set by the user.
 
 The client will examine the greeting and decide which protocol version and
 extensions it has in common with the server.  It will then respond with a start
@@ -549,27 +560,11 @@ encryption section for an explanation of public IDs.)  Here is an example
   "type": "start",
   "software": "beetlebox 0.3.7",
   "protocol": 1,
-  "extensions": [],
-  "peer": "6f5902ac237024bdd0c176cb93063dc4"
+  "extensions": ["gzip"],
+  "peer": "6f5902ac237024bdd0c176cb93063dc4",
+  "name": "Jaren's Desktop"
 }
 ```
-
-Both peers send a message through the connection divulging more information
-about themselves for diagnostic purposes:
-
-```json
-{
-  "type": "identity",
-  "time": 1379225084
-}
-```
-
-The "name" field is a human-friendly identifier for the computer.
-
-The "time" is a unix timestamp of the current time.  This is sent because the
-conflict resolution relies on an accurate time.  If the difference between the
-times is too great, software may notify the user and refuse to participate or
-may attempt to account for the difference in conflict resolution algorithm.
 
 
 Extending the Protocol
@@ -598,13 +593,20 @@ be prefixed with this string:
 Key Exchange
 ------------
 
-If the access level negotiated in the handshake is "unknown", then immediately
-after the "identity" message is sent the keys will be sent.
+The very first connection will have been started with an access code instead of
+a key, and after the "start" message is received a "keys" message should be
+sent.  The "keys" message will be sent by the creator of the access code, which
+may be the "server" or "client".
 
-The appropriate set of keys will be chosen according to the access level that
-was chosen when the access code was created.
+The "keys" message is required, and until it has been sent (or received),
+implementations should take care not to emit or take action on other message
+types.
 
-RSA keys should be encoded as PEM files, and the PSKs should be encoded as hex.
+The appropriate set of keys to include in the "keys" will be chosen according
+to the access level that was chosen when the access code was created.
+
+RSA keys should be encoded as using the PEM format, and keys should be
+encoded as hex.
 
 Here is an example key exchange for a read-only peer.  RSA keys have been
 abbreviated for clarity:
@@ -627,8 +629,8 @@ abbreviated for clarity:
 The "access" key is one of "read_write" or "read_only", and tells the receiver
 what access level it is allowed to participate at.
 
-The "public_rsa" key is not usually required, since it can be derived from the
-private key.
+The "public_rsa" key is not required when the private key is included, since it
+can be derived from the private key.
 
 Once the keys are received, the peer should respond with a
 "keys_acknowledgment" message:
@@ -650,18 +652,17 @@ File Tree Database
 
 Each read-write peer needs to keep a persistent database of all the files in a
 share.  The database has a "revision" attribute, which is a 64-bit unsigned
-integer that is incremented any time something changes in the database.  A new,
-empty database should be revision 0.
+integer that is incremented any time the peer writes makes a change to a
+record.  It should not be changed when writing changes coming from other peers.
+The empty database should have revision 0.
 
 The following fields are tracked for each file:
 
  * "path" - relative path (without a leading slash)
- * "utime" - update time
- * "deleted" - deleted boolean
+ * "deleted" - boolean set true once file is deleted
  * "size" - file size in bytes
- * "mtime" - last modified time as a unix timestamp
- * "mode" - unix mode bits
  * "sha256" - SHA256 of file contents
+ * "utime" - update time
 
 If a file is deleted, the deleted boolean is set to true.  Any fields listed
 after the deleted field in the list above can be blanked.  The entry for the
@@ -676,7 +677,8 @@ digits after the decimal point, so it may need to be tracked as two separate
 fields internally.
 
 The "update time" is the time that the file was last changed, as a unix
-timestamp.  On first scan, this is the time the scan discovered the file.
+timestamp.  On first scan, this is the time the scan discovered the file.  This
+is different than the mtime because the mtime can go back in time.
 
 The unix mode bits represent the user, group, and other access modes for the
 file.  This is represented as an octal number, for example "0755".
@@ -1181,16 +1183,14 @@ Known Issues
 This is a list of known issues or problems with the protocol.  The serious
 issues will be addressed before the spec is finalized.
 
-* Master passwords have to be created at the time the share is created, they
-  can't be added later.  Master passwords should act more like access codes,
-  i.e. be advertised separately.  This would mean we'd need to encrypt the
-  entire key set and send it all peers, which would complicate key management.
+* When a multi-use access code is shared publicly, a malicious peer can answer
+  accept requests for it and send its own "keys" message.  One solution would
+  be to have multi-use access codes include a signature (and thus be much
+  longer).
 
-* Master password key protection is probably insufficient, even with 20 million
-  SHA256 rounds.  Since a cheap bitcoin ASIC can do 5 billion hashes per second.
-  This could be mitigated by only using half of the bits to generate the share
-  ID, and using the other half to decrypt the key file.
-
-* The file metadata should have its own utime, separate from the utime for the
-  file contents.  Otherwise, someone could run something like `chmod a+r -R .`
-  on an out-of-sync share and hose the other end.
+* When a multi-use access code is shared amongst a group, and then the
+  originating node is taken offline, the users will unknowingly connect to each
+  other instead the original node.  This is an error state but it is hard to
+  detect.  The tracker can be enhanced to know the difference between those that
+  have the keys associated with an access code and those that are seeking those
+  keys.

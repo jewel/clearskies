@@ -8,6 +8,9 @@ sharing happens amongst them directly.
 ClearSkies is inspired by BitTorrent Sync, but it has an open protocol that can
 be audited for security.
 
+The protocol is layered in such a way that other applications can take advantage
+of it for purposes other than file sync.
+
 This repository contains the protocol documentation as well as an in-the-works
 proof-of-concept implementation.  The proof-of-concept implementation is open
 source and free software, under the GPLv3 (see the LICENSE file for details.)
