@@ -2,6 +2,9 @@ File Sync extension
 ===================
 
 
+FIXME Describe how record updates should be delayed until the associated file
+contents have been received by the peer.
+
 File Tree Database
 ------------------
 

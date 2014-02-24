@@ -6,11 +6,10 @@ distributed key-value store that is synchronized between two or more devices.
 The official extension string is "database".
 
 
-
 Access Levels
 -------------
 
-The core protocol supports peers of two types:
+The database extension has two access levels:
 
 1. `read_write`.  These peers can change or delete data.
 
@@ -23,6 +22,84 @@ peer does not need to get the data directly from a read-write peer, but can
 receive it from another read-only peer.  Digital signatures are used to ensure
 that there is no foul play.
 
+
+Database Layout
+---------------
+
+The database is a key-value store.  Each key is a string.  The corresponding
+values are JSON.
+
+The key-value pair and some associated bookkeeping metadata are together called
+a "record".  Here are the associated fields:
+
+* `key`.  The user-chosen key for the file, a string.
+* `value`.  The user-chosen value, JSON.
+* `uuid`.  A unique 128-bit ID, chosen at random.
+* `last_updated_by`.  The 128-bit peer ID of the last person to write to the
+  record.
+* `last_updated_clock`.  An integer representing a logical clock of writes on
+  the peer in the `last_updated_by` field.
+* `update_time`.  Timestamp when the record was last updated.  Transmitted in
+  ISO 8601 format.
+* `itc`.  An Interval Tree Clock, stored as a variable length binary string,
+  using the binary encoding described in [the associated
+  paper](http://gsd.di.uminho.pt/members/cbm/ps/itc2008.pdf).  Transmitted as
+  base64.
+* `deleted`.  A boolean flag representing if the record has been deleted.
+  Transmission optional when false.
+
+Each of these fields will be explained in more detail in the following sections.
+
+
+Record Changes
+--------------
+
+When a record is changed on a peer, the change is sent to all connected peers
+for the club.
+
+Here is an example update for a hypothetical photo sharing application:
+
+```json
+{
+  "type": "update",
+  "key": "photo-1234",
+  "value": {
+    "camera": "NIKON ...",
+    "taken": "..."
+  },
+  "uuid": "9223bf8014507dca629123485dc3a207",
+  "last_updated_by": "b934d9de020109fde790cd39acce73fc",
+  "last_updated_clock": 15,
+  "update_time": "2014-02-23T23:45:39Z",
+  "itc": TODO
+}
+```
+
+This is a signed message when a read-write peer is sending to a read-only peer.
+(It's not necessary to sign when sending to between two read-write peers.)
+
+Read-only peers should permanently store both the message and its signature so
+that they can repeat it at a later time to other peers.
+
+The receiver of an update should look at its database to see if the update is
+already present.  If not, it should repeat the message to all of its peers
+(except the peer that just barely sent it the message).
+
+
+Initial Connection Exchange
+---------------------------
+
+FIXME Here describe what is sent on first connection, and describe the
+last_updated_* fields.
+
+FIXME Make sure to explain that asking for updates is optional, but that once
+updates are asked for, they should be sent for the remainder of the connection.
+
+
+Conflicts
+---------
+
+FIXME Here describe the uuid, update_time, and itc fields.
 
 
 
@@ -253,5 +330,5 @@ Recommendations
 
 While it is not the designed use case of this protocol, some clubs may have
 hundreds or thousands of peers.  In this case, it is recommended that
-connections only be made to a few dozen of them, chosen at random.  The data
-will propagate through the club.
+connections only be made to a few dozen of them, chosen at random.  The
+database will propagate through the club.
