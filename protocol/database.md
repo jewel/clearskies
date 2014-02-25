@@ -85,6 +85,10 @@ The receiver of an update should look at its database to see if the update is
 already present.  If not, it should repeat the message to all of its peers
 (except the peer that just barely sent it the message).
 
+It is legal to change the `key` on a record.  To facilitate this, the `uuid`
+should be used to identify records.   (The `key` should still be unique,
+however.)
+
 
 Connection Exchange
 -------------------
@@ -97,10 +101,14 @@ In order to facilitate this, each peer keeps its own "logical clock".  This is
 a term that just means an integer that starts with one, and increments by one
 each time the peer writes to the database.  It is not necessary to increment a
 peer's clock when writing someone else's changes to the database, only changes
-that increment locally.
+that originate locally.
 
-When we connect, we ask for any new updates, using the highest known clock value
-for each peer:
+For clarity, the terms "client" and "server" will be used to describe the peer
+requesting the updates and responding with the updates, respectively.  Note
+that in practice this will be happening simultaneously in both directions.
+
+When a client connects, it asks the server for any new updates, using the
+highest known clock value for each peer in the club:
 
 ```json
 {
@@ -108,20 +116,51 @@ for each peer:
   "since": {
     "dd25d7ae1aaba6b44a66ae4ae04d21c9": 87,
     "7e9fcaceb65cb419363f553091dadc5e": 12,
-    "19c620da0b2db5cdeb72027662829371": 182,
+    "19c620da0b2db5cdeb72027662829371": 182
   }
 }
 ```
 
-FIXME Here describe what is sent on first connection, and describe the
-last_updated_* fields.
+The highest known clock value can be loaded by scanning the entire database and
+looking at the `last_updated_by` and `last_updated_clock`, but it is much more
+efficient to keep track of these values separately.
 
-FIXME Make sure to explain that asking for updates is optional, but that once
-updates are asked for, they should be sent for the remainder of the connection.
+The server responds with zero or more `update` messages.  This can be found by
+scanning the database and looking at the `last_updated_by` and
+`last_updated_clock` fields.
+
+Once a client sends a `get_updates` message, it subscribes itself to all future
+"update" messages that may be generated on a server on this connection.
+(Clients may open more than one connection to a server.)
 
 
 Conflicts
 ---------
+
+Since offline operation is supported, it's possible that a record will be
+changed on two peers at the same time.  Conflicts can also arise when a record
+is changed concurrently on two connected peers.
+
+There are two ways that conflicts are detected.  The first is when two records
+with the same `key` are created on two different peers.  For example, if the
+`key` is being used to represent file paths in the `directory` extension, two
+records with the same path but different `uuid` values can appear.
+
+The second source of conflict is when the same record is changed on two
+different hosts.  To differentiate between a normal change and a conflicting
+change,
+[Interval Tree Clocks](https://github.com/ricardobcl/Interval-Tree-Clocks)
+(ITCs) are used.  ITCs track just enough history of an object to be able to
+determine if it descended from another.
+
+There are a number of actions that can be taken on ITCs, namely `stamp`,
+`fork`, `peek`, `event`, `join`.  There is also a comparison operator, `leq`.
+These are described in the
+[paper](http://gsd.di.uminho.pt/members/cbm/ps/itc2008.pdf) and sample
+implementations are available in the
+[github project](https://github.com/ricardobcl/Interval-Tree-Clocks).
+
+
 
 FIXME Here describe the uuid, update_time, and itc fields.
 
