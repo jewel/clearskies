@@ -86,8 +86,32 @@ already present.  If not, it should repeat the message to all of its peers
 (except the peer that just barely sent it the message).
 
 
-Initial Connection Exchange
----------------------------
+Connection Exchange
+-------------------
+
+When connecting to a peer for the first time and on subsequent connections,
+it's necessary to load all records that have been updated since the last
+connection.
+
+In order to facilitate this, each peer keeps its own "logical clock".  This is
+a term that just means an integer that starts with one, and increments by one
+each time the peer writes to the database.  It is not necessary to increment a
+peer's clock when writing someone else's changes to the database, only changes
+that increment locally.
+
+When we connect, we ask for any new updates, using the highest known clock value
+for each peer:
+
+```json
+{
+  "type": "get_updates",
+  "since": {
+    "dd25d7ae1aaba6b44a66ae4ae04d21c9": 87,
+    "7e9fcaceb65cb419363f553091dadc5e": 12,
+    "19c620da0b2db5cdeb72027662829371": 182,
+  }
+}
+```
 
 FIXME Here describe what is sent on first connection, and describe the
 last_updated_* fields.
