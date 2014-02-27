@@ -1,9 +1,9 @@
 ClearSkies Protocol v1 Draft
 ============================
 
-The ClearSkies protocol is a two-way (or multi-way) friend-to-friend protocol.
-This is a special kind of peer-to-peer protocol, in that the data is shared
-without the need for a central server, but it is focused on use cases where each
+The ClearSkies protocol is a multi-way friend-to-friend protocol.  This is a
+special kind of peer-to-peer protocol, in that the data is shared without the
+need for a central server, but it is focused on use cases where each
 participant is given an access key.
 
 The original intended usage is file sharing, as inspired by BitTorrent Sync,

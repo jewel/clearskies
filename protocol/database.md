@@ -61,7 +61,7 @@ Here is an example update for a hypothetical photo sharing application:
 
 ```json
 {
-  "type": "update",
+  "type": "database.update",
   "key": "photo-1234",
   "value": {
     "camera": "NIKON ...",
@@ -112,7 +112,7 @@ highest known clock value for each peer in the club:
 
 ```json
 {
-  "type": "get_updates",
+  "type": "database.get_updates",
   "since": {
     "dd25d7ae1aaba6b44a66ae4ae04d21c9": 87,
     "7e9fcaceb65cb419363f553091dadc5e": 12,
