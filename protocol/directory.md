@@ -102,25 +102,18 @@ possible.  In order to accomplish this, a full rescan should look at the entire
 batch of changes before sending them to the other peer.
 
 
-Deferred Database Merging
--------------------------
+File Presence
+-------------
 
-The normal merge behavior of the database is altered slightly.  When a new
-record comes in from a client, it should NOT be written to the database
-immediately.  It also should NOT be replicated to other peers.  Instead, it
-should be kept waiting until the file contents have been retrieved.
+Since database changes will be synced before the underlying files, some extra
+work is needed to give a seamless experience.  When a database entry is
+replaced, the previous entry should be kept locally.  That way, if the file is
+written to locally before the new version can be downloaded, there is enough
+information to create a new file entry.  (This would result in a conflict being
+created once the remote file has finally downloaded, as is explained in a later
+section.)
 
-Once the file contents have been retrieved, the database merge and replication
-to other peers should happen normally.
-
-When a new database record is received from a peer, it should not be written to
-the local database or replicated to other peers until the file has been
-retrieved successfully.
-
-Since large shares may have tens of thousands of pending files that take days
-to sync the first time, the entire list of pending files would be transmitted
-on each reconnection.  To avoid this, sophisticated clients should keep a cache
-of pending file changes so that they do not need to be requested each time.
+FIXME Write the rest of this section
 
 
 Retrieving Files
@@ -138,10 +131,12 @@ following message:
 ```json
 {
   "type": "directory.get",
-  "path": "/photos/img1.jpg",
+  "sha256": "ceab2535bac962a9c9ec8a8ba98145fdb11bb077eaa05d87088688f7524dcb47",
   "range": [0, 100000]
 }
 ```
+
+File data is always requested by SHA256 checksum, not by path.
 
 The "range" parameter is optional and allows the client to request only certain
 bytes from the file.  The first number is the start byte, and the second number
@@ -152,7 +147,7 @@ file contents (encoding of the binary payload is explained in the "Wire
 Protocol" section of the core protocol):
 
 ```
-!{"type": "directory.data","path":"photos/img1.jpg", ... }
+!{"type":"directory.data","sha256":"ceab25635...", ... }
 100000
 JFIF.123l;jkasaSDFasdfs...
 0
@@ -163,7 +158,7 @@ A better look at the JSON above:
 ```json
 {
   "type": "directory.data",
-  "path": "/photos/img1.jpg",
+  "sha256": "ceab2535bac962a9c9ec8a8ba98145fdb11bb077eaa05d87088688f7524dcb47",
   "range": [0, 100000]
 }
 ```
@@ -186,13 +181,24 @@ another connection to the peer.
 
 The server may choose to respond to multiple "get" requests out of order.
 
+If a file does not exist on the server (perhaps because it has yet to be
+downloaded from a third peer), the server should respond with a
+"directory.not_present" message:
+
+```json
+{
+  "type": "directory.not_present",
+  "sha256": "ceab2535bac962a9c9ec8a8ba98145fdb11bb077eaa05d87088688f7524dcb47"
+}
+```
+
 The server should respond to requests for files that it is unable to serve with
 a "directory.get_error" message:
 
 ```json
 {
   "type": "directory.get_error",
-  "path": "/photos/img1.jpg",
+  "sha256": "ceab2535bac962a9c9ec8a8ba98145fdb11bb077eaa05d87088688f7524dcb47",
   "message": "Permission denied"
 }
 ```
@@ -237,10 +243,6 @@ Subtree Copy
 Software may support the ability to only sync a single subdirectory.
 This does not require peer cooperation or knowledge.
 
-The database records for the non-synced files should be added to the local
-database (so that they are not resent upon every reconnection), but not
-propagated to other peers.
-
 
 Partial Copy
 ------------
@@ -251,15 +253,6 @@ from the peer.
 The software may let the user specify extensions not to sync, give them the
 ability to match patterns, or give them a GUI to pick files or folders to
 avoid.
-
-As with "Subtree Copy", non-synced files should still be added to the local
-database, but marked as "do-not-propagate", so that they aren't sent to
-other peers.
-
-FIXME That won't actually work, due to the last_changed logical clock tracking.
-
-FIXME Additionally, we won't have any record of which peer has a file, so we
-need a way to know which files are present anyway.
 
 
 Streaming
