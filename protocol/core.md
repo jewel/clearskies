@@ -406,7 +406,7 @@ and the signature is included after the JSON message.
 
 Each message begins with a single character prefix:
 
-* `_` is a message with only JSON
+* `m` is a message with only JSON
 * `!` is a JSON message with a binary attachment
 * `s` is a signed JSON message
 * `$` is a signed JSON message with a binary attachment
