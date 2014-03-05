@@ -105,16 +105,59 @@ batch of changes before sending them to the other peer.
 File Presence
 -------------
 
-Since database changes will be synced before the underlying files, some extra
-work is needed to give a seamless experience.  When a database entry is
-replaced, the previous entry should be kept locally.  That way, if the file is
-written to locally before the new version can be downloaded, there is enough
-information to create a new file entry.  (This would result in a conflict being
-created once the remote file has finally downloaded, as is explained in a later
-section.)
 
-FIXME Write the rest of this section
+Once connected, a peer should send a listing of what files it already has.
+Since a full listing would be large, and a bitmask not possible, a
+[bloom filter](http://en.wikipedia.org/wiki/Bloom_Filter) is used to tell the
+peer which files are present.  Bloom filters trade the possibility of false
+positives for space efficiency, which in the case of clearskies translates to
+saved bandwidth.
 
+A bloom filter sets one or more bits for each file.  The number of bits set per
+file is called the `k` value.  Since the SHA256 of the file is already
+computed, no further hashing is necessary.  The first 32-bits of the SHA256
+checksum is used to set the first bit, the second 32-bits used to set the
+second bit, etc.  This means that `k` can be between 1 and 8.
+
+The sender can choose what size of bloom filter it would like to use.  This can
+be tuned based on how many files there are total and how many are present
+locally.  Additionally, the sender can tune its `k` value as it desires.
+
+Once a size is chosen, it is used as a modulus to map the parts of the SHA256
+to different bits in memory.  For example, assume a filter of 1000 bits is
+chosen, with a `k` value of two and a SHA256 hash of
+"c16987a16bc7f7dd45e341b855171e8d5c6577a70febd408fbe6d2a194c18224".  To add
+this file to the filter, the first 32-bits of the SHA256 hash modulus 1000 is
+taken to find the first bit to set.  This would be 0xc16987a1 % 1000 = 689.
+Bit 689 is set to 1.  For the second 32-bits, it's 0x6bc7f7dd % 1000 = 229.
+
+The bloom filter is sent using a `directory.bloom_filter` message:
+
+```json
+{
+  "type": "FINISH_ME"
+}
+```
+
+FIXME The description of how to build and query the bloom filter probably
+belongs in its own file.
+
+
+In order to avoid recalculating the entire bloom filter with each new
+connection, a counting bloom filter can be kept in memory.  This can then be
+compressed down to a normal bloom filter for transmittal.
+
+Simple implementations do not need to implement the bloom filter and instead
+should send a value of `0xff`.  This tells its peer to probe for files it needs
+using trial and error.  The value of `0x00` means not to ask for any files,
+unless overridden by a `directory.present` message (explained in the next
+section).
+
+
+Changes to File Presence
+------------------------
+
+FIXME write this section.  Perhaps it belongs above the bloom filter section.
 
 Retrieving Files
 ----------------
@@ -211,6 +254,18 @@ Conflicts
 ---------
 
 FIXME Write this section
+
+
+Local file changes
+------------------
+
+Since database changes will be synced before the underlying files, some extra
+work is needed to give a seamless experience.  When a database entry is
+replaced, a temporary copy of the previous contents should be kept locally.
+That way, if the file is changed locally before the new version can be
+downloaded, there is enough information to create a new file entry.  (This
+would result in a conflict being created once the remote file has finally
+downloaded.)
 
 
 Archival
