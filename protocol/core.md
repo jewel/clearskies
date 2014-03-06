@@ -175,6 +175,96 @@ connected, the status area should indicate as such.  It will no longer be
 possible to cancel the access code, but it can still be extended.
 
 
+Wire Protocol
+-------------
+
+The wire protocol is composed of messages.  Sometimes the messages are
+accompanied by binary data, which is sent as a payload after the message,
+but considered part of it.  In a similar manner, some messages are signed,
+and the signature is included after the message.
+
+Each message begins with a single character prefix:
+
+* `m` is a message
+* `!` is a message with a binary attachment
+* `s` is a signed message
+* `$` is a signed message with a binary attachment
+
+After the prefix a colon follows, and then the message payload terminated by a newline. 
+
+The message encoding can vary using protocol extensions. But all the clients must support JSON
+encoding, other encodings are optional and can be negotiated between clients.
+
+The maximum size for the message is 16777216 bytes (16MB).
+
+The object will have a "type" member, which will identify the type of message.
+
+For example:
+
+```
+m73:{"type":"foo","arg1":"Basic example message","arg2":"For great justice"}\n
+```
+
+To simplify implementations, messages are asynchronous (no immediate response
+is required).  The protocol is almost entirely stateless.  For forward
+compatibility, unsupported message types or extra keys should be silently
+ignored.
+
+A message with a binary data payload is prefixed with an exclamation point and then the message as
+usual, including the termination newline.  After the newline, the binary payload is sent.  It is
+sent in one or more chunks, ending with a zero-length binary chunk.  Each chunk begins with its
+length in ASCII digits, followed by a newline, followed by the binary data.  The size for each chunk
+shall be no greater than 16777216 bytes.
+
+Note: Since large chunk sizes minimize the protocol overhead and syscall
+overhead for high-speed transfers, the recommended chunk size is a megabyte.  A
+memory-constrained implementation might receive a chunk that is bigger than its
+maximum desired buffer size, in which case it will need to read the chunk in
+multiple passes.
+
+An example message with a binary payload might look like:
+
+```
+!48:{"type":"file_data","path":"test/file.txt",...}
+45
+This is just text, but could be binary data!
+25
+This is more binary data
+0
+```
+
+A signed message will be prefixed with an 's' character, lower case. 
+After the message, the RSA signature is appended encoded with base64, and followed up with a
+newline.  All newlines should be removed from the base64 data so that it fits on a single line.
+
+```
+s:27{"type":"foo","arg":"bar"}
+MC0CFGq+pt0m53OP9eZSndaUtWwKnoJ7AhUAy6ScPi8Kbwe4SJiIvsf9DUFHWKE=
+```
+
+If a message has both a binary payload and a signature, it will start with a
+dollar sign.  The signature does not cover the binary data, just the message.
+Here is the previous example, but with binary data added:
+
+```
+$:29{"type":"foo","arg":"bar"}
+MC0CFGq+pt0m53OP9eZSndaUtWwKnoJ7AhUAy6ScPi8Kbwe4SJiIvsf9DUFHWKE=
+40
+Another example of possibly binary data
+0
+```
+
+Most messages are not signed (as no security benefit would be gained from
+signing them, and signatures are expensive to calculate).
+
+As a rule, the receiver of file data should always be the one to request it.
+It should never be pushed unrequested.  This allows streaming content and do
+partial copies, as will be explained in later sections.
+
+
+From now on, we will omit the message type and size for brevity when describing the protocol.
+
+
 Peer Discovery
 --------------
 
@@ -204,14 +294,13 @@ necessary.
 Both peers should register themselves immediately with the tracker, and
 re-registration should happen if the IP address or port changes.
 
-Communication with the tracker is done with JSON messages, which are encoded
+Communication with the tracker is done with messages, which are encoded
 using the "wire protocol", explained in a later section.
 
 Upon receiving a connection, the tracker will send a greeting message.  Note
-that in all examples newlines have been added for clarity, but aren't allowed
-in the actual wire protocol.  The "tracker.greeting" looks like this:
+that in all examples newlines have been added for clarity.
 
-```json
+```
 {
   "type": "tracker.greeting",
   "software": "clearskies tracker build 143",
@@ -246,7 +335,7 @@ The client then responds with a "tracker.start" message, in which it specifies
 the version of the protocol it would like to use, as well as which extensions
 it would like to activate:
 
-```json
+```
 {
   "type": "tracker.start",
   "software": "beetlebox 0.3.7",
@@ -265,7 +354,7 @@ The client can now send two types of messages: "tracker.connection" and
 The "tracker.connection" message contains information on how to connect to the
 client:
 
-```json
+```
 {
   "type": "tracker.connection",
   "addresses": [
@@ -289,7 +378,7 @@ was explained earlier, the tracker doesn't differentiate between access IDs and
 key IDs, as the distinction isn't important for peer discovery.  Registration
 is done with the "tracker.register" message:
 
-```json
+```
 {
   "type": "tracker.register",
   "ids": [
@@ -309,7 +398,7 @@ The tracker combines this information into a "tracker.peers" message.  There is
 a separate peers message for each database.  Subsequent messages about the same
 database are meant to replace all earlier information about that database.
 
-```json
+```
 {
   "type": "tracker.peers",
   "code": "1bff33a239ae76ab89f94b3e582bcf7dde5549c141db6d3bf8f37b49b08d1075",
@@ -328,7 +417,7 @@ The client should send a "tracker.ping" message periodically.  If not sent less
 often than the negotiated TTL, the tracker will assume the peer has been
 disconnected.
 
-```json
+```
 {
   "type": "tracker.ping"
 }
@@ -338,10 +427,9 @@ disconnected.
 LAN Broadcast
 -------------
 
-Peers are discovered on the LAN by a UDP broadcast to port 60106.  The
-broadcast contains the following JSON payload:
+Peers are discovered on the LAN by a UDP message broadcast to port 60106:
 
-```json
+```
 {
   "name": "ClearSkiesBroadcast",
   "version": 1,
@@ -395,99 +483,6 @@ session.
 Since uTP acts very similar to TCP, the TLS encryption (described later) is sent
 on the uTP socket just as if it were a TCP socket.
 
-
-Wire Protocol
--------------
-
-The wire protocol is composed of JSON messages.  Sometimes the messages are
-accompanied by binary data, which is sent as a payload after the JSON message,
-but considered part of it.  In a similar manner, some JSON messages are signed,
-and the signature is included after the JSON message.
-
-Each message begins with a single character prefix:
-
-* `_` is a message with only JSON
-* `!` is a JSON message with a binary attachment
-* `s` is a signed JSON message
-* `$` is a signed JSON message with a binary attachment
-
-After the prefix the JSON object should be sent, terminated by a newline.  No
-newlines are allowed within the JSON representation.  (Note that JSON encodes
-newlines in strings as "\n", so it is safe to remove all newline characters
-from the output of a JSON library.)
-
-Note that only JSON objects are allowed, not strings, literals, or null.
-
-The maximum size for the JSON part of the message is 16777216 bytes.
-
-The object will have a "type" member, which will identify the type of message.
-
-For example:
-
-```
-_{"type":"foo","arg1":"Basic example message","arg2":"For great justice"}
-```
-
-To simplify implementations, messages are asynchronous (no immediate response
-is required).  The protocol is almost entirely stateless.  For forward
-compatibility, unsupported message types or extra keys should be silently
-ignored.
-
-A message with a binary data payload is also encoded in JSON, but it is
-prefixed with an exclamation point and then the JSON message as usual,
-including the termination newline.  After the newline, the binary payload is
-sent.  It is sent in one or more chunks, ending with a zero-length binary
-chunk.  Each chunk begins with its length in ASCII digits, followed by a
-newline, followed by the binary data.  The size for each chunk shall be no
-greater than 16777216 bytes.
-
-Note: Since large chunk sizes minimize the protocol overhead and syscall
-overhead for high-speed transfers, the recommended chunk size is a megabyte.  A
-memory-constrained implementation might receive a chunk that is bigger than its
-maximum desired buffer size, in which case it will need to read the chunk in
-multiple passes.
-
-An example message with a binary payload might look like:
-
-```
-!{"type":"file_data","path":"test/file.txt",...}
-45
-This is just text, but could be binary data!
-25
-This is more binary data
-0
-```
-
-A signed message will be prefixed with an 's' character, lower case.  The JSON
-message is then sent, and then on the next line the RSA signature is given,
-encoded with base64, and followed up with a newline.  All newlines should be
-removed from the base64 data so that it fits on a single line.
-
-```
-s{"type":"foo","arg":"bar"}
-MC0CFGq+pt0m53OP9eZSndaUtWwKnoJ7AhUAy6ScPi8Kbwe4SJiIvsf9DUFHWKE=
-```
-
-If a message has both a binary payload and a signature, it will start with a
-dollar sign.  The signature does not cover the binary data, just the JSON text.
-Here is the previous example, but with binary data added:
-
-```
-${"type":"foo","arg":"bar"}
-MC0CFGq+pt0m53OP9eZSndaUtWwKnoJ7AhUAy6ScPi8Kbwe4SJiIvsf9DUFHWKE=
-40
-Another example of possibly binary data
-0
-```
-
-Most messages are not signed (as no security benefit would be gained from
-signing them, and signatures are expensive to calculate).
-
-As a rule, the receiver of file data should always be the one to request it.
-It should never be pushed unrequested.  This allows streaming content and do
-partial copies, as will be explained in later sections.
-
-
 Connection
 ----------
 
@@ -529,10 +524,9 @@ such as compression.  Once the TLS session has started, the server sends a
 as an optional extension list.  The protocol version is an integer.  The
 extensions are strings.
 
-What follows is an example greeting (newlines have been added for legibility,
-but they would not be legal to send over the wire):
+What follows is an example greeting:
 
-```json
+```
 {
   "type": "greeting",
   "software": "bitbox 0.1",
@@ -553,7 +547,7 @@ message, which asks for a particular share by the share's public ID.  (See the
 encryption section for an explanation of public IDs.)  Here is an example
 "start" message:
 
-```json
+```
 {
   "type": "start",
   "software": "beetlebox 0.3.7",
@@ -581,7 +575,7 @@ For example, if IBM created their own music streaming extension, the extension
 name would be ".com.ibm.music_streaming".  The message "type" field should also
 be prefixed with this string:
 
-```json
+```
 {
   "type": ".com.ibm.music_streaming.get_artists"
 }
@@ -609,7 +603,7 @@ encoded as hex.
 Here is an example key exchange when there are two access levels, "read_write"
 and "read_only".  RSA keys have been abbreviated for clarity:
 
-```json
+```
 {
   "type": "keys",
   "access_level": "read_only",
@@ -637,7 +631,7 @@ can be derived from the private key.
 Once the keys are received, the peer should respond with a
 "keys_acknowledgment" message:
 
-```json
+```
 {
   "type": "keys_acknowledgment"
 }
@@ -667,7 +661,7 @@ Keep-alive
 A message of type "ping" should be sent by each peer occasionally to keep
 connections from being dropped:
 
-```json
+```
 {"type":"ping","timeout":60}
 ```
 
