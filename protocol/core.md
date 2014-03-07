@@ -101,14 +101,14 @@ two cryptographically secure 64-bit numbers, which are combined for user
 presentation as a single 128-bit number.
 
 The default method of granting access uses short-lived, single-use codes.  This
-is to reduce the risk of sharing the code over less-secure channels, such as
+is to reduce risk when sharing the code over less-secure channels, such as
 SMS.
 
 Implementations may choose to also support advanced access codes, which may be
 used multiple times and persist for a longer time (even indefinitely).  More
 details on multi-use codes are in the next section.
 
-The human-sharable version of the access code is represented as base32, as
+The human-sharable version of the access code is represented in base32, as
 defined in [RFC 4648](http://tools.ietf.org/html/rfc4648).  Since the access
 code is 16 bytes, and base32 requires lengths that are divisible by 5, a
 special prefix is added to the access code.  The prefix bytes are 0x96, 0x1A,
@@ -201,7 +201,7 @@ The tracker is a socket service.  The main tracker service runs at
 clearskies.tuxng.com on port 49200.  Only one connection to the tracker is
 necessary.
 
-Both peers should register themselves immediately with the tracker, and
+Peers should register themselves immediately with the tracker, and
 re-registration should happen if the IP address or port changes.
 
 Communication with the tracker is done with JSON messages, which are encoded
@@ -302,17 +302,17 @@ is done with the "tracker.register" message:
 The "ids" field contains a hash where the key is the ID (either the access ID
 or the key ID) and the value is the peer ID.
 
-If a database or access code is added or removed on the client, it should send
+If a club or access code is added or removed on the client, it should send
 a complete "tracker.register" message, including all known IDs.
 
 The tracker combines this information into a "tracker.peers" message.  There is
-a separate peers message for each database.  Subsequent messages about the same
-database are meant to replace all earlier information about that database.
+a separate peers message for each club.  Subsequent messages about the same
+club are meant to replace all earlier information about that club.
 
 ```json
 {
   "type": "tracker.peers",
-  "code": "1bff33a239ae76ab89f94b3e582bcf7dde5549c141db6d3bf8f37b49b08d1075",
+  "id": "1bff33a239ae76ab89f94b3e582bcf7dde5549c141db6d3bf8f37b49b08d1075",
   "peers": {
     "be8b773c227f44c5110945e8254e722c": ["tcp:128.1.2.3:3512", "utp:128.1.2.3:52012"]
   }
@@ -324,7 +324,7 @@ The "peers" field is a mapping from peer ID to a list of connection addresses.
 As of the time of writing, only the `tcp` and `utp` psuedo-protocols are known.
 Clients should ignore other protocols for future compatibility.
 
-The client should send a "tracker.ping" message periodically.  If not sent less
+The client should send a "tracker.ping" message periodically.  If sent less
 often than the negotiated TTL, the tracker will assume the peer has been
 disconnected.
 
@@ -353,7 +353,7 @@ broadcast contains the following JSON payload:
 
 The ID is the key ID or access ID that the software is aware of.
 
-Broadcast should be sent on startup, when a new share is added, when a new
+Broadcast should be sent on startup, when a new club is added, when a new
 network connection is detected, when a new access id is created, and every
 minute or so afterwards.
 
@@ -362,7 +362,7 @@ Distributed Hash Table
 ----------------------
 
 Once connected to a peer, a global DHT can be used to find more peers.  The DHT
-contains a mapping from share ID to peer address.
+contains a mapping from access ID to peer address.
 
 Future updates to protocol version 1 will include the DHT mechanism.
 
@@ -388,8 +388,8 @@ The UDP port mapping in the firewall's NAT table should be kept open by
 accessing the STUN server periodically if there is no other activity on the
 port.
 
-Once the UDP port has be determined, it should be sent to the tracker using the
-"utp_port" parameter.  A peer can then use this information to open a uTP
+Once the UDP port has be determined, it should be sent to the tracker using a
+"tracker.connection" message.  A peer can then use this information to open a uTP
 session.
 
 Since uTP acts very similar to TCP, the TLS encryption (described later) is sent
@@ -484,7 +484,7 @@ Most messages are not signed (as no security benefit would be gained from
 signing them, and signatures are expensive to calculate).
 
 As a rule, the receiver of file data should always be the one to request it.
-It should never be pushed unrequested.  This allows streaming content and do
+It should never be pushed unrequested.  This allows streaming content and 
 partial copies, as will be explained in later sections.
 
 
@@ -493,7 +493,7 @@ Connection
 
 We will distinguish between client and server for the purposes of establishing
 the connection.  The server is the computer that received the connection, but
-isn't necessarily the computer where the share was originally created.
+isn't necessarily the computer where the club was originally created.
 
 Clearskies uses TLS-SRP mode.  For example SRP-AES-256-CBC-SHA,
 SRP-3DES-EDE-CBC-SHA, SRP-AES-128-CBC-SHA.  Note that SRP mode has [perfect
@@ -505,7 +505,7 @@ Authentication attempts should be rate limited to avoid dictionary attacks
 against the password.
 
 As part of the SRP initialization, the client communicates a "username" to the
-server.  Clearskies uses the username field to ask for a desired share.  The
+server.  Clearskies uses the username field to ask for a desired club.  The
 username is built from the string "clearskies:1:".  (The 1 in this instance
 refers to the encryption establishment protocol version, and is versioned
 separately from the rest of this protocol.)
@@ -513,7 +513,7 @@ separately from the rest of this protocol.)
 The access ID or key ID is appended to the string, as hexadecimal.
 
 The server then uses the username to see if it has a corresponding access code
-or share.  If it does, it completes the connection.  The password or key is
+or club.  If it does, it completes the connection.  The password or key is
 given to the TLS library as lowercase hexadecimal.
 
 
@@ -543,14 +543,13 @@ but they would not be legal to send over the wire):
 }
 ```
 
-The "peer" field is the share-specific ID explained in the tracker section.
+The "peer" field is the club-specific ID explained in the cryptographic keys section.
 This is used to avoid accidental loopback.  The "name" is an optional
 human-friendly identifier, if set by the user.
 
 The client will examine the greeting and decide which protocol version and
 extensions it has in common with the server.  It will then respond with a start
-message, which asks for a particular share by the share's public ID.  (See the
-encryption section for an explanation of public IDs.)  Here is an example
+message. Here is an example
 "start" message:
 
 ```json
