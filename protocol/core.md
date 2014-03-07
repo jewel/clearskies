@@ -549,8 +549,7 @@ human-friendly identifier, if set by the user.
 
 The client will examine the greeting and decide which protocol version and
 extensions it has in common with the server.  It will then respond with a start
-message, which asks for a particular club by the clubs's access ID.  (See the
-access codes section for an explanation of access IDs.)  Here is an example
+message. Here is an example
 "start" message:
 
 ```json
@@ -559,7 +558,6 @@ access codes section for an explanation of access IDs.)  Here is an example
   "software": "beetlebox 0.3.7",
   "protocol": 1,
   "extensions": ["gzip"],
-  "id": "cf16aec13a8557cab5e5a5185691ab04f32f1e581cf0f8233be72ddeed7e7fc1",
   "peer": "6f5902ac237024bdd0c176cb93063dc4",
   "name": "Jaren's Desktop"
 }
