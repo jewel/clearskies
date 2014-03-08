@@ -152,9 +152,9 @@ feedback on the protocol is very welcome.
 A major area that needs work is creating GUIs for each platform, such as GTK,
 Cocoa, QT, Android, iOS, browser-based, and a Windows program.  GUIs do not
 need to be written in ruby, since they can control the daemon using a simple
-JSON RPC protocol, which is documented in `protocol/control.md`.  This
-repository will only contain the command-line user interface, but will happily
-link to any GUIs that exist.
+JSON protocol, which is documented in `protocol/control.md`.  This repository
+will only contain the command-line user interface, but will happily link to any
+GUIs that exist.
 
 Issues and pull requests are welcome.
 
