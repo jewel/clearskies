@@ -162,6 +162,8 @@ tracker (and via other means, as is explained later).  The status area will tell
 the user the progress of communicating this to the tracker, switching to "ready"
 once it has been communicated.
 
+This dialog should also present a choice of access levels, when applicable.
+
 If the user chooses the "Custom Password" button, the access code text field
 should be replaced with username and password fields.
 
