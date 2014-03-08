@@ -534,7 +534,7 @@ but they would not be legal to send over the wire):
 
 ```json
 {
-  "type": "greeting",
+  "type": "core.greeting",
   "software": "bitbox 0.1",
   "name": "Jaren's Laptop",
   "protocol": [1],
@@ -548,14 +548,12 @@ This is used to avoid accidental loopback.  The "name" is an optional
 human-friendly identifier, if set by the user.
 
 The client will examine the greeting and decide which protocol version and
-extensions it has in common with the server.  It will then respond with a start
-message, which asks for a particular share by the share's public ID.  (See the
-encryption section for an explanation of public IDs.)  Here is an example
-"start" message:
+extensions it has in common with the server.  Here is an example "start"
+message:
 
 ```json
 {
-  "type": "start",
+  "type": "core.start",
   "software": "beetlebox 0.3.7",
   "protocol": 1,
   "extensions": ["gzip"],
@@ -611,7 +609,7 @@ and "read_only".  RSA keys have been abbreviated for clarity:
 
 ```json
 {
-  "type": "keys",
+  "type": "core.keys",
   "access_level": "read_only",
   "keys": [
     {
@@ -639,7 +637,7 @@ Once the keys are received, the peer should respond with a
 
 ```json
 {
-  "type": "keys_acknowledgment"
+  "type": "core.keys_acknowledgment"
 }
 ```
 
@@ -664,11 +662,11 @@ an official extension, such as the `database` or `directory`.
 Keep-alive
 ---------
 
-A message of type "ping" should be sent by each peer occasionally to keep
+A message of type "core.ping" should be sent by each peer occasionally to keep
 connections from being dropped:
 
 ```json
-{"type":"ping","timeout":60}
+{"type":"core.ping","timeout":60}
 ```
 
 The "timeout" specified is the absolute minimum amount of time to wait for the
