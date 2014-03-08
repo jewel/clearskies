@@ -226,7 +226,7 @@ The server may choose to respond to multiple "get" requests out of order.
 
 If a file does not exist on the server (perhaps because it has yet to be
 downloaded from a third peer), the server should respond with a
-"directory.not_present" message:
+`directory.not_present` message:
 
 ```json
 {
@@ -236,7 +236,7 @@ downloaded from a third peer), the server should respond with a
 ```
 
 The server should respond to requests for files that it is unable to serve with
-a "directory.get_error" message:
+a `directory.get_error` message:
 
 ```json
 {
@@ -253,7 +253,28 @@ again for an extended period of time, at least several hours.
 Conflicts
 ---------
 
-FIXME Write this section
+If a file is changed on two peers at the same time, or changed on two peers
+while at least one of those peers was offline, a conflict will occur.  See the
+conflict portion of the database extension for an overview of how conflicts are
+detected.
+
+To resolve the conflict, the file with the record with the latest `update_time`
+is kept automatically, so that the user can continue to work without
+disruption.  The other file (hereafter called the loser) is preserved in the
+same directory with a new name.  If a conflict is detected in `foo.txt`, the
+loser will be named `foo.CONFLICT.$random.txt`, where `$random` is a random
+eight character alphanumeric.
+
+The loser's metadata should include the `conflict_source` field, which
+references the `uuid` of the original record.  This is so that GUIs can add
+additional helpers for resolving conflicts if desired.  Also, read-only peers
+can choose not to sync conflict files, since the conflict can not be resolved
+from those peers.
+
+The loser's record should be added to the database and propagated to other
+peers, just like any other file.  This lets the user resolve the conflict from
+any device instead of just from the device that happened to detect the
+conflict.
 
 
 Local file changes
