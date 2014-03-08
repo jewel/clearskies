@@ -184,6 +184,10 @@ When a record is sent to another peer, `fork` should be called.  `fork` splits
 the ITC into two new ITCs.  One of these should be stored back into the
 database, and the other should be included in the message to the peer.
 
+FIXME: This will cause problems with read-only peers not being able to replicate
+due to signatures.  See
+https://groups.google.com/d/msg/clearskies-dev/H-ORwSUMgWA/lma-ADQ9q2sJ
+
 When a record is received, the ITC should be compared with what is present in
 the local record, using the `leq` (less than or equal) function, which returns
 a boolean.  The ITC from the incoming message will be called `new` and the
