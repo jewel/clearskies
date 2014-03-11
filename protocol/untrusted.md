@@ -8,6 +8,15 @@ documentation.
 This extension adds a new peer type, "untrusted", which only has access to
 encrypted versions of the files.
 
+FIXME The rest of this document is the old proposal for untrusted operation,
+centered around having the trees stored in "manifests" instead of "databases".
+A replacement will be written once the other modes of implementation have been
+implemented.
+
+Note: The replacement can have clients just act as a read-only share, unaware
+that it is transferring encrypted files.
+
+
 A new "untrusted" PSK needs to be generated for the share.
 
 FIXME How is the new PSK spread to other peers?  One place would be special
