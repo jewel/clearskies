@@ -1,8 +1,8 @@
 Code Spreading Extension
 =======================
 
-This is an optional protocol feature.  The official feature string is
-"code_spread".  Feature negotiation is covered in the core protocol
+This is an optional protocol extension.  The official extension string is
+"code_spread".  Extension negotiation is covered in the core protocol
 documentation.
 
 This extension makes it possible for access codes to be spread amongst all
@@ -28,18 +28,14 @@ read-write peer and spread to other read-write peers.
 Since access codes are short and created rarely, all known access codes are
 sent when the connection is first opened.
 
-Access codes should be kept locally in a database.  Each record has a "utime"
-timestamp and should only be replaced with a record with a newer timestamp.  To
-stop read-only peers from being able to fill up the hard drive of other peers,
-software may rate-limit access code updates.
+Access codes should be kept locally in a database.  Each record has a
+"update_time" timestamp and should only be replaced with a record with a newer
+timestamp.  To stop read-only peers from being able to fill up the hard drive
+of other peers, software may rate-limit access code updates.
 
 Access codes can be revoked and single-use access codes are marked as used.
 They should not be removed from the database until they expire, if time limited,
 otherwise they should be kept indefinitely.
-
-Passphrases are not stored verbatim but instead the SHA256(SHA256(...)) is
-stored.  Note that this is a 256-bit access code instead of the usual 128-bit
-codes.
 
 When first connected to a peer, all known access codes should be sent.
 Thereafter, only database updates need to be sent.  Updates do not need to be
@@ -59,20 +55,20 @@ an access code of each type:
       "one_time": true,
       "created": 1379735175,
       "expiration": 1379744200,
-      "utime": 1379735175
+      "update_time": 1379735175
     },
     {
       "code": "e47c0685fe4bad29cdc0a7bdbd5335cb",
       "created": 1379744627,
       "expiration": false,
-      "utime": 1379744627
+      "update_time": 1379744627
     },
     {
       "code": "ed384f58875d01e242293142eed75a7a",
       "created": 1379741016,
       "expiration": false,
       "revoked": true,
-      "utime": 1379744623
+      "update_time": 1379744623
     },
     {
       "code": "61a08703a6a4c774cad650afaedd9c10",
@@ -80,14 +76,7 @@ an access code of each type:
       "one_time": true,
       "used": true,
       "expiration": false,
-      "utime": 1379744616
-    },
-    {
-      "code": "19ababf69f21cf018e846bb90ecac80cddfa532c5aae97acc99172b5be529fb7",
-      "created": 1379744616,
-      "one_time": true,
-      "expiration": 1379744611
-      "utime": 1379744616
+      "update_time": 1379744616
     }
   ]
 }

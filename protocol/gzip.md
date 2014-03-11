@@ -1,8 +1,8 @@
 Gzip Extension
 ==============
 
-This is an optional protocol feature.  The official feature string is "gzip".
-Feature negotiation is covered in the core protocol documentation.
+This is an optional protocol extension.  The official extension string is
+"gzip".  Extension negotiation is covered in the core protocol documentation.
 
 The gzip extension compresses the wire protocol.  It uses the deflate algorithm
 with the zlib header format, as defined in 

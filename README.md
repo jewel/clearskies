@@ -8,6 +8,9 @@ sharing happens amongst them directly.
 ClearSkies is inspired by BitTorrent Sync, but it has an open protocol that can
 be audited for security.
 
+The protocol is layered in such a way that other applications can take advantage
+of it for purposes other than file sync.
+
 This repository contains the protocol documentation as well as an in-the-works
 proof-of-concept implementation.  The proof-of-concept implementation is open
 source and free software, under the GPLv3 (see the LICENSE file for details.)
@@ -26,13 +29,13 @@ The protocol features:
 * Simple-to-share access codes
 * Read-write sync
 * Read-only sharing
-* Encrypted backup sharing to an untrusted peer
 * Encrypted connections
 * Shallow copy (do not sync certain files from peer)
 * Subtree copy (only sync certain directories from peer)
 * Streaming support
 * Rsync file transfer (extension)
 * Gzip compression (extension)
+* Encrypted backup sharing to an untrusted peer (future extension)
 * Media streaming (future extension)
 * Photo thumbnails (future extension)
 
@@ -47,12 +50,13 @@ The Software
 ------------
 
 The software in this repository is a proof-of-concept of the protocol, written
-in ruby.  It consists of a background daemon and a command-line
-interface to control that daemon.
+in ruby.  It consists of a background daemon and a command-line interface to
+control that daemon.  The proof-of-concept is currently out of date in 
 
-There is an effort to port the daemon to C++ in a [different
+We are focusing our effort on porting the daemon to C++ in a [different
 repository](https://github.com/larroy/clearskies_core) which will replace the
-ruby proof-of-concept once it's ready.
+ruby proof-of-concept once it's ready.  The C++ library should be portable to
+a wide variety of operating systems, including mobile.
 
 The C++ daemon is being ported to android in [this
 repository](https://github.com/cachapa/clearskies_core_android).
@@ -148,13 +152,13 @@ feedback on the protocol is very welcome.
 
 A major area that needs work is creating GUIs for each platform, such as GTK,
 Cocoa, QT, Android, iOS, browser-based, and a Windows program.  GUIs do not
-need to be written in ruby, since they can control the daemon using a simple
-JSON RPC protocol, which is documented in `protocol/control.md`.  This
-repository will only contain the command-line user interface, but will happily
-link to any GUIs that exist.
+need to be written in any particular language, since they can control the
+daemon using a simple JSON protocol, which is documented in
+`protocol/control.md`.  This repository will only contain the command-line user
+interface, but will happily link to any GUIs that exist.
 
 Issues and pull requests are welcome.
 
 The project mailing list is on [google
-groups](https://groups.google.com/group/clearskies-dev).  (You
-can participate via email if you do not have a google account.)
+groups](https://groups.google.com/group/clearskies-dev).  (It is possible to
+participate via email if you do not have a google account.)
