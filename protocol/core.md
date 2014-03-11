@@ -45,13 +45,10 @@ for licensing information about the protocol.
 Clubs
 -----
 
-When the user connects two of her devices, their association forms a club.
-Clubs usually have several thousand 
-
-A set of devices that have been associated by the user.  For file
-sharing this would represent a shared directory, and the members of the club
-would be each of the user's devices.  For IM there would be a different club
-for each buddy in a user's list.
+When the user connects two devices, their association forms a club.  As an
+example, in file sharing this would represent a shared directory, and the
+members of the club would be each of the user's devices.  For IM there would be
+a different club for each buddy in a user's list.
 
 
 Access Levels
