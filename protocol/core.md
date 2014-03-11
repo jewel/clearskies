@@ -70,8 +70,8 @@ Cryptographic Keys
 When a club is first created, a 256-bit encryption key is generated for each
 access level.  They must not be generated with a psuedo-random number generator
 (PRNG), but instead must come from a source of cryptographically secure
-numbers, such as "/dev/random" on Linux, CryptGenRandom() on Windows, or
-RAND_bytes() in OpenSSL.
+numbers, such as `/dev/random` on Linux, `CryptGenRandom()` on Windows, or
+`RAND_bytes()` in OpenSSL.
 
 These keys are used as the communication key.  All of the peers in an access
 level share the same communication key, but they do not reveal the access key
@@ -130,7 +130,10 @@ The user may opt to replace the provided access code with her own password.
 The user is prompted for a "username" and "password", both of which can be
 arbitrary.  (It is not essential that the username be globally unique, as long
 as the combination of username and password is unique.)  The SHA256 of the
-username is used for the access ID.
+username is used for the access ID.  Note that in this case there is no access
+code; the username and password would be shared with the friend instead.  (Note
+that since the password is used for SRP authentication, it does not need to
+have as much entropy as would otherwise be necessary.)
 
 The core protocol has no mechanism for spreading access codes to other peers,
 so the peer where the user created the code needs to be online for a new peer
