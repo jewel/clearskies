@@ -105,7 +105,6 @@ batch of changes before sending them to the other peer.
 File Presence
 -------------
 
-
 Once connected, a peer should send a listing of what files it already has.
 Since a full listing would be large, and a bitmask not possible, a
 [bloom filter](http://en.wikipedia.org/wiki/Bloom_Filter) is used to tell the
@@ -131,17 +130,24 @@ this file to the filter, the first 32-bits of the SHA256 hash modulus 1000 is
 taken to find the first bit to set.  This would be 0xc16987a1 % 1000 = 689.
 Bit 689 is set to 1.  For the second 32-bits, it's 0x6bc7f7dd % 1000 = 229.
 
+The bloom filter is requested via a `directory.get_presence` message.
+
+```json
+{
+  "type": "directory.get_presence"
+}
+```
+
 The bloom filter is sent using a `directory.bloom_filter` message:
 
 ```json
 {
-  "type": "FINISH_ME"
+  "type": "directory.bloom_filter",
+  "k_value": 3
 }
 ```
 
-FIXME The description of how to build and query the bloom filter probably
-belongs in its own file.
-
+The actual bloom filter is attached to the message as a binary attachment.
 
 In order to avoid recalculating the entire bloom filter with each new
 connection, a counting bloom filter can be kept in memory.  This can then be
@@ -157,7 +163,18 @@ section).
 Changes to File Presence
 ------------------------
 
-FIXME write this section.  Perhaps it belongs above the bloom filter section.
+Once the `directory.get_presence` message has been sent by the client, the
+server responds with its bloom filter and then updates the client with any
+further changes via the `directory.present` message, as files are downloaded
+from other peers.
+
+```json
+{
+  "type": "directory.present",
+  "sha256": "db5accb08247a6697dc110b3bc540ed3fafea720e81ab3287a279cbcd1390906"
+}
+```
+
 
 Retrieving Files
 ----------------
@@ -206,10 +223,11 @@ A better look at the JSON above:
 }
 ```
 
-The receiver should write to a temporary file, perhaps with a ".!clearsky"
-extension, until it has been fully received.  The SHA256 checksum should be
-verified before replacing the original file.  On unix systems, rename() should
-be used to overwrite the original file so that it is done atomically.
+The receiver should write to a temporary file, perhaps a hidden file with a
+".!clearsky" extension, until it has been fully received.  The SHA256 checksum
+should be verified before replacing the original file.  On unix systems,
+rename() should be used to overwrite the original file so that it is done
+atomically.
 
 A check should be done on the destination file before replacing it to see if it
 has been changed locally without the changes being noticed.  If so, the normal
@@ -219,7 +237,7 @@ Remember that the protocol is asynchronous, so software may issue multiple
 "get" requests in order to receive pipelined responses.  Pipelining will cause
 a large speedup when small files are involved and latency is high.
 
-If the client wants to receive multiple files concurrently, it should open up
+If the client wants to receive multiple files concurrently, it could open up
 another connection to the peer.
 
 The server may choose to respond to multiple "get" requests out of order.
