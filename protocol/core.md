@@ -177,6 +177,99 @@ connected, the status area should indicate as such.  It will no longer be
 possible to cancel the access code, but it can still be extended.
 
 
+Wire Protocol
+-------------
+
+The wire protocol is composed of JSON messages.  Sometimes the messages are
+accompanied by binary data, which is sent as a payload after the JSON message,
+but considered part of it.  In a similar manner, some JSON messages are signed,
+and the signature is included after the JSON message.
+
+Each message begins with a single character prefix:
+
+* `_` is a message with only JSON
+* `!` is a JSON message with a binary attachment
+* `s` is a signed JSON message
+* `$` is a signed JSON message with a binary attachment
+
+After the prefix the JSON object should be sent, terminated by a newline.  No
+newlines are allowed within the JSON representation.  (Note that JSON encodes
+newlines in strings as "\n", so it is safe to remove all newline characters
+from the output of a JSON library.)
+
+Note that only JSON objects are allowed, not strings, literals, or null.
+
+The maximum size for the JSON part of the message is 16777216 bytes.
+
+The object will have a "type" member, which will identify the type of message.
+
+For example:
+
+```
+_{"type":"foo","arg1":"Basic example message","arg2":"For great justice"}
+```
+
+To simplify implementations, messages are asynchronous (no immediate response
+is required).  The protocol is almost entirely stateless.  For forward
+compatibility, unsupported message types or extra keys should be silently
+ignored.
+
+A message with a binary data payload is also encoded in JSON, but it is
+prefixed with an exclamation point and then the JSON message as usual,
+including the termination newline.  After the newline, the binary payload is
+sent.  It is sent in one or more chunks, ending with a zero-length binary
+chunk.  Each chunk begins with its length in ASCII digits, followed by a
+newline, followed by the binary data.  The size for each chunk shall be no
+greater than 16777216 bytes.
+
+Note: Since large chunk sizes minimize the protocol overhead and syscall
+overhead for high-speed transfers, the recommended chunk size is a megabyte.  A
+memory-constrained implementation might receive a chunk that is bigger than its
+maximum desired buffer size, in which case it will need to read the chunk in
+multiple passes.
+
+An example message with a binary payload might look like:
+
+```
+!{"type":"file_data","path":"test/file.txt",...}
+45
+This is just text, but could be binary data!
+25
+This is more binary data
+0
+```
+
+A signed message will be prefixed with an 's' character, lower case.  The JSON
+message is then sent, and then on the next line the RSA signature is given,
+encoded with base64, and followed up with a newline.  All newlines should be
+removed from the base64 data so that it fits on a single line.
+
+```
+s{"type":"foo","arg":"bar"}
+MC0CFGq+pt0m53OP9eZSndaUtWwKnoJ7AhUAy6ScPi8Kbwe4SJiIvsf9DUFHWKE=
+```
+
+If a message has both a binary payload and a signature, it will start with a
+dollar sign.  The signature does not cover the binary data, just the JSON text.
+Here is the previous example, but with binary data added:
+
+```
+${"type":"foo","arg":"bar"}
+MC0CFGq+pt0m53OP9eZSndaUtWwKnoJ7AhUAy6ScPi8Kbwe4SJiIvsf9DUFHWKE=
+40
+Another example of possibly binary data
+0
+```
+
+Most messages are not signed (as no security benefit would be gained from
+signing them, and signatures are expensive to calculate).
+
+As a rule, the receiver of file data should always be the one to request it.
+It should never be pushed unrequested.  This allows streaming content and 
+partial copies, as will be explained in later sections.
+
+
+
 Peer Discovery
 --------------
 
@@ -400,98 +493,6 @@ session.
 
 Since uTP acts very similar to TCP, the TLS encryption (described later) is sent
 on the uTP socket just as if it were a TCP socket.
-
-
-Wire Protocol
--------------
-
-The wire protocol is composed of JSON messages.  Sometimes the messages are
-accompanied by binary data, which is sent as a payload after the JSON message,
-but considered part of it.  In a similar manner, some JSON messages are signed,
-and the signature is included after the JSON message.
-
-Each message begins with a single character prefix:
-
-* `_` is a message with only JSON
-* `!` is a JSON message with a binary attachment
-* `s` is a signed JSON message
-* `$` is a signed JSON message with a binary attachment
-
-After the prefix the JSON object should be sent, terminated by a newline.  No
-newlines are allowed within the JSON representation.  (Note that JSON encodes
-newlines in strings as "\n", so it is safe to remove all newline characters
-from the output of a JSON library.)
-
-Note that only JSON objects are allowed, not strings, literals, or null.
-
-The maximum size for the JSON part of the message is 16777216 bytes.
-
-The object will have a "type" member, which will identify the type of message.
-
-For example:
-
-```
-_{"type":"foo","arg1":"Basic example message","arg2":"For great justice"}
-```
-
-To simplify implementations, messages are asynchronous (no immediate response
-is required).  The protocol is almost entirely stateless.  For forward
-compatibility, unsupported message types or extra keys should be silently
-ignored.
-
-A message with a binary data payload is also encoded in JSON, but it is
-prefixed with an exclamation point and then the JSON message as usual,
-including the termination newline.  After the newline, the binary payload is
-sent.  It is sent in one or more chunks, ending with a zero-length binary
-chunk.  Each chunk begins with its length in ASCII digits, followed by a
-newline, followed by the binary data.  The size for each chunk shall be no
-greater than 16777216 bytes.
-
-Note: Since large chunk sizes minimize the protocol overhead and syscall
-overhead for high-speed transfers, the recommended chunk size is a megabyte.  A
-memory-constrained implementation might receive a chunk that is bigger than its
-maximum desired buffer size, in which case it will need to read the chunk in
-multiple passes.
-
-An example message with a binary payload might look like:
-
-```
-!{"type":"file_data","path":"test/file.txt",...}
-45
-This is just text, but could be binary data!
-25
-This is more binary data
-0
-```
-
-A signed message will be prefixed with an 's' character, lower case.  The JSON
-message is then sent, and then on the next line the RSA signature is given,
-encoded with base64, and followed up with a newline.  All newlines should be
-removed from the base64 data so that it fits on a single line.
-
-```
-s{"type":"foo","arg":"bar"}
-MC0CFGq+pt0m53OP9eZSndaUtWwKnoJ7AhUAy6ScPi8Kbwe4SJiIvsf9DUFHWKE=
-```
-
-If a message has both a binary payload and a signature, it will start with a
-dollar sign.  The signature does not cover the binary data, just the JSON text.
-Here is the previous example, but with binary data added:
-
-```
-${"type":"foo","arg":"bar"}
-MC0CFGq+pt0m53OP9eZSndaUtWwKnoJ7AhUAy6ScPi8Kbwe4SJiIvsf9DUFHWKE=
-40
-Another example of possibly binary data
-0
-```
-
-Most messages are not signed (as no security benefit would be gained from
-signing them, and signatures are expensive to calculate).
-
-As a rule, the receiver of file data should always be the one to request it.
-It should never be pushed unrequested.  This allows streaming content and 
-partial copies, as will be explained in later sections.
 
 
 Connection
