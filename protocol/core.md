@@ -355,6 +355,10 @@ broadcast contains the following JSON payload:
 
 The ID is the key ID or access ID that the software is aware of.
 
+The Broadcast message is versioned separately.  For example, the overall
+protocol might go to version 2 but the Broadcast will stay at version 1 (if it
+hasn't changed).
+
 Broadcast should be sent on startup, when a new club is added, when a new
 network connection is detected, when a new access id is created, and every
 minute or so afterwards.
