@@ -10,7 +10,7 @@ This protocol is incomplete.  This draft covers version 1 of the protocol, but
 more message types will be added without bumping the version.
 
 By default, the daemon listens for connections on the unix socket residing at
-$HOME/.local/share/clearskies/control.
+$XDG_DATA_HOME/clearskies/control.
 
 
 Wire protocol

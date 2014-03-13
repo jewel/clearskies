@@ -8,8 +8,11 @@ require 'fileutils'
 module Conf
   # Where should we store information about shares and peers?
   def self.data_dir filename=nil
-    # FIXME Is this the proper default directory?
-    path = ENV['CLEARSKIES_DIR'] || "#{ENV['HOME']}/.local/share/clearskies"
+    # Follow XDG specifications for storing application specific data
+    # http://standards.freedesktop.org/basedir-spec/basedir-spec-latest.html
+    xdg_data_home = ENV['XDG_DATA_HOME'] || "#{ENV['$HOME']}/.local/share"
+    path = ENV['CLEARSKIES_DIR'] || "#{xdg_data_home}/clearskies"
+
     FileUtils.mkdir_p path
     path = "#{path}/#{filename}" if filename
     path
