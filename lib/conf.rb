@@ -10,7 +10,7 @@ module Conf
   def self.data_dir filename=nil
     # Follow XDG specifications for storing application specific data
     # http://standards.freedesktop.org/basedir-spec/basedir-spec-latest.html
-    xdg_data_home = ENV['XDG_DATA_HOME'] || "#{ENV['$HOME']}/.local/share"
+    xdg_data_home = ENV['XDG_DATA_HOME'] || "#{ENV['HOME']}/.local/share"
     path = ENV['CLEARSKIES_DIR'] || "#{xdg_data_home}/clearskies"
 
     FileUtils.mkdir_p path
