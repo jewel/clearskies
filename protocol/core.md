@@ -572,15 +572,15 @@ message. Here is an example "core.start" message:
 ```
 
 
-Manifest
------------
+Updates
+-------
 
 Each share has a revision number which is used to compose the file's vector clock. (SREV)
 
 SREV is an unsigned integer of 32 bits that increments monotonically and wraps around to 0 when its
 incremented past its maximum value of 2^32-1.
 
-SREV is local to each peer and it's incremented each time a change is made to the manifest, for
+SREV is local to each peer and it's incremented each time a change is made to the share, for
 example after a change or group of changes detected in a filesystem scan.
 
 
