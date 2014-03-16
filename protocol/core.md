@@ -575,19 +575,47 @@ message. Here is an example "core.start" message:
 Manifest
 -----------
 
+Each share has a revision number which is used to compose the file's vector clock. (SREV)
+
+SREV is an unsigned integer of 32 bits that increments monotonically and wraps around to 0 when its
+incremented past its maximum value of 2^32-1.
+
+SREV is local to each peer and it's incremented each time a change is made to the manifest, for
+example after a change or group of changes detected in a filesystem scan.
+
+
 An individual file record will look
 something like this:
 
 ```json
 {
-   path: "bar.txt",
-   size: 143,
-   sha256: "af12bc34...",
-   last_changed_by: "A",
-   last_changed_tx_id: 34,
-   vector_clock: {
-     A: 2,
-     C: 1
+   "path": "bar.txt",
+   "size": 143,
+   "sha256": "af12bc34...",
+   "last_changed_by": "A",
+   "last_changed_rev": 34,
+   "vector_clock": {
+     "A": 2,
+     "C": 1
+   }
+}
+```
+
+When a change is detected in the file during a scan, the entry in the vector clock corresponding to
+our peer id has to be incremented. If in our example, we are peer "A", after a file change the new
+file reccord will be:
+
+
+```json
+{
+   "path": "bar.txt",
+   "size": 350,
+   "sha256": "deadbeef3...",
+   "last_changed_by": "A",
+   "last_changed_rev": 34,
+   "vector_clock": {
+     "A": 3,
+     "C": 1
    }
 }
 ```
@@ -607,11 +635,11 @@ B will then send the following to A:
 
 ```json
 {
-   type: "get_updates",
-   since: {
-     A: 30,
-     B: 5,
-     C: 12
+   "type": "get_updates",
+   "since": {
+     "A": 30,
+     "B": 5,
+     "C": 12
    }
 }
 ```
@@ -757,3 +785,9 @@ issues will be addressed before the spec is finalized.
   detect.  The tracker can be enhanced to know the difference between those that
   have the keys associated with an access code and those that are seeking those
   keys.
+
+
+Abbreviations
+-------------
+
+SREV: Share revision number
