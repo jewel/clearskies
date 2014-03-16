@@ -624,7 +624,7 @@ When B connects to A, it will look at its own database to see what the
 maximum transaction ID for each known writer is, using a query like this:
 
 ```SQL
-SELECT last_changed_by, max(last_changed_tx_id) FROM files
+SELECT last_changed_by, max(last_changed_rev) FROM files
 GROUP BY last_changed_by
 ```
 
@@ -648,9 +648,9 @@ A will then find all records with a query something like this:
 
 ```SQL
    SELECT * FROM files
-   WHERE last_changed_by = 'A' AND last_changed_tx_id > 30
-      OR last_changed_by = 'B' AND last_changed_tx_id > 5
-      OR last_changed_by = 'C' AND last_changed_tx_id > 12
+   WHERE last_changed_by = 'A' AND last_changed_rev > 30
+      OR last_changed_by = 'B' AND last_changed_rev > 5
+      OR last_changed_by = 'C' AND last_changed_rev > 12
 ```
 
 
