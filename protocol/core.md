@@ -572,6 +572,60 @@ message. Here is an example "core.start" message:
 ```
 
 
+Manifest
+-----------
+
+An individual file record will look
+something like this:
+
+```json
+{
+   path: "bar.txt",
+   size: 143,
+   sha256: "af12bc34...",
+   last_changed_by: "A",
+   last_changed_tx_id: 34,
+   vector_clock: {
+     A: 2,
+     C: 1
+   }
+}
+```
+
+When B connects to A, it will look at its own database to see what the
+maximum transaction ID for each known writer is, using a query like this:
+
+```SQL
+SELECT last_changed_by, max(last_changed_tx_id) FROM files
+GROUP BY last_changed_by
+```
+
+Obviously this can be tracked in memory instead of doing a full table
+scan each time, since it has an overhead of 20 bytes per known writer.
+
+B will then send the following to A:
+
+```json
+{
+   type: "get_updates",
+   since: {
+     A: 30,
+     B: 5,
+     C: 12
+   }
+}
+```
+
+A will then find all records with a query something like this:
+
+```SQL
+   SELECT * FROM files
+   WHERE last_changed_by = 'A' AND last_changed_tx_id > 30
+      OR last_changed_by = 'B' AND last_changed_tx_id > 5
+      OR last_changed_by = 'C' AND last_changed_tx_id > 12
+```
+
+
 Extending the Protocol
 ----------------------
 
