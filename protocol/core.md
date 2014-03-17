@@ -581,7 +581,7 @@ SREV is an unsigned integer of 32 bits that increments monotonically and wraps a
 incremented past its maximum value of 2^32-1.
 
 SREV is local to each peer and it's incremented each time a change is made to the share, for
-example after a change or group of changes detected in a filesystem scan.
+example after each change to a file, file added or deleted detected during a filesystem scan.
 
 
 An individual file record will look
