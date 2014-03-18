@@ -238,3 +238,21 @@ While it is not the designed use case of this protocol, some clubs may have
 hundreds or thousands of peers.  In this case, it is recommended that
 connections only be made to a few dozen of them, chosen at random.  The
 database will still propagate through the club.
+
+
+Known issues
+------------
+
+These issues will be addressed before the spec is finalized:
+
+* A malicious read-only peer can cause the database to get out of sync by
+  choosing to not relay some "update" messages.  We can fix this by having a
+  "trusted" attribute for each database entry, and not setting it until we
+  actually hear from a read-write peer.
+
+  It would be nice if each update could include a reference to the previous
+  update, but that won't work since the history that a read-only peer will have
+  could be non-linear.
+
+  Another possibility would be to use an inverse bloom filter (like gnunet),
+  instead of the `last_updated_by` and `last_updated_clock` fields.
