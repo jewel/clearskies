@@ -65,6 +65,9 @@ There is a separate effort to get the ruby proof-of-concept to run under jruby
 on android in [this
 repository](https://github.com/onionjake/clearskies-ruboto).
 
+Debian/Ubuntu packages of the ruby proof-of-concept are
+[being made](https://github.com/rubiojr/clearskies-packages).
+
 
 Status
 ------
