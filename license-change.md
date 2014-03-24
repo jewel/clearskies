@@ -29,7 +29,7 @@ Accept Reject  Github Username
 
  [X]    [ ]    cmatheson
 
- [ ]    [ ]    cseed
+ [X]    [ ]    cseed
 
  [X]    [ ]    wilagobler
 
