@@ -390,10 +390,10 @@ is done with the "tracker.register" message:
 ```json
 {
   "type": "tracker.register",
-  "ids": [
+  "ids": {
     "1bff33a239ae76ab89f94b3e582bcf7dde5549c141db6d3bf8f37b49b08d1075": "be8b773c227f44c5110945e8254e722c",
     "2da03f6f37cee78fb13e32f4fc5a261e1c57c173087ccc787fb2c4f24d3447d9": "feeb61382cb9bbfb31ed4349727fa70c"
-  ]
+  }
 }
 ```
 
