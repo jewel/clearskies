@@ -41,12 +41,9 @@ a "record".  Here are the associated fields:
   the peer in the `last_updated_by` field.
 * `update_time`.  Timestamp when the record was last updated.  Transmitted in
   ISO 8601 format.
-* `itc`.  An Interval Tree Clock, stored as a variable length binary string,
-  using the binary encoding described in [the associated
-  paper](http://gsd.di.uminho.pt/members/cbm/ps/itc2008.pdf).  Transmitted as
-  base64.
+* `vector_clock`.  A [vector clock](http://en.wikipedia.org/wiki/Vector_Clock)
+  for tracking causality for the file.  (This is how conflicts are detected.)
 * `deleted`.  A boolean flag representing if the record has been deleted.
-  Transmission optional when false.
 
 Each of these fields will be explained in more detail in the following sections.
 
@@ -71,7 +68,11 @@ Here is an example update for a hypothetical photo sharing application:
   "last_updated_by": "b934d9de020109fde790cd39acce73fc",
   "last_updated_rev": 15,
   "update_time": "2014-02-23T23:45:39Z",
-  "itc": TODO
+  "vector_clock": {
+    "b934d9de020109fde790cd39acce73fc": 44,
+    "d38a0af145c48b75289e72985e3cc50a": 35,
+    "c35be68aadc0e208b6c71f7be77f2975": 43
+  }
 }
 ```
 
@@ -82,8 +83,10 @@ Read-only peers should permanently store both the message and its signature so
 that they can repeat it at a later time to other peers.
 
 The receiver of an update should look at its database to see if the update is
-already present.  If not, it should repeat the message to all of its peers
-(except the peer that just barely sent it the message).
+already present.  If not, it should update the vector clock (as will be
+explained later) and then repeat the message to all of its peers.  As an
+optimization, implementations shouldn't repeat the message back to the peer
+that just sent it.
 
 It is legal to change the `key` on a record.  To facilitate this, the `uuid`
 should be used to identify records.   (The `key` should still be unique,
@@ -189,64 +192,66 @@ appear.
 
 The second source of conflict is when the same record is changed on two
 different hosts.  To differentiate between a normal change and a conflicting
-change,
-[Interval Tree Clocks](https://github.com/ricardobcl/Interval-Tree-Clocks)
-(ITCs) are used.  ITCs track just enough history of an object to be able to
-determine if it descended from another.
+change, [vector clocks](http://en.wikipedia.org/wiki/Vector_clock) (VCs) are
+used.  VCs track just enough history of a record to be able to determine if one
+change to the record descended from another, or if the two changes happened
+concurrently (or while one peer was disconnected).
 
-There are a number of actions that can be taken on ITCs, namely `seed`,
-`fork`, `peek`, `event`, `join`.  There is also a comparison operator, `leq`.
-These are described in the
-[paper](http://gsd.di.uminho.pt/members/cbm/ps/itc2008.pdf) and sample
-implementations are available in the
-[github project](https://github.com/ricardobcl/Interval-Tree-Clocks).
+Vector clocks are represented on the wire as a JSON object, with the peer ID as
+the key and the clock number as the value, as can be seen in the `vector_clock`
+field of the earlier `database.update` example:
+
+```json
+{
+  "vector_clock": {
+    "b934d9de020109fde790cd39acce73fc": 44,
+    "d38a0af145c48b75289e72985e3cc50a": 35,
+    "c35be68aadc0e208b6c71f7be77f2975": 43
+  }
+}
+```
+
+Note that the clock numbers in the vectors are not related to the revision
+number.
+
+Vector clocks are updated according to the following rules:
+
+1. At first all values are zero.
+
+1. When a peer has a local change event, it updates its logical clock by one.
+
+1. As part of sending a record to another peer, it updates its logical clock by
+   one.
+
+1. When a peer receives a record, it updates its logical clock by one and then
+   updates each member to be the max of the current vector and incoming vector.
+
+Just because the vector clock is changed when a record is received, doesn't
+mean that the `last_changed_` fields or `update_time` should also be changed.
+
+When a record is received, the VC should be compared with what is present in
+the local record.  In the following list, the incoming VC will be called
+`incoming`, and the existing local record will be called `current`.  Imagine we
+have a comparison function called `before`.
+
+* If both `incoming.before(current)` and `current.before(incoming)`, then the
+  records are equal.  The incoming record can be discarded.
+* If `incoming.before(current)`, then the incoming record can be discarded, as
+  the local record descends from it.
+* If `current.before(incoming)`, then the incoming record replaces the existing
+  record, as the local record is outdated.
+* If neither condition is true, then the records conflict.  Conflict resolution
+  action will vary, as will be explained in more detail.  The resulting record
+  should merge the two VCs as described above.
 
 Applications need to decide what the most appropriate way to resolve the
-conflict is for their dataset.  They can choose to merge the two records,
-or separate one of them into a new `uuid`.  The default way to resolve
-conflicts is to simply use the record with the largest `update_time`.  (Note
-that this doesn't mean that it's safe to bypass the `itc` field in this case,
-as the `itc` field's notion of causality trumps the value in the `update_time`
-field.  This allows the system to behave rationally even in the presence of
-incorrect system clocks.)
-
-
-Manipulating the ITC field
---------------------------
-
-When a record is first created, the `itc` should be set to the result of
-calling `seed()`.
-
-When a record is changed, `event` should be called, and the resulting ITC
-should be written back to the record.
-
-When a record is sent to another peer, `fork` should be called.  `fork` splits
-the ITC into two new ITCs.  One of these should be stored back into the
-database, and the other should be included in the message to the peer.
-
-FIXME: This will cause problems with read-only peers not being able to replicate
-due to signatures.  See
-https://groups.google.com/d/msg/clearskies-dev/H-ORwSUMgWA/lma-ADQ9q2sJ
-
-When a record is received, the ITC should be compared with what is present in
-the local record, using the `leq` (less than or equal) function, which returns
-a boolean.  The ITC from the incoming message will be called `new` and the
-existing local ITC will be called old.
-
-* If `new.leq(old)` and `old.leq(new)`, then the records are equal.  The
-  incoming record can be discarded.
-* If `new.leq(old)`, then the incoming record can be discarded, as the local
-  record descends from it.  The ITC from the incoming record should be combined
-  with the current record using `join`.
-* If `old.leq(new)`, then the incoming record replaces the existing record.  The
-  ITC values should be combined using `join`.
-* If neither condition is true, then the records conflict.  Conflict resolution
-  action will vary.  The resulting record should combine the ITC values with
-  `join`.
-
-TODO: There may be some errors in these ITC instructions as currently written.
-Some minor changes may be necessary to use ITCs effectively.  The author intends
-to do more research and update this section.
+conflict is for their dataset.  For example, they can choose to merge the two
+records, or separate one of them into a new `uuid`.  The default way to resolve
+conflicts when the application doesn't specify otherwise is to simply use the
+record with the largest `update_time`.  (Note that this doesn't mean that the
+largest `update_time` always wins even when there is no conflict, since the VC
+will determine which event happened first even if a peer has a widely
+inaccurate clock.)
 
 
 Deleted Records
