@@ -93,7 +93,7 @@ The daemon can be instructed to shutdown with the "stop" command.
 Syncing can be suspended with the "pause" command and started again with the
 "resume" command.
 
-The "status" command gives information about conne
+The "status" command gives information about connections.
 
 ```json
 {
