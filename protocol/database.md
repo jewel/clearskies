@@ -101,19 +101,14 @@ it's necessary to load all records that have been updated since the last
 connection.
 
 In order to facilitate this, each peer keeps its own revision counter.  This is
-a 32-bit integer that starts with one.  When a record change originates
+a 64-bit integer that starts with one.  When a record change originates
 locally, the revision counter is incremented by one and its value is written to
-the `last_updated_rev` field.  The `last_updated_by` field is set to a unique
-ID for the peer.
+the `last_updated_rev` field.  The `last_updated_by` field is set to the peer
+ID.
 
 The local revision number does *not* increment when writing someone else's
 changes to the database, only changes that originate locally.  Otherwise two
 peers will start an endless update loop.
-
-The maximum value for the revision counter is 2^32-1.  It then wraps back to
-one.  When this happens, a new local ID number should be generated.  For this
-reason, this local ID number should not be the peer ID from the core protocol,
-but a separate ID.
 
 For clarity, the terms "client" and "server" will be used to describe the peer
 requesting the updates and responding with the updates, respectively.  Note
@@ -198,8 +193,8 @@ change to the record descended from another, or if the two changes happened
 concurrently (or while one peer was disconnected).
 
 Vector clocks are represented on the wire as a JSON object, with the peer ID as
-the key and the clock number as the value, as can be seen in the `vector_clock`
-field of the earlier `database.update` example:
+the key and the clock number as a 64-bit integer, as can be seen in the
+`vector_clock` field of the earlier `database.update` example:
 
 ```json
 {
@@ -212,7 +207,7 @@ field of the earlier `database.update` example:
 ```
 
 Note that the clock numbers in the vectors are not related to the revision
-number.
+number from the previous section.
 
 Vector clocks are updated according to the following rules:
 

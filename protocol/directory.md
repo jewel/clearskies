@@ -19,7 +19,7 @@ features.  All slashes should be forward slashes, "/".
 
 The database value should be a JSON object.  Two fields are required:
 
- * `size` - file size in bytes
+ * `size` - file size in bytes.  This is a 64-bit integer.
  * `sha256` - SHA256 of file contents
 
 There are more fields that are optional.  If an implementation does not support
@@ -48,7 +48,7 @@ Windows Compatibility
 Software running on an operating system that doesn't support all the characters
 that unix supports in a filename, such as Microsoft Windows, must ensure
 filenames with unsupported characters are handled properly, such as '\', '/',
-':', '*', '?', '"', '<', '>', '|'.  The path used on disk can use URL encoding
+':', '\*', '?', '"', '<', '>', '|'.  The path used on disk can use URL encoding
 for these characters, that is to say the percent character followed by two hex
 digits.  The software should then keep an additional internal attribute that
 tracks the original file path, and continue to interact with other peers as if
@@ -59,8 +59,8 @@ read-only file in unix can be mapped to the read-only attribute in Windows.
 Files that originate on Windows should be mapped to mode '0600' by default.
 
 Windows clients will also need to transparently handle multiple files with the
-same name but different case, such as Secret.txt and secret.txt.  It could
-decide to map the second to _Secret.txt on disk, for example.
+same name but different case, such as `Secret.txt` and `secret.txt`.  It could
+decide to map the second to `_Secret.txt` on disk, for example.
 
 
 First Sync
@@ -84,7 +84,7 @@ any of them, which will allow change tracking to work almost immediately.
 File Change Notification
 ------------------------
 
-Files should be monitored for changes when the user has read_write access
+Files should be monitored for changes when the user has `read_write` access
 level.  This can be done with OS hooks, or if that is not possible, the
 directory can be rescanned periodically.
 
