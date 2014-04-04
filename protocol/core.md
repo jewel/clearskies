@@ -203,24 +203,27 @@ prefix which defines the type of message that follows:
 * `s` a message with a signature
 * `$` a message with a binary attachment and signature
 
-The header character is followed by the encoded message size in base 10 and a colon. If the message has a signature, followed by the
-size of the signature and a colon.
+The header character is followed by the encoded message size in base 10 and a
+colon. If the message has a signature, followed by the size of the signature and
+a colon.
 
 For all message types the length of the JSON object is added after the prefix,
 using ASCII characters.  The maximum size for the JSON body is 16777216 bytes.
 
-The message is composed of the following fields, each field is denoted using square brackets, which
-are not present in the message encoding itself.
+The message is composed of the following fields, each field is denoted using
+square brackets, which are not present in the message encoding itself.
 
-$[msg size]:[signature size]:[msg body][signature][binary payload]
+$[msg size]:[msg body][signature size]:[signature][binary chunk size 1]:[binary
+chunk 1]..[binary chunk size N]:[binary chunk N]0:
 
-The JSON message body must start with a "{" character.  That is to say, it is not valid
-to have an array, string, or other non-object as the body.
+The JSON message body must start with a "{" character.  That is to say, it is
+not valid to have an array, string, or other non-object as the body.
 
 After the header the body is sent.  It may contain unnecessary whitespace,
 although for efficiency purposes that isn't recommended.
 
-The message body object will have a "type" member, which will identify the type of message.
+The message body object will have a "type" member, which will identify the type
+of message.
 
 For example:
 
@@ -232,16 +235,20 @@ m95:{
 }
 ```
 
-A message with a binary data payload is prefixed with an exclamation point, then the size of the
-message, a colon and then the encoded message.  The binary payload is then sent in one or more
-chunks, ending with a zero-length binary chunk.  Each chunk begins with its length in ASCII digits,
-followed by a newline, followed by the binary data.  The size for each chunk shall be no greater
-than 16777216 bytes.
+A message with a binary data payload is prefixed with an exclamation point, then
+the size of the message, a colon and then the encoded message.  The binary
+payload is then sent in one or more chunks, ending with a zero-length binary
+chunk.  Each chunk begins with its length in ASCII digits, followed by a
+newline, followed by the binary data.  The size for each chunk shall be no
+greater than 16777216 bytes.
 
-Note: Since large chunk sizes minimize the protocol overhead and syscall overhead for high-speed
-transfers, the recommended chunk size is a megabyte.  A memory-constrained implementation might
-receive a chunk that is bigger than its maximum desired buffer size, in which case it will need to
-read the chunk in multiple passes.
+Note: Since large chunk sizes minimize the protocol overhead and syscall
+overhead for high-speed transfers, the recommended chunk size is a megabyte.  A
+memory-constrained implementation might receive a chunk that is bigger than its
+maximum desired buffer size, in which case it will need to read the chunk in
+multiple passes.
+
+
 
 An example message with a binary payload might look like:
 
@@ -254,23 +261,24 @@ This is more binary data
 0
 ```
 
-A signed message will be prefixed with an 's' character, lower case.  The length of the signature is
-appended after the size of the message, followed by a colon. The body is then sent, and then the RSA
-signature is given, encoded with base64.
+A signed message will be prefixed with an 's' character, lower case.  The
+length of the signature is added to the header, prefixed with a colon.  The
+body is then sent, and then the RSA signature is given, encoded with base64.
 
 ```
-s27:64:{"type":"foo","arg":"bar"}MC0CFGq+pt0m53OP9eZSndaUtWwKnoJ7AhUAy6ScPi8Kbwe4SJiIvsf9DUFHWKE=
+s27:{"type":"foo","arg":"bar"}64:MC0CFGq+pt0m53OP9eZSndaUtWwKnoJ7AhUAy6ScPi8Kbwe4SJiIvsf9DUFHWKE=
 ```
 
 If a message has both a binary payload and a signature, it will start with a
 dollar sign.  The signature does not cover the binary data, just the body.
-Here is the previous example, but with binary data added:
+Here is the previous example, but with binary data added, newlines has been
+added for readability:
 
 ```
-$27:64{"type":"foo","arg":"bar"}MC0CFGq+pt0m53OP9eZSndaUtWwKnoJ7AhUAy6ScPi8Kbwe4SJiIvsf9DUFHWKE=
-40
-Another example of possibly binary data
-0
+$27{"type":"foo","arg":"bar"}
+64:MC0CFGq+pt0m53OP9eZSndaUtWwKnoJ7AhUAy6ScPi8Kbwe4SJiIvsf9DUFHWKE=
+40:Another example of possibly binary data
+0:
 ```
 
 Most messages are not signed as no security benefit would be gained from
