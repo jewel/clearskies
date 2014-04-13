@@ -26,7 +26,14 @@ be sent to the server before the response to the first request has been
 received.
 
 For forwards compatibility, unrecognized keys should be ignored.  Unrecognized
-messages should be given 
+messages should be respondded to with a `not_understood` error:
+
+```json
+{
+  "error": "not_understood",
+  "message": "Protocol version mismatch or other protocol error"
+}
+```
 
 All example JSON messages in this document will have newlines added for
 legibility, even though they must be sent over the wire without them.
@@ -131,6 +138,7 @@ Listing all shares is done with "list_shares".  The response looks like:
     }
   }
 }
+```
 
 FIXME More to add in this section
 
