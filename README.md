@@ -42,12 +42,12 @@ files to the owner's computer or tablet, without the piano manufacturer needing
 to write any PC or tablet software.
 
 
-The Software
-------------
+Where's the code?
+-----------------
 
 We are focusing our effort on making a C++ implementation,
 [clearskies_core](https://github.com/larroy/clearskies_core).  The C++ library
-should be portable to a wide variety of operating systems, including Windows,
+will be portable to a wide variety of operating systems, including Windows,
 Android and iOS.
 
 The C++ daemon is being built for Android in [this
@@ -56,6 +56,9 @@ repository](https://github.com/cachapa/clearskies_core_android).
 There is a [proof-of-concept](https://github.com/jewel/clearskies-ruby) of the
 protocol that is written in ruby.  It is currently out-of-date in relation to
 the latest protocol changes.
+
+There is a [python control library](https://github.com/shish/python-clearskies)
+and also a [Desktop GUI](https://github.com/shish/clearskies-gui).
 
 There is an effort to get the ruby proof-of-concept to run under jruby on
 Android in [this repository](https://github.com/onionjake/clearskies-ruboto).
