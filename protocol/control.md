@@ -178,6 +178,53 @@ And gets a response:
 
 FIXME More to add in this section
 
+Server Configuration
+--------------------
+```json
+{
+  "type": "get_config",
+}
+{
+  "config": {
+    "upload_limit": 123,
+    "use_dht": true,
+    "tracker": "http://myserver.com/cs-track",
+    ...
+  }
+}
+```
+
+```json
+{
+  "type": "set_config",
+  "config": {
+    "upload_limit": 123,
+    "use_dht": true,
+    "tracker": "http://myserver.com/cs-track",
+    ...
+  }
+}
+{}
+```
+
+```json
+{
+  "type": "get_config_value",
+  "key": "upload_limit",
+}
+{
+  "value": 123,
+}
+```
+
+```json
+{
+  "type": "set_config_value",
+  "key": "upload_limit",
+  "value": 456
+}
+{}
+```
 
 Future
 ------
