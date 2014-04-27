@@ -60,9 +60,6 @@ the latest protocol changes.
 There is a [python control library](https://github.com/shish/python-clearskies)
 and also a [Desktop GUI](https://github.com/shish/clearskies-gui).
 
-There is an effort to get the ruby proof-of-concept to run under jruby on
-Android in [this repository](https://github.com/onionjake/clearskies-ruboto).
-
 Debian/Ubuntu packages of the ruby proof-of-concept are also
 [available](https://github.com/rubiojr/clearskies-packages).
 
