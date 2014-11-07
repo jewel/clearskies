@@ -206,7 +206,8 @@ prefix.
 Each of these types will be explained in turn.
 
 For all message types the length of the JSON object is added after the prefix,
-using ASCII characters.  The maximum size for the JSON body is 16777216 bytes.
+ in hexedecimal, using ASCII characters.  The size is padded with zeros and 
+ will always be 6 characters.  The maximum size for the JSON body is 16777216 bytes.
 
 The JSON body must start with a "{" character.  That is to say, it is not valid
 to have an array, string, or other non-object as the body.
@@ -219,7 +220,7 @@ The object will have a "type" member, which will identify the type of message.
 For example:
 
 ```
-m82{
+m000052{
   "type": "foo",
   "message": "Basic example message",
   "declaration": "For great justice"
