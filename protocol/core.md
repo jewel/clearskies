@@ -87,8 +87,6 @@ Each access level also has a 2048-bit RSA key.  It can be used to digitally
 sign messages, which prevents one access level from pretending to be another,
 however, not all messages need to be signed.
 
-Once generated, all keys are saved to disk.
-
 
 Access Codes
 ------------
