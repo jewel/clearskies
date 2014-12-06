@@ -1,15 +1,14 @@
 ClearSkies
 ==========
 
-ClearSkies is a sync program similar to DropBox, except it does not require a
-monthly fee.  Instead, you set up shares between two or more computers and the
-sharing happens amongst them directly.
+ClearSkies is a friend-to-friend protocol.  ClearSkies is inspired by BitTorrent
+Sync, but it has an open protocol that can be audited for security.  The
+protocol is also layered in such a way that other applications can take
+advantage of it for purposes other than file sync.
 
-ClearSkies is inspired by BitTorrent Sync, but it has an open protocol that can
-be audited for security.
-
-The protocol is layered in such a way that other applications can take advantage
-of it for purposes other than file sync.
+ClearSkiesSync is a sync program similar to DropBox, except it does not
+require a monthly fee.  Instead, you set up shares between two or more
+computers and the sharing happens amongst them directly.
 
 
 The Protocol
