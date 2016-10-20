@@ -606,6 +606,88 @@ message. Here is an example "core.start" message:
 ```
 
 
+Updates
+-------
+
+Each share has a revision number which is used to compose the file's vector clock. (SREV)
+
+SREV is an unsigned integer of 32 bits that increments monotonically and wraps around to 0 when its
+incremented past its maximum value of 2^32-1.
+
+SREV is local to each peer and it's incremented each time a change is made to the share, for
+example after each change to a file, file added or deleted detected during a filesystem scan.
+
+
+An individual file record will look
+something like this:
+
+```json
+{
+   "path": "bar.txt",
+   "size": 143,
+   "sha256": "af12bc34...",
+   "last_changed_by": "A",
+   "last_changed_rev": 34,
+   "vector_clock": {
+     "A": 2,
+     "C": 1
+   }
+}
+```
+
+When a change is detected in the file during a scan, the entry in the vector clock corresponding to
+our peer id has to be incremented. If in our example, we are peer "A", after a file change the new
+file reccord will be:
+
+
+```json
+{
+   "path": "bar.txt",
+   "size": 350,
+   "sha256": "deadbeef3...",
+   "last_changed_by": "A",
+   "last_changed_rev": 34,
+   "vector_clock": {
+     "A": 3,
+     "C": 1
+   }
+}
+```
+
+When B connects to A, it will look at its own database to see what the
+maximum transaction ID for each known writer is, using a query like this:
+
+```SQL
+SELECT last_changed_by, max(last_changed_rev) FROM files
+GROUP BY last_changed_by
+```
+
+Obviously this can be tracked in memory instead of doing a full table
+scan each time, since it has an overhead of 20 bytes per known writer.
+
+B will then send the following to A:
+
+```json
+{
+   "type": "get_updates",
+   "since": {
+     "A": 30,
+     "B": 5,
+     "C": 12
+   }
+}
+```
+
+A will then find all records with a query something like this:
+
+```SQL
+   SELECT * FROM files
+   WHERE last_changed_by = 'A' AND last_changed_rev > 30
+      OR last_changed_by = 'B' AND last_changed_rev > 5
+      OR last_changed_by = 'C' AND last_changed_rev > 12
+```
+
+
 Extending the Protocol
 ----------------------
 
@@ -737,3 +819,9 @@ issues will be addressed before the spec is finalized.
   detect.  The tracker can be enhanced to know the difference between those that
   have the keys associated with an access code and those that are seeking those
   keys.
+
+
+Abbreviations
+-------------
+
+SREV: Share revision number
